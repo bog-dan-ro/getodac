@@ -1,0 +1,18 @@
+; GETodac configuration file
+
+http_port 8080 ; HTTP Port
+
+https {
+    enabled false
+    port 8443 ; HTTPS Port
+
+    certificate "server.crt"
+    privateKey "server.key"
+
+    ; ciphers list taken from https://hynek.me/articles/hardening-your-web-servers-ssl-ciphers/
+    ; If the server fails to do the handshake, most probably is bacause of this list
+    ciphers "ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS"
+
+    honorCipherOrder true
+    compression false ; Check https://en.wikipedia.org/wiki/CRIME before enable it
+}

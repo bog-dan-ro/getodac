@@ -61,6 +61,8 @@ public:
     {
         ssize_t written = 0;
         for (int i = 0; i < count; i++) {
+            if (!vec[i].iov_len)
+                continue;
             auto sz = write(vec[i].iov_base, vec[i].iov_len);
             if (sz <= 0)
                 break;

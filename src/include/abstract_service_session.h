@@ -100,6 +100,10 @@ public:
      */
     void writeChunkedData(AbstractServerSession::Yield &yield, const void *buf, size_t length)
     {
+        if (!length) {
+            m_serverSession->write(yield, "0\r\n\r\n", 5);
+            return;
+        }
         iovec chunkData[3];
         std::ostringstream chunkHeaderBuf;
         chunkHeaderBuf << std::hex << length << crlf;

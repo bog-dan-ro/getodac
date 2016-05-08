@@ -33,6 +33,13 @@
 #include <thread>
 #include <iostream>
 
+#include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+#include <boost/property_tree/info_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+
+#include <getodac/exceptions.h>
+
 #include "server.h"
 #include "server_session.h"
 #include "sessions_event_loop.h"
@@ -41,10 +48,6 @@
 
 #include "x86_64-signal.h"
 
-#include <boost/filesystem.hpp>
-#include <boost/program_options.hpp>
-#include <boost/property_tree/info_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 void * operator new(std::size_t n)
 {

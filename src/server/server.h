@@ -27,7 +27,9 @@
 
 #include <openssl/ssl.h>
 
-#include "abstract_server_session.h"
+#include <getodac/abstract_server_session.h>
+#include <getodac/utils.h>
+
 #include "server_plugin.h"
 
 namespace Getodac {

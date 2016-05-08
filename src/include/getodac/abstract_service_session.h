@@ -18,10 +18,10 @@
 #ifndef SERVICE_SESSION_H
 #define SERVICE_SESSION_H
 
-#include "abstract_server_session.h"
-
-#include <sstream>
 #include <string>
+#include <sstream>
+
+#include <getodac/abstract_server_session.h>
 
 namespace Getodac {
 static const char crlf[] = "\r\n";
@@ -34,10 +34,8 @@ static const char crlf[] = "\r\n";
 class AbstractServiceSession
 {
 public:
-    explicit AbstractServiceSession(AbstractServerSession *serverSession, const std::string &url, const std::string &method)
+    explicit AbstractServiceSession(AbstractServerSession *serverSession)
         : m_serverSession(serverSession)
-        , m_url(url)
-        , m_method(method)
     {}
 
     virtual ~AbstractServiceSession() {}
@@ -118,10 +116,13 @@ public:
         m_serverSession->writev(yield, chunkData, 3);
     }
 
+    inline void writeChunkedData(AbstractServerSession::Yield &yield, const std::string &data)
+    {
+        writeChunkedData(yield, data.c_str(), data.size());
+    }
+
 protected:
     AbstractServerSession *m_serverSession = nullptr;
-    std::string m_url;
-    std::string m_method;
 };
 
 #define PLUGIN_EXPORT extern "C" __attribute__ ((visibility("default")))

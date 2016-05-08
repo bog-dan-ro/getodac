@@ -18,21 +18,22 @@
 #ifndef SERVER_SESSION_H
 #define SERVER_SESSION_H
 
-#include "abstract_server_session.h"
 #include "sessions_event_loop.h"
-#include "abstract_service_session.h"
 
 #include "http_parser.h"
 
 #include <unistd.h>
-
-#include <boost/coroutine/all.hpp>
 #include <sys/socket.h>
 
 #include <chrono>
 #include <memory>
 #include <mutex>
 #include <sstream>
+
+#include <boost/coroutine/all.hpp>
+
+#include <getodac/abstract_server_session.h>
+#include <getodac/abstract_service_session.h>
 
 using namespace std::chrono_literals;
 
@@ -133,7 +134,7 @@ private:
     Call m_writeResume;
     uint32_t m_statusCode = 200;
     http_parser m_parser;
-    std::string m_headerFiled;
+    std::string m_tempStr;
     std::shared_ptr<AbstractServiceSession> m_serviceSession;
     std::ostringstream m_resonseHeader;
     uint32_t m_keepAliveSeconds = 10;

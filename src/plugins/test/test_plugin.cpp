@@ -15,24 +15,28 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "abstract_server_session.h"
-#include "abstract_service_session.h"
+#include <getodac/abstract_server_session.h>
+#include <getodac/abstract_service_session.h>
+#include <getodac/restful.h>
 
 #include <iostream>
 #include <mutex>
 
 namespace {
-    const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-    Getodac::spin_lock test50mresponse_lock;
-    std::string test50mresponse;
+
+const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+Getodac::spin_lock test50mresponse_lock;
+std::string test50mresponse;
+
+Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testResful("/test/rest/v1/");
 
 class Test0 : public Getodac::AbstractServiceSession
 {
 public:
     Test0(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-        : Getodac::AbstractServiceSession(serverSession, url, method)
+        : Getodac::AbstractServiceSession(serverSession)
     {
-        std::cout << method << std::endl;
+        std::cout << url << std::endl << method << std::endl;
     }
 
     // ServiceSession interface
@@ -55,8 +59,8 @@ public:
 class Test100 : public Getodac::AbstractServiceSession
 {
 public:
-    Test100(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-        : Getodac::AbstractServiceSession(serverSession, url, method)
+    Test100(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
     {}
 
     // ServiceSession interface
@@ -83,8 +87,8 @@ public:
 class Test50M : public Getodac::AbstractServiceSession
 {
 public:
-    Test50M(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-        : Getodac::AbstractServiceSession(serverSession, url, method)
+    Test50M(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
     {
         std::unique_lock<Getodac::spin_lock> lock(test50mresponse_lock);
         if (test50mresponse.empty())
@@ -116,8 +120,8 @@ public:
 class Test50MS : public Getodac::AbstractServiceSession
 {
 public:
-    Test50MS(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-        : Getodac::AbstractServiceSession(serverSession, url, method)
+    Test50MS(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
     {
         std::unique_lock<Getodac::spin_lock> lock(test50mresponse_lock);
         if (test50mresponse.empty())
@@ -150,21 +154,76 @@ public:
         m_serverSession->responseComplete();
     }
 };
+
+class TestRESTGET : public Getodac::AbstractServiceSession
+{
+public:
+    TestRESTGET(Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources)
+        : Getodac::AbstractServiceSession(serverSession)
+        , m_resources(std::move(resources))
+    {}
+
+    // ServiceSession interface
+    void headerFieldValue(const std::string &, const std::string &) override {}
+    void headersComplete() override {}
+    void body(const char *, size_t) override {}
+    void requestComplete() override
+    {
+        m_serverSession->responseStatus(200);
+        m_serverSession->responseEndHeader(Getodac::ChuckedData);
+    }
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        std::stringstream stream;
+        stream << "Got " << m_resources.size() << " resources\n";
+        writeChunkedData(yield, stream.str());
+        stream.str({});
+        for (const auto &resource : m_resources) {
+            stream << "Resource name: " << resource .name << " \nResource value: " << resource.value << std::endl;
+            for (const auto &query : resource.queryStrings)
+                stream << "    " << query.first << " = " << query.second << std::endl;
+            writeChunkedData(yield, stream.str());
+            stream.str({});
+        }
+        writeChunkedData(yield, nullptr, 0);
+        m_serverSession->responseComplete();
+    }
+
+private:
+    Getodac::Resources m_resources;
+};
+
 } // namespace
 
 PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
 {
     if (url == "/test100")
-        return std::make_shared<Test100>(serverSession, url, method);
+        return std::make_shared<Test100>(serverSession);
 
     if (url == "/test50m")
-        return std::make_shared<Test50M>(serverSession, url, method);
+        return std::make_shared<Test50M>(serverSession);
 
     if (url == "/test50ms")
-        return std::make_shared<Test50MS>(serverSession, url, method);
+        return std::make_shared<Test50MS>(serverSession);
 
     if (url == "/test0")
         return std::make_shared<Test0>(serverSession, url, method);
 
+    if (s_testResful.canHanldle(url, method))
+            return s_testResful.parse(serverSession, url, method);
+
     return std::shared_ptr<Getodac::AbstractServiceSession>();
+}
+
+PLUGIN_EXPORT bool initPlugin()
+{
+    auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources) {
+        return std::make_shared<TestRESTGET>(serverSession, std::move(resources));
+    };
+    s_testResful.setMethodCallback("GET", getMethod, {"customers", "orders"});
+    return true;
+}
+
+PLUGIN_EXPORT void destoryPlugin()
+{
 }

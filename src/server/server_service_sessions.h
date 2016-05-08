@@ -20,8 +20,8 @@
 
 #include <string>
 
-#include "abstract_server_session.h"
-#include "abstract_service_session.h"
+#include <getodac/abstract_server_session.h>
+#include <getodac/abstract_service_session.h>
 
 namespace ServerSessions {
     std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method);

@@ -22,81 +22,13 @@
 #include <sys/uio.h>
 #include <string>
 #include <stdexcept>
-#include <atomic>
 
 #include <boost/coroutine/symmetric_coroutine.hpp>
 
 namespace Getodac {
 
-/*!
- * \brief The broken_pipe_error class
- *
- * Used by AbstractServerSession to throw a broken_pipe_error
- */
-class broken_pipe_error : public std::runtime_error
-{
-public:
-  explicit broken_pipe_error(const std::string& __arg)
-        : std::runtime_error(__arg){}
-  explicit broken_pipe_error(const char* __arg)
-        : std::runtime_error(__arg){}
-};
-
-/*!
- * \brief The segmentation_fault_error class
- *
- * The server converts any SIGSEGV signals into an exception
- */
-class segmentation_fault_error : public std::runtime_error
-{
-public:
-  explicit segmentation_fault_error(const std::string& __arg)
-        : std::runtime_error(__arg){}
-  explicit segmentation_fault_error(const char* __arg)
-        : std::runtime_error(__arg){}
-};
-
-/*!
- * \brief The floating_point_error class
- *
- * The server converts any SIGFPE signals into an exception
- */
-class floating_point_error : public std::runtime_error
-{
-public:
-  explicit floating_point_error(const std::string& __arg)
-        : std::runtime_error(__arg){}
-  explicit floating_point_error(const char* __arg)
-        : std::runtime_error(__arg){}
-};
-
-
-/*!
- * \brief The spin_lock class
- *
- * Spin lock mutex
- */
-class spin_lock
-{
-public:
-    inline void lock() noexcept
-    {
-        while (m_lock.test_and_set(std::memory_order_acquire))
-            ;
-    }
-
-    inline void unlock() noexcept
-    {
-        m_lock.clear(std::memory_order_release);
-    }
-
-    inline bool try_lock()
-    {
-        return !m_lock.test_and_set(std::memory_order_acquire);
-    }
-
-private:
-    std::atomic_flag m_lock = ATOMIC_FLAG_INIT;
+enum {
+    ChuckedData = UINT64_MAX
 };
 
 /*!
@@ -104,9 +36,6 @@ private:
  */
 class AbstractServerSession {
 public:
-    enum {
-        ChuckedData = UINT64_MAX
-    };
     enum class Action {
         Continue,
         Timeout,

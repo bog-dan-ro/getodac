@@ -18,7 +18,7 @@
 #ifndef SERVER_PLUGIN_H
 #define SERVER_PLUGIN_H
 
-#include "abstract_service_session.h"
+#include <getodac/abstract_service_session.h>
 
 namespace Getodac {
 

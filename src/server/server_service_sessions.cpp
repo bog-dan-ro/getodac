@@ -27,8 +27,8 @@ namespace ServerSessions {
 class ServerStatus : public Getodac::AbstractServiceSession
 {
 public:
-    ServerStatus(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-        : Getodac::AbstractServiceSession(serverSession, url, method)
+    ServerStatus(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
     {}
 
     // ServiceSession interface
@@ -82,10 +82,10 @@ private:
     std::string m_response;
 };
 
-std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
+std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &/*method*/)
 {
     if (url == "/server_status")
-        return std::make_shared<ServerStatus>(serverSession, url, method);
+        return std::make_shared<ServerStatus>(serverSession);
 
     return std::shared_ptr<Getodac::AbstractServiceSession>();
 }

@@ -24,6 +24,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <getodac/utils.h>
+
 namespace Getodac {
 
 class ServerSession;

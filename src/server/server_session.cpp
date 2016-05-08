@@ -24,7 +24,9 @@
 #include <unordered_map>
 #include <stdexcept>
 
-#include "abstract_service_session.h"
+#include <getodac/abstract_service_session.h>
+#include <getodac/exceptions.h>
+
 #include "server.h"
 
 namespace Getodac
@@ -160,6 +162,7 @@ void ServerSession::timeout() noexcept
 {
     try {
         m_statusCode = 408;
+        m_tempStr.clear();
         terminateSession(Action::Timeout);
     } catch (...) {}
 }
@@ -167,7 +170,7 @@ void ServerSession::timeout() noexcept
 void ServerSession::write(Yield &yield, const void *buf, size_t size)
 {
     if (!m_resonseHeader.str().empty()) {
-        std::string headers = std::move(m_resonseHeader.str());
+        std::string headers = m_resonseHeader.str();
         m_resonseHeader.str({});
         iovec vec[2];
         vec[0].iov_base = (void *)headers.c_str();
@@ -198,7 +201,7 @@ void ServerSession::write(Yield &yield, const void *buf, size_t size)
 void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size_t count)
 {
     std::unique_ptr<iovec[]> _vec;
-    std::string headers = std::move(m_resonseHeader.str());
+    std::string headers = m_resonseHeader.str();
     if (!headers.empty()) {
         m_resonseHeader.str({});
         _vec = std::make_unique<iovec[]>(count + 1);
@@ -267,7 +270,7 @@ void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAlive
     m_resonseHeader << crlf;
 
     if (!contentLenght) {
-        std::string headers = std::move(m_resonseHeader.str());
+        std::string headers = m_resonseHeader.str();
         write(headers.c_str(), headers.size());
     } else {
         // Switch to write mode
@@ -353,8 +356,9 @@ void ServerSession::terminateSession(Action action)
         try {
             m_resonseHeader.str({});
             responseStatus(m_statusCode);
-            responseEndHeader(0, 0);
-            auto str = std::move(m_resonseHeader.str());
+            responseEndHeader(m_tempStr.size(), 0);
+            m_resonseHeader << m_tempStr;
+            auto str = m_resonseHeader.str();
             write(str.c_str(), str.size());
         } catch (...) { }
     }
@@ -377,15 +381,23 @@ void ServerSession::setTimeout(const std::chrono::milliseconds &ms)
 int ServerSession::messageBegin(http_parser *parser)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
-    thiz->m_headerFiled.clear();
+    thiz->m_tempStr.clear();
     return 0;
 }
 
 int ServerSession::url(http_parser *parser, const char *at, size_t length)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
-    thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
-                                                                      std::string(http_method_str(http_method(parser->method))));
+    try {
+        thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
+                                                                          std::string(http_method_str(http_method(parser->method))));
+    } catch (const response_status_error &status) {
+        thiz->m_tempStr = status.what();
+        return (thiz->m_statusCode = status.statusCode());
+    } catch (...) {
+        return (thiz->m_statusCode = 500); // Internal Server error
+    }
+
     if (!thiz->m_serviceSession)
         return (thiz->m_statusCode = 503); // Service Unavailable
 
@@ -400,8 +412,9 @@ int ServerSession::headerField(http_parser *parser, const char *at, size_t lengt
         length -= 2;
     }
     try {
-        thiz->m_headerFiled = std::string(at, length);
+        thiz->m_tempStr = std::string(at, length);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -416,8 +429,11 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
     }
 
     try {
-        thiz->m_serviceSession->headerFieldValue(thiz->m_headerFiled, std::string(at, length));
-        thiz->m_headerFiled.clear();
+        thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, std::string(at, length));
+        thiz->m_tempStr.clear();
+    } catch (const response_status_error &status) {
+        thiz->m_tempStr = status.what();
+        return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -429,6 +445,9 @@ int ServerSession::headersComplete(http_parser *parser)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->headersComplete();
+    } catch (const response_status_error &status) {
+        thiz->m_tempStr = status.what();
+        return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -440,6 +459,9 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->body(at, length);
+    } catch (const response_status_error &status) {
+        thiz->m_tempStr = status.what();
+        return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -451,6 +473,9 @@ int ServerSession::messageComplete(http_parser *parser)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->requestComplete();
+    } catch (const response_status_error &status) {
+        thiz->m_tempStr = status.what();
+        return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }

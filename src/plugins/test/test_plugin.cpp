@@ -25,7 +25,6 @@
 namespace {
 
 const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-Getodac::SpinLock test50mresponse_lock;
 std::string test50mresponse;
 
 Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testResful("/test/rest/v1/");
@@ -89,12 +88,7 @@ class Test50M : public Getodac::AbstractServiceSession
 public:
     Test50M(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
-    {
-        std::unique_lock<Getodac::SpinLock> lock(test50mresponse_lock);
-        if (test50mresponse.empty())
-            for (int i = 0; i < 500000; ++i)
-                test50mresponse += test100response;
-    }
+    {}
 
     // ServiceSession interface
     void headerFieldValue(const std::string &, const std::string &) override {}
@@ -105,6 +99,7 @@ public:
         m_serverSession->responseStatus(200);
         m_serverSession->responseEndHeader(test50mresponse.size());
     }
+
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
@@ -122,12 +117,7 @@ class Test50MS : public Getodac::AbstractServiceSession
 public:
     Test50MS(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
-    {
-        std::unique_lock<Getodac::SpinLock> lock(test50mresponse_lock);
-        if (test50mresponse.empty())
-            for (int i = 0; i < 500000; ++i)
-                test50mresponse += test100response;
-    }
+    {}
 
     // ServiceSession interface
     void headerFieldValue(const std::string &, const std::string &) override {}
@@ -138,6 +128,7 @@ public:
         m_serverSession->responseStatus(200);
         m_serverSession->responseEndHeader(50000000);
     }
+
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
@@ -172,6 +163,7 @@ public:
         m_serverSession->responseStatus(200);
         m_serverSession->responseEndHeader(Getodac::ChuckedData);
     }
+
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         std::stringstream stream;
@@ -217,6 +209,10 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
 PLUGIN_EXPORT bool initPlugin()
 {
+    test50mresponse.reserve(100 * 500000);
+    for (int i = 0; i < 500000; ++i)
+        test50mresponse += test100response;
+
     auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources) {
         return std::make_shared<TestRESTGET>(serverSession, std::move(resources));
     };

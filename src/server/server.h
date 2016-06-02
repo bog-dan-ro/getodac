@@ -69,7 +69,7 @@ private:
     std::atomic<uint64_t> m_servedSessions;
     int m_eventsSize;
     int m_epollHandler;
-    spin_lock m_activeSessionsMutex;
+    SpinLock m_activeSessionsMutex;
     std::unordered_set<ServerSession*> m_activeSessions;
     std::vector<ServerPlugin> m_plugins;
     std::chrono::system_clock::time_point m_startTime;

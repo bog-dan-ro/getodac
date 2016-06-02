@@ -88,7 +88,7 @@ namespace {
         return std::move(stackTtrace.str());
     }
 
-    static void unblock_signal(int signum)
+    static void unblockSignal(int signum)
     {
         sigset_t sigs;
         sigemptyset(&sigs);
@@ -127,22 +127,22 @@ void Server::exitSignalHandler(int)
 /// Transform broken pipe signals into exceptions
 SIGNAL_HANDLER(catch_pipe)
 {
-    unblock_signal(SIGPIPE);
-    throw broken_pipe_error(stackTrace());
+    unblockSignal(SIGPIPE);
+    throw BrokenPipeError(stackTrace());
 }
 
 /// Transform segmentation violations signals into exceptions
 SIGNAL_HANDLER(catch_segv)
 {
-    unblock_signal(SIGSEGV);
-    throw segmentation_fault_error(stackTrace());
+    unblockSignal(SIGSEGV);
+    throw SegmentationFaultError(stackTrace());
 }
 
 /// Transform floation-point errors signals into exceptions
 SIGNAL_HANDLER(catch_fpe)
 {
-    unblock_signal(SIGFPE);
-    throw floating_point_error(stackTrace());
+    unblockSignal(SIGFPE);
+    throw FloatingPointError(stackTrace());
 }
 
 /// Makes socket nonblocking
@@ -380,7 +380,7 @@ int Server::exec(int argc, char *argv[])
     while (!m_shutdown) {
         int triggeredEvents = epoll_wait(m_epollHandler, epollList.get(), m_eventsSize, 1000);
         {
-            std::unique_lock<spin_lock> lock{m_activeSessionsMutex};
+            std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
             auto sessions = m_activeSessions.size();
             if (sessions > m_peakSessions)
                 m_peakSessions = sessions;
@@ -418,7 +418,7 @@ int Server::exec(int argc, char *argv[])
                     }
                     try {
                         // Let's try to create a new session
-                        std::unique_lock<spin_lock> lock{m_activeSessionsMutex};
+                        std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
                             m_activeSessions.insert((new SecuredServerSession(bestLoop, nonBlocking(sock)))->sessionReady());
                         else
@@ -455,7 +455,7 @@ int Server::exec(int argc, char *argv[])
  */
 void Server::serverSessionDeleted(ServerSession *session)
 {
-    std::unique_lock<spin_lock> lock{m_activeSessionsMutex};
+    std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
     m_activeSessions.erase(session);
 }
 
@@ -487,7 +487,7 @@ uint32_t Server::peakSessions()
  */
 uint32_t Server::activeSessions()
 {
-    std::unique_lock<spin_lock> lock{m_activeSessionsMutex};
+    std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
     return m_activeSessions.size();
 }
 

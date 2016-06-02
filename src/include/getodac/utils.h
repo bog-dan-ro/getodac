@@ -25,11 +25,11 @@
 namespace Getodac {
 
 /*!
- * \brief The spin_lock class
+ * \brief The SpinLock class
  *
  * Spin lock mutex
  */
-class spin_lock
+class SpinLock
 {
 public:
     inline void lock() noexcept

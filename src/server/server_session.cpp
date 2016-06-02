@@ -391,7 +391,7 @@ int ServerSession::url(http_parser *parser, const char *at, size_t length)
     try {
         thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
                                                                           std::string(http_method_str(http_method(parser->method))));
-    } catch (const response_status_error &status) {
+    } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();
         return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
@@ -431,7 +431,7 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
     try {
         thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, std::string(at, length));
         thiz->m_tempStr.clear();
-    } catch (const response_status_error &status) {
+    } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();
         return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
@@ -445,7 +445,7 @@ int ServerSession::headersComplete(http_parser *parser)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->headersComplete();
-    } catch (const response_status_error &status) {
+    } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();
         return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
@@ -459,7 +459,7 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->body(at, length);
-    } catch (const response_status_error &status) {
+    } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();
         return (thiz->m_statusCode = status.statusCode());
     } catch (...) {
@@ -473,7 +473,7 @@ int ServerSession::messageComplete(http_parser *parser)
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->requestComplete();
-    } catch (const response_status_error &status) {
+    } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();
         return (thiz->m_statusCode = status.statusCode());
     } catch (...) {

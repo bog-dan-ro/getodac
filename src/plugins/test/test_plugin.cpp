@@ -25,7 +25,7 @@
 namespace {
 
 const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-Getodac::spin_lock test50mresponse_lock;
+Getodac::SpinLock test50mresponse_lock;
 std::string test50mresponse;
 
 Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testResful("/test/rest/v1/");
@@ -90,7 +90,7 @@ public:
     Test50M(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
     {
-        std::unique_lock<Getodac::spin_lock> lock(test50mresponse_lock);
+        std::unique_lock<Getodac::SpinLock> lock(test50mresponse_lock);
         if (test50mresponse.empty())
             for (int i = 0; i < 500000; ++i)
                 test50mresponse += test100response;
@@ -123,7 +123,7 @@ public:
     Test50MS(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
     {
-        std::unique_lock<Getodac::spin_lock> lock(test50mresponse_lock);
+        std::unique_lock<Getodac::SpinLock> lock(test50mresponse_lock);
         if (test50mresponse.empty())
             for (int i = 0; i < 500000; ++i)
                 test50mresponse += test100response;

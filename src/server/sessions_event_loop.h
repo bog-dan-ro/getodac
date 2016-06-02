@@ -64,7 +64,7 @@ private:
     std::mutex m_sessionsMutex;
     volatile bool m_sessionsRehashed;
     std::unordered_set<ServerSession *> m_sessions;
-    spin_lock m_deleteLaterMutex;
+    SpinLock m_deleteLaterMutex;
     std::unordered_set<ServerSession *> m_deleteLaterObjects;
 };
 

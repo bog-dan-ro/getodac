@@ -107,7 +107,7 @@ public:
                 // the resource name should not be escaped
                 auto it = methodResources.find(resource.name);
                 if ( it == methodResources.end())
-                    throw response_status_error{400, "Unknown resource name \"" + resource.name + "\""};
+                    throw ResponseStatusError{400, "Unknown resource name \"" + resource.name + "\""};
                 methodResources.erase(it);
 
                 if (qpos != std::string::npos) {
@@ -125,7 +125,7 @@ public:
                                                                                 unescape(url.substr(kv[1].first, kv[1].second))));
                             break;
                         default:
-                            throw response_status_error{400, "Invalid query strings"};
+                            throw ResponseStatusError{400, "Invalid query strings"};
                         }
                     }
                 }

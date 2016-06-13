@@ -30,13 +30,15 @@ namespace Getodac {
 class ServerPlugin
 {
 public:
-    explicit ServerPlugin(const std::string &path);
-    explicit ServerPlugin(CreateSessionType funcPtr);
+    explicit ServerPlugin(const std::string &path, const std::__cxx11::string &confDir);
+    explicit ServerPlugin(CreateSessionType funcPtr, uint32_t order);
     ~ServerPlugin();
     CreateSessionType createSession;
+    uint32_t order() const { return m_order; }
 
 private:
     std::shared_ptr<void> m_handler;
+    uint32_t m_order = 0;
 };
 
 } // namespace Getodac

@@ -27,7 +27,7 @@ namespace {
 const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 std::string test50mresponse;
 
-Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testResful("/test/rest/v1/");
+Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testRestful("/test/rest/v1/");
 
 class Test0 : public Getodac::AbstractServiceSession
 {
@@ -201,13 +201,13 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
     if (url == "/test0")
         return std::make_shared<Test0>(serverSession, url, method);
 
-    if (s_testResful.canHanldle(url, method))
-            return s_testResful.parse(serverSession, url, method);
+    if (s_testRestful.canHanldle(url, method))
+            return s_testRestful.parse(serverSession, url, method);
 
     return std::shared_ptr<Getodac::AbstractServiceSession>();
 }
 
-PLUGIN_EXPORT bool initPlugin()
+PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
 {
     test50mresponse.reserve(100 * 500000);
     for (int i = 0; i < 500000; ++i)
@@ -216,8 +216,13 @@ PLUGIN_EXPORT bool initPlugin()
     auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources) {
         return std::make_shared<TestRESTGET>(serverSession, std::move(resources));
     };
-    s_testResful.setMethodCallback("GET", getMethod, {"customers", "orders"});
+    s_testRestful.setMethodCallback("GET", getMethod, {"customers", "orders"});
     return true;
+}
+
+PLUGIN_EXPORT uint32_t pluginOrder()
+{
+    return 9999999;
 }
 
 PLUGIN_EXPORT void destoryPlugin()

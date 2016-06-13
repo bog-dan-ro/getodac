@@ -131,9 +131,14 @@ protected:
  Every plugin must implement the following functions as PLUGIN_EXPORT functions:
 
 {code}
-PLUGIN_EXPORT bool initPlugin()
+PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
 {
   // This function is called by the server after it loads the plugin
+}
+
+PLUGIN_EXPORT uint32_t pluginOrder()
+{
+    // The server calls this function to get the plugin order
 }
 
 PLUGIN_EXPORT std::shared_ptr<AbstractServiceSession> createSession(AbstractServerSession *serverSession,
@@ -154,7 +159,10 @@ PLUGIN_EXPORT void destoryPlugin()
 */
 
 /// The server calls this function when it loads the plugin
-typedef bool (*InitPluginType)();
+typedef bool (*InitPluginType)(const std::string &confDir);
+
+/// The server calls this function to get the plugin order
+typedef uint32_t (*PluginOrder)();
 
 /// The server calls this function when it needs to create a new session
 typedef std::shared_ptr<AbstractServiceSession> (*CreateSessionType)(AbstractServerSession *serverSession, const std::string &url, const std::string &method);

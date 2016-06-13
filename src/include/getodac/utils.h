@@ -19,7 +19,10 @@
 #define UTILS_H
 
 #include <atomic>
+#include <list>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Getodac {
@@ -105,6 +108,76 @@ inline std::vector<std::pair<std::string::size_type, std::string::size_type>> sp
         ret.emplace_back(std::make_pair(pos, nchars));
     return ret;
 }
+
+template <typename K, typename V, typename Lock = SpinLock>
+class LRUCache
+{
+public:
+    LRUCache(size_t cacheSize)
+        : m_cacheSize(cacheSize) {}
+
+    inline void put(const K &key, const V &value)
+    {
+        {
+            std::unique_lock<Lock> lock{m_lock};
+            m_cacheItems.emplace_front(key, value);
+            m_cacheHash[key] = m_cacheItems.begin();
+        }
+        cleanCache();
+    }
+
+    inline V &getReference(const K &key)
+    {
+        std::unique_lock<Lock> lock{m_lock};
+        auto it = m_cacheHash.find(key);
+        if (it == m_cacheHash.end())
+            throw std::range_error{"Invalid key"};
+        return it->second->second;
+    }
+
+    inline V getValue(const K &key)
+    {
+        std::unique_lock<Lock> lock{m_lock};
+        auto it = m_cacheHash.find(key);
+        if (it == m_cacheHash.end())
+            return V{};
+        return it->second->second;
+    }
+
+    inline bool exists(const K &key)
+    {
+        std::unique_lock<Lock> lock{m_lock};
+        return m_cacheHash.find(key) != m_cacheHash.end();
+    }
+
+    void setCacheSize(size_t size)
+    {
+        {
+            std::unique_lock<Lock> lock{m_lock};
+            m_cacheSize = size;
+        }
+        cleanCache();
+    }
+
+private:
+    inline void cleanCache()
+    {
+        std::unique_lock<Lock> lock{m_lock};
+        while (m_cacheHash.size() >= m_cacheSize) {
+            auto it = m_cacheItems.rbegin();
+            m_cacheHash.erase(it->first);
+            m_cacheItems.pop_front();
+        }
+    }
+
+private:
+    using KeyValue = std::pair<K, V>;
+    std::list<KeyValue> m_cacheItems;
+    using CacheIterator = typename std::list<KeyValue>::iterator;
+    std::unordered_map<K, CacheIterator> m_cacheHash;
+    size_t m_cacheSize;
+    Lock m_lock;
+};
 
 } // namespace Getodac
 

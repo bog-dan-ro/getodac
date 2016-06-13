@@ -30,7 +30,7 @@ namespace Getodac {
  *
  * \param path to plugin
  */
-ServerPlugin::ServerPlugin(const std::string &path)
+ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
 {
     m_handler = std::shared_ptr<void>(dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL), [](void *ptr){
         if (ptr) {
@@ -45,9 +45,13 @@ ServerPlugin::ServerPlugin(const std::string &path)
         throw std::runtime_error{"Can't open " + path};
     try {
         InitPluginType init = (InitPluginType) dlsym(m_handler.get(), "initPlugin");
-        if (init && !init())
+        if (init && !init(confDir))
             throw std::runtime_error{"initPlugin failed"};
 
+        auto order = (PluginOrder)dlsym(m_handler.get(), "pluginOrder");
+        if (!order)
+            throw std::runtime_error{"Can't find pluginOrder function"};
+        m_order = order();
         createSession = (CreateSessionType)dlsym(m_handler.get(), "createSession");
 
         if (!createSession)
@@ -63,8 +67,9 @@ ServerPlugin::ServerPlugin(const std::string &path)
  *
  * \param createSession function pointer
  */
-ServerPlugin::ServerPlugin(CreateSessionType funcPtr)
+ServerPlugin::ServerPlugin(CreateSessionType funcPtr, uint32_t order)
  : createSession(funcPtr)
+ , m_order(order)
 {
 }
 

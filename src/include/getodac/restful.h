@@ -42,7 +42,7 @@ using Resources = std::vector<Resource>;
 /*!
  * The RESTful class
  */
-template <typename Return = void, typename Param = AbstractServerSession*>
+template <typename Return, typename Param = AbstractServerSession*>
 class RESTful
 {
 public:
@@ -92,7 +92,7 @@ public:
         bool searchForValue =  false;
         for (const auto &resourceChunck : split(url, '/', m_urlPrefix.size(), url.size() - m_urlPrefix.size())) {
             if (searchForValue) {
-                resourses.back().value = std::move(unescape(url.substr(resourceChunck.first, resourceChunck.second)));
+                resourses.back().value = std::move(unEscape(url.substr(resourceChunck.first, resourceChunck.second)));
             } else {
                 // Prepare the resource
                 Resource resource;
@@ -118,11 +118,11 @@ public:
                         auto kv = split(url, '=', kvPair.first, kvPair.second);
                         switch (kv.size()) {
                         case 1:
-                            resource.queryStrings.emplace_back(std::make_pair(unescape(url.substr(kv[0].first, kv[0].second)), ""));
+                            resource.queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)), ""));
                             break;
                         case 2:
-                            resource.queryStrings.emplace_back(std::make_pair(unescape(url.substr(kv[0].first, kv[0].second)),
-                                                                                unescape(url.substr(kv[1].first, kv[1].second))));
+                            resource.queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)),
+                                                                                unEscape(url.substr(kv[1].first, kv[1].second))));
                             break;
                         default:
                             throw ResponseStatusError{400, "Invalid query strings"};
@@ -143,7 +143,7 @@ private:
         return isdigit(ch) ? ch - '0' : 10 + tolower(ch) - 'a';
     }
 
-    inline std::string unescape(const std::string &in)
+    inline std::string unEscape(const std::string &in)
     {
         std::string out;
         out.reserve(in.size());

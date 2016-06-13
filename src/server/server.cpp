@@ -255,12 +255,12 @@ int Server::exec(int argc, char *argv[])
 
     // Default plugins path
     std::string pluginsPath = fs::path(argv[0]).parent_path().parent_path().append("/libs/getodac/plugins").string();
-    std::string confFile;
+    std::string confDir;
 
     // Server arguments
     po::options_description desc{"GETodac options"};
     desc.add_options()
-            ("conf,c", po::value<std::string>(&confFile), "configuration file")
+            ("conf,c", po::value<std::string>(&confDir), "configurations path")
             ("plugins-dir,d", po::value<std::string>(&pluginsPath)->default_value(pluginsPath), "plugins dir")
             ("workers,w", po::value<uint32_t>(&eventLoopsSize), "configuration file")
             ("help,h", "print this help")
@@ -286,10 +286,10 @@ int Server::exec(int argc, char *argv[])
 
     auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
 
-    if (!confFile.empty()) {
+    if (!confDir.empty()) {
         namespace pt = boost::property_tree;
         pt::ptree properties;
-        pt::read_info(confFile, properties);
+        pt::read_info(boost::filesystem::path(confDir).append("/server.conf").string(), properties);
         httpPort = properties.get("http_port", httpPort);
         if (properties.find("https") != properties.not_found()) {
             if (properties.get("https.enabled", false)) {
@@ -343,7 +343,7 @@ int Server::exec(int argc, char *argv[])
         for (fs::directory_iterator dir_itr{pluginsPath}; dir_itr != end_iter; ++dir_itr) {
             try {
                 if (fs::is_regular_file(dir_itr->status()))
-                    m_plugins.emplace_back(dir_itr->path().string());
+                    m_plugins.emplace_back(dir_itr->path().string(), confDir);
             } catch (const std::exception &e) {
                 std::cerr << e.what() << std::endl;
             }
@@ -351,8 +351,8 @@ int Server::exec(int argc, char *argv[])
     }
 
     // at the end add the server sessions
-    m_plugins.emplace_back(&ServerSessions::createSession);
-
+    m_plugins.emplace_back(&ServerSessions::createSession, UINT32_MAX / 2);
+    std::sort(m_plugins.begin(), m_plugins.end(), [](const ServerPlugin &a, const ServerPlugin &b){return a.order() < b.order();});
     // accept thread must have insane priority to be able to accept connections
     // as fast as possible
     sched_param sch;

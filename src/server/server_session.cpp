@@ -140,10 +140,13 @@ void ServerSession::processEvents(uint32_t events) noexcept
         }
 
         if (events & (EPOLLIN | EPOLLPRI)) {
-            if (m_readResume)
+            if (m_readResume) {
                 m_readResume(Action::Continue);
-            else
+                if (m_statusCode != 200)
+                    terminateSession(Action::Quit);
+            } else {
                 terminateSession(Action::Quit);
+            }
             return;
         }
 
@@ -318,10 +321,8 @@ void ServerSession::readLoop(Yield &yield)
                 memcpy(m_eventLoop->sharedReadBuffer.data(), tempBuffer.data(), tempSize);
 
             auto parsedBytes = http_parser_execute(&m_parser, &settings, m_eventLoop->sharedReadBuffer.data(), tempSize + sz);
-            if (m_parser.http_errno) {
-                terminateSession(Action::Quit);
+            if (m_parser.http_errno)
                 return;
-            }
             tempBuffer.clear();
             if (size_t(sz) > parsedBytes) {
                 auto tempLen = sz - parsedBytes;
@@ -344,6 +345,7 @@ void ServerSession::writeLoop(Yield &yield)
             setTimeout();
             yield();
         } catch (...) {
+            m_serviceSession.reset();
             m_eventLoop->deleteLater(this);
         }
     }

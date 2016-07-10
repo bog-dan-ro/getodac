@@ -149,7 +149,7 @@ public:
 class TestRESTGET : public Getodac::AbstractServiceSession
 {
 public:
-    TestRESTGET(Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources)
+    TestRESTGET(Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources)
         : Getodac::AbstractServiceSession(serverSession)
         , m_resources(std::move(resources))
     {}
@@ -167,13 +167,17 @@ public:
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         std::stringstream stream;
-        stream << "Got " << m_resources.size() << " resources\n";
+        stream << "Got " << m_resources.first.size() << " resources\n";
+        stream << "and " << m_resources.second.size() << " queries\n";
         writeChunkedData(yield, stream.str());
         stream.str({});
-        for (const auto &resource : m_resources) {
-            stream << "Resource name: " << resource .name << " \nResource value: " << resource.value << std::endl;
-            for (const auto &query : resource.queryStrings)
-                stream << "    " << query.first << " = " << query.second << std::endl;
+        for (const auto &resource : m_resources.first) {
+            stream << "Resource name: " << resource.first << "  value: " << resource.second << std::endl;
+            writeChunkedData(yield, stream.str());
+            stream.str({});
+        }
+        for (const auto &query : m_resources.second) {
+            stream << "Query name: " << query.first << "  value: " << query.second << std::endl;
             writeChunkedData(yield, stream.str());
             stream.str({});
         }
@@ -182,7 +186,7 @@ public:
     }
 
 private:
-    Getodac::Resources m_resources;
+    Getodac::ParsedUrl m_resources;
 };
 
 } // namespace
@@ -213,7 +217,7 @@ PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
     for (int i = 0; i < 500000; ++i)
         test50mresponse += test100response;
 
-    auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::Resources &&resources) {
+    auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources) {
         return std::make_shared<TestRESTGET>(serverSession, std::move(resources));
     };
     s_testRestful.setMethodCallback("GET", getMethod, {"customers", "orders"});

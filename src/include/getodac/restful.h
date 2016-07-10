@@ -31,13 +31,10 @@
 namespace Getodac {
 class AbstractServerSession;
 
-struct Resource {
-    std::string name;
-    std::string value;
-    std::vector<std::pair<std::string, std::string>> queryStrings;
-};
+using Resources = std::vector<std::pair<std::string, std::string>>;
+using QueryStrings = std::vector<std::pair<std::string, std::string>>;
 
-using Resources = std::vector<Resource>;
+using ParsedUrl = std::pair<Resources, QueryStrings>;
 
 /*!
  * The RESTful class
@@ -46,7 +43,7 @@ template <typename Return, typename Param = AbstractServerSession*>
 class RESTful
 {
 public:
-    using Func = std::function<Return(Param param, Resources &&resources)>;
+    using Func = std::function<Return(Param param, ParsedUrl &&resources)>;
     RESTful(const std::string &urlPrefix) : m_urlPrefix(urlPrefix) {}
 
     /*!
@@ -86,54 +83,54 @@ public:
 
         const auto &methodPair = m_methods[method];
         auto methodResources = methodPair.second;
-        Resources resourses;
+
+
+        // Search for ?
+        QueryStrings queryStrings;
+        auto qpos = findInSubstr(url, m_urlPrefix.size(), url.size() - m_urlPrefix.size(), '?');
+        if (qpos != std::string::npos) {
+            // time to parse the queryStrings
+            // the parser only supports key1=value1&key2=value2... format
+            ++qpos;
+            for (const auto &kvPair : split(url, '&', qpos, url.size() - qpos)) {
+                auto kv = split(url, '=', kvPair.first, kvPair.second);
+                switch (kv.size()) {
+                case 1:
+                    queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)), ""));
+                    break;
+                case 2:
+                    queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)),
+                                                                        unEscape(url.substr(kv[1].first, kv[1].second))));
+                    break;
+                default:
+                    throw ResponseStatusError{400, "Invalid query strings"};
+                }
+            }
+            --qpos;
+        } else {
+            qpos = url.size();
+        }
 
         // Split resources
+        Resources resourses;
         bool searchForValue =  false;
-        for (const auto &resourceChunck : split(url, '/', m_urlPrefix.size(), url.size() - m_urlPrefix.size())) {
+        for (const auto &resourceChunck : split(url, '/', m_urlPrefix.size(), qpos - m_urlPrefix.size())) {
             if (searchForValue) {
-                resourses.back().value = std::move(unEscape(url.substr(resourceChunck.first, resourceChunck.second)));
+                resourses.back().second = std::move(unEscape(url.substr(resourceChunck.first, resourceChunck.second)));
             } else {
-                // Prepare the resource
-                Resource resource;
-
-                // Search for ?
-                auto qpos = findInSubstr(url, resourceChunck.first, resourceChunck.second, '?');
-                if (qpos != std::string::npos)
-                    resource.name = std::move(url.substr(resourceChunck.first, qpos - resourceChunck.first));
-                else
-                    resource.name = std::move(url.substr(resourceChunck.first, resourceChunck.second));
+                std::string resourcesName = std::move(url.substr(resourceChunck.first, resourceChunck.second));
 
                 // the resource name should not be escaped
-                auto it = methodResources.find(resource.name);
+                auto it = methodResources.find(resourcesName);
                 if ( it == methodResources.end())
-                    throw ResponseStatusError{400, "Unknown resource name \"" + resource.name + "\""};
+                    throw ResponseStatusError{400, "Unknown resource name \"" + resourcesName + "\""};
                 methodResources.erase(it);
-
-                if (qpos != std::string::npos) {
-                    // time to parse the queryStrings
-                    // the parser only supports key1=value1&key2=value2... format
-                    ++qpos;
-                    for (const auto &kvPair : split(url, '&', qpos, resourceChunck.second - (qpos - resourceChunck.first))) {
-                        auto kv = split(url, '=', kvPair.first, kvPair.second);
-                        switch (kv.size()) {
-                        case 1:
-                            resource.queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)), ""));
-                            break;
-                        case 2:
-                            resource.queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)),
-                                                                                unEscape(url.substr(kv[1].first, kv[1].second))));
-                            break;
-                        default:
-                            throw ResponseStatusError{400, "Invalid query strings"};
-                        }
-                    }
-                }
-                resourses.push_back(std::move(resource));
+                resourses.emplace_back(std::make_pair(resourcesName, std::string()));
             }
             searchForValue = !searchForValue;
         }
-        return methodPair.first(param, std::move(resourses));
+
+        return methodPair.first(param, std::move(std::make_pair(resourses, queryStrings)));
     }
 
 private:

@@ -101,6 +101,8 @@ inline std::vector<std::pair<std::string::size_type, std::string::size_type>> sp
             auto sz = nextPos - pos;
             ret.emplace_back(std::make_pair(pos, sz));
             nchars -= sz + 1;
+        } else {
+            --nchars;
         }
         pos = nextPos + 1;
     }

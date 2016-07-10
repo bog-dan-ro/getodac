@@ -32,8 +32,8 @@
 
 namespace {
 using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
-Getodac::LRUCache<std::string, FileMapPtr> s_filesCache(100);
-std::vector<std::pair<std::string,std::string>> s_urls;
+Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
+std::vector<std::pair<std::string, std::string>> s_urls;
 
 class StaticContent : public Getodac::AbstractServiceSession
 {
@@ -44,8 +44,9 @@ public:
         try {
             auto p = boost::filesystem::canonical(path, root);
             m_file = s_filesCache.getValue(p.string());
-            if (!m_file) {
-                m_file = std::make_shared<boost::iostreams::mapped_file_source>(p);
+            auto lastWriteTime = boost::filesystem::last_write_time(p);
+            if (!m_file.second || m_file.first != lastWriteTime) {
+                m_file = std::make_pair(lastWriteTime, std::make_shared<boost::iostreams::mapped_file_source>(p));
                 s_filesCache.put(p.string(), m_file);
             }
         } catch (const boost::filesystem::filesystem_error &e) {
@@ -62,17 +63,17 @@ public:
     void requestComplete() override
     {
         m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(m_file->size());
+        m_serverSession->responseEndHeader(m_file.second->size());
     }
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        m_serverSession->write(yield, m_file->data(), m_file->size());
+        m_serverSession->write(yield, m_file.second->data(), m_file.second->size());
         m_serverSession->responseComplete();
     }
 
 private:
-    FileMapPtr m_file;
+    std::pair<std::time_t, FileMapPtr> m_file;
 };
 
 } // namespace

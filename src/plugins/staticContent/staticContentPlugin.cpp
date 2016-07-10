@@ -80,8 +80,16 @@ private:
 PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &/*method*/)
 {
     for (const auto &pair : s_urls) {
-        if (boost::starts_with(url, pair.first))
-            return std::make_shared<StaticContent>(serverSession, pair.second, url.c_str() + pair.first.size());
+        if (boost::starts_with(url, pair.first)) {
+            if (boost::starts_with(pair.first, "/~")) {
+                auto pos = url.find('/', 1);
+                if (pos == std::string::npos)
+                    break;
+                return std::make_shared<StaticContent>(serverSession, pair.second, url.substr(2, pos - 1) + "public_html" + url.substr(pos, url.size() - pos));
+            } else {
+                return std::make_shared<StaticContent>(serverSession, pair.second, url.c_str() + pair.first.size());
+            }
+        }
     }
 
     return std::shared_ptr<Getodac::AbstractServiceSession>();

@@ -43,23 +43,19 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
 
     if (!m_handler)
         throw std::runtime_error{"Can't open " + path};
-    try {
-        InitPluginType init = (InitPluginType) dlsym(m_handler.get(), "initPlugin");
-        if (init && !init(confDir))
-            throw std::runtime_error{"initPlugin failed"};
 
-        auto order = (PluginOrder)dlsym(m_handler.get(), "pluginOrder");
-        if (!order)
-            throw std::runtime_error{"Can't find pluginOrder function"};
-        m_order = order();
-        createSession = (CreateSessionType)dlsym(m_handler.get(), "createSession");
+    InitPluginType init = (InitPluginType) dlsym(m_handler.get(), "initPlugin");
+    if (init && !init(confDir))
+        throw std::runtime_error{"initPlugin failed"};
 
-        if (!createSession)
-            throw std::runtime_error{dlerror()};
-    } catch (...) {
-        dlclose(m_handler.get());
-        throw;
-    }
+    auto order = (PluginOrder)dlsym(m_handler.get(), "pluginOrder");
+    if (!order)
+        throw std::runtime_error{"Can't find pluginOrder function"};
+    m_order = order();
+    createSession = (CreateSessionType)dlsym(m_handler.get(), "createSession");
+
+    if (!createSession)
+        throw std::runtime_error{dlerror()};
 }
 
 /*!

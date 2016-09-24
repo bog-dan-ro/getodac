@@ -24,19 +24,21 @@
 
 namespace {
 
-const std::string test100response("100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"};
 std::string test50mresponse;
+const std::string test100Key{"/test100"};
+const std::string test0Key{"/test0"};
+const std::string test50MKey{"/test50m"};
+const std::string test50MSKey{"/test50ms"};
 
 Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testRestful("/test/rest/v1/");
 
 class Test0 : public Getodac::AbstractServiceSession
 {
 public:
-    Test0(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
+    Test0(Getodac::AbstractServerSession *serverSession, const std::string &, const std::string &)
         : Getodac::AbstractServiceSession(serverSession)
-    {
-        std::cout << url << std::endl << method << std::endl;
-    }
+    {}
 
     // ServiceSession interface
     void headerFieldValue(const std::string &, const std::string &) override {}
@@ -193,16 +195,16 @@ private:
 
 PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
 {
-    if (url == "/test100")
+    if (url == test100Key)
         return std::make_shared<Test100>(serverSession);
 
-    if (url == "/test50m")
+    if (url == test50MKey)
         return std::make_shared<Test50M>(serverSession);
 
-    if (url == "/test50ms")
+    if (url == test50MSKey)
         return std::make_shared<Test50MS>(serverSession);
 
-    if (url == "/test0")
+    if (url == test0Key)
         return std::make_shared<Test0>(serverSession, url, method);
 
     if (s_testRestful.canHanldle(url, method))

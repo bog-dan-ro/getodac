@@ -216,7 +216,7 @@ void SessionsEventLoop::loop()
 
         // Delete all deleteLater pending sessions
         std::unique_lock<SpinLock> lock{m_deleteLaterMutex};
-        for (auto obj : m_deleteLaterObjects)
+        for (auto &obj : m_deleteLaterObjects)
             delete obj;
         m_deleteLaterObjects.clear();
     }

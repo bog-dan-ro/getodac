@@ -440,7 +440,7 @@ int Server::exec(int argc, char *argv[])
     eventLoops.reset();
 
     // Delete all active sessions
-    for (auto session : m_activeSessions)
+    for (auto &session : m_activeSessions)
         delete session;
 
     m_plugins.clear();

@@ -132,7 +132,7 @@ private:
     typedef boost::coroutines::symmetric_coroutine<Action>::call_type Call;
     Call m_readResume;
     Call m_writeResume;
-    uint32_t m_statusCode = 200;
+    uint32_t m_statusCode = 0;
     http_parser m_parser;
     std::string m_tempStr;
     std::shared_ptr<AbstractServiceSession> m_serviceSession;

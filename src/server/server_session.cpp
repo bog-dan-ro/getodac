@@ -142,7 +142,7 @@ void ServerSession::processEvents(uint32_t events) noexcept
         if (events & (EPOLLIN | EPOLLPRI)) {
             if (m_readResume) {
                 m_readResume(Action::Continue);
-                if (m_statusCode != 200)
+                if (m_statusCode && m_statusCode != 200)
                     terminateSession(Action::Quit);
             } else {
                 terminateSession(Action::Quit);
@@ -164,8 +164,10 @@ void ServerSession::processEvents(uint32_t events) noexcept
 void ServerSession::timeout() noexcept
 {
     try {
-        m_statusCode = 408;
-        m_tempStr.clear();
+        if (!m_statusCode) {
+            m_statusCode = 408;
+            m_tempStr.clear();
+        }
         terminateSession(Action::Timeout);
     } catch (...) {}
 }

@@ -36,10 +36,12 @@ public:
     ssize_t read(void *buf, size_t size) override
     {
         auto sz = SSL_read(m_SSL, buf, size);
-        if (sz <= 0) {
+        if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
                 return 0;
+            else
+                return -1;
         }
         return sz;
     }
@@ -47,7 +49,7 @@ public:
     ssize_t write(const void *buf, size_t size) override
     {
         auto sz = SSL_write(m_SSL, buf, size);
-        if (sz <= 0) {
+        if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
                 return 0;
@@ -64,7 +66,7 @@ public:
             if (!vec[i].iov_len)
                 continue;
             auto sz = write(vec[i].iov_base, vec[i].iov_len);
-            if (sz <= 0)
+            if (sz < 0)
                 break;
             written += sz;
         }
@@ -73,7 +75,12 @@ public:
 
     void close() override
     {
-        SSL_shutdown(m_SSL);
+        try {
+            if (m_SSL && SSL_shutdown(m_SSL) == 0)
+                SSL_shutdown(m_SSL);
+        } catch (...) {
+        }
+
         ServerSession::close();
     }
 

@@ -312,7 +312,10 @@ void ServerSession::readLoop(Yield &yield)
             setTimeout();
             auto tempSize = tempBuffer.size();
             auto sz = read(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
-            if (sz < 1) {
+            if (!sz)
+                continue;
+
+            if (sz < 0) {
                 yield();
                 continue;
             }

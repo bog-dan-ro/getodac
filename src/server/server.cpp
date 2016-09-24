@@ -96,16 +96,37 @@ namespace {
         sigprocmask(SIG_UNBLOCK, &sigs, NULL);
     }
 
+    class PthreadRW {
+    public:
+        PthreadRW()
+        {
+            if (pthread_rwlock_init(&m_lock, nullptr))
+                throw std::runtime_error("rwlock_init failed");
+        }
+        ~PthreadRW()
+        {
+            pthread_rwlock_destroy(&m_lock);
+        }
+        inline void lock_read(){ pthread_rwlock_rdlock(&m_lock); }
+        inline void lock_write() { pthread_rwlock_wrlock(&m_lock); }
+        inline void unlock() { pthread_rwlock_unlock(&m_lock); }
+    private:
+        pthread_rwlock_t m_lock;
+    };
+
     // SSL Crypto thread stuff
-    std::unique_ptr<std::mutex[]> s_cryptoMutexes;
+    std::unique_ptr<PthreadRW[]> s_cryptoMutexes;
     void sslThreadLock(int mode, int type, const char */*file*/, int /*line*/)
     {
-        if (mode & CRYPTO_LOCK)
-            s_cryptoMutexes[type].lock();
-        else
+        if (mode & CRYPTO_UNLOCK) {
             s_cryptoMutexes[type].unlock();
+        } else {
+            if (mode & CRYPTO_READ)
+                s_cryptoMutexes[type].lock_read();
+            else
+                s_cryptoMutexes[type].lock_write();
+        }
     }
-
     unsigned long sslGetThreadId(void)
     {
         return ::pthread_self();
@@ -326,11 +347,6 @@ int Server::exec(int argc, char *argv[])
                 SSL_CTX_set_verify(m_SSLContext, SSL_VERIFY_PEER, nullptr);
                 SSL_CTX_set_session_cache_mode(m_SSLContext, SSL_SESS_CACHE_SERVER);
                 SSL_CTX_set_verify_depth(m_SSLContext, 10);
-
-                s_cryptoMutexes = std::make_unique<std::mutex[]>(CRYPTO_num_locks());
-                CRYPTO_set_id_callback(sslGetThreadId);
-                CRYPTO_set_locking_callback(sslThreadLock);
-
             } else {
                 httpsPort = 0;
             }
@@ -512,6 +528,10 @@ SSL_CTX *Getodac::Server::sslContext() const
  */
 Server::Server()
 {
+    s_cryptoMutexes = std::make_unique<PthreadRW[]>(CRYPTO_num_locks());
+    CRYPTO_set_locking_callback(&sslThreadLock);
+    CRYPTO_set_id_callback(&sslGetThreadId);
+
     m_shutdown.store(false);
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
 
@@ -536,6 +556,8 @@ Server::~Server()
 {
     if (m_SSLContext)
         SSL_CTX_free(m_SSLContext);
+    CRYPTO_set_locking_callback(nullptr);
+    CRYPTO_set_id_callback(nullptr);
     std::cout << " done" <<std::endl << std::flush;
 }
 

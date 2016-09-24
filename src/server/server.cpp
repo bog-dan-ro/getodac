@@ -344,8 +344,8 @@ int Server::exec(int argc, char *argv[])
                 if (!properties.get("https.compression", false))
                     SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_COMPRESSION);
 
-                SSL_CTX_set_verify(m_SSLContext, SSL_VERIFY_PEER, nullptr);
-                SSL_CTX_set_session_cache_mode(m_SSLContext, SSL_SESS_CACHE_SERVER);
+                SSL_CTX_set_verify(m_SSLContext, SSL_VERIFY_CLIENT_ONCE, nullptr);
+                SSL_CTX_set_session_cache_mode(m_SSLContext, SSL_SESS_CACHE_CLIENT);
                 SSL_CTX_set_verify_depth(m_SSLContext, 10);
             } else {
                 httpsPort = 0;

@@ -119,11 +119,16 @@ ServerSession::~ServerSession()
     quitRWLoops(Action::Quit);
     try {
         Server::instance()->serverSessionDeleted(this);
-        if (m_sock != -1) {
-            m_eventLoop->unregisterSession(this);
-            close();
-        }
     } catch (...) {}
+
+    if (m_sock != -1) {
+        try {
+            m_eventLoop->unregisterSession(this);
+        } catch (...) {}
+        try {
+            ::close(m_sock);
+        } catch (...) {}
+    }
 }
 
 ServerSession *ServerSession::sessionReady()
@@ -360,8 +365,9 @@ void ServerSession::writeLoop(Yield &yield)
 void ServerSession::terminateSession(Action action)
 {
     quitRWLoops(action);
-    if (m_statusCode != 200) {
+    if (action == Action::Timeout && m_statusCode && m_statusCode != 200) {
         try {
+            m_statusCode = 200;
             m_resonseHeader.str({});
             responseStatus(m_statusCode);
             responseEndHeader(m_tempStr.size(), 0);
@@ -371,11 +377,10 @@ void ServerSession::terminateSession(Action action)
         } catch (...) { }
     }
 
-    try {
-        m_eventLoop->unregisterSession(this);
-        close();
-    } catch (...) {}
-    m_eventLoop->deleteLater(this);
+    if (shutdown())
+        m_eventLoop->deleteLater(this);
+    else
+        setTimeout(1s);
 }
 
 void ServerSession::setTimeout(const std::chrono::milliseconds &ms)

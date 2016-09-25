@@ -85,13 +85,9 @@ public:
         return ::writev(m_sock, vec, count);
     }
 
-    virtual void close()
+    virtual bool shutdown()
     {
-        std::unique_lock<std::mutex> lock{m_sockMutex};
-        if (m_sock != -1) {
-            ::close(m_sock);
-            m_sock = -1;
-        }
+        return ::shutdown(m_sock, SHUT_RDWR);
     }
 
     // AbstractServerSession interface

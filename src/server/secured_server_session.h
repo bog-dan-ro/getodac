@@ -73,15 +73,11 @@ public:
         return written;
     }
 
-    void close() override
+    bool shutdown() override
     {
-        try {
-            if (m_SSL && SSL_shutdown(m_SSL) == 0)
-                SSL_shutdown(m_SSL);
-        } catch (...) {
-        }
-
-        ServerSession::close();
+        if (m_SSL && SSL_shutdown(m_SSL) == 0)
+            return false;
+        return ServerSession::shutdown();
     }
 
 private:

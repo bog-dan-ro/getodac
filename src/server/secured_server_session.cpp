@@ -28,6 +28,9 @@ SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int soc
     if (!SSL_set_fd(m_SSL, sock))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
 
+    if (!SSL_set_ex_data(m_SSL, Server::SSLDataIndex, this))
+        throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
+
     SSL_set_accept_state(m_SSL);
 }
 
@@ -35,6 +38,83 @@ SecuredServerSession::~SecuredServerSession()
 {
     if (m_SSL)
         SSL_free(m_SSL);
+}
+
+void SecuredServerSession::verifyPeer(const std::string &caFile)
+{
+    if (!caFile.empty()) {
+        auto certs = SSL_load_client_CA_file(caFile.c_str());
+        if (!certs)
+            throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
+        SSL_set_client_CA_list(m_SSL, certs);
+    }
+    SSL_set_verify(m_SSL, SSL_VERIFY_PEER, &verify_callback);
+    SSL_set_verify_depth(m_SSL, 10);
+    m_renegotiate = true;
+}
+
+X509 *SecuredServerSession::getPeerCertificate() const
+{
+    return SSL_get_peer_certificate(m_SSL);
+}
+
+int SecuredServerSession::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
+{
+    (void) preverify_ok;
+    (void) ctx;
+
+//    SSL *ssl = reinterpret_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
+//    SecuredServerSession *self = reinterpret_cast<SecuredServerSession *>(SSL_get_ex_data(ssl, Server::SSLDataIndex));
+
+    return 1;
+}
+
+void SecuredServerSession::readLoop(AbstractServerSession::Yield &yield)
+{
+    m_readYield = &yield;
+    ServerSession::readLoop(yield);
+}
+
+void SecuredServerSession::messageComplete()
+{
+    if (!m_renegotiate || !m_readYield)
+        return;
+
+    m_renegotiate =  false;
+
+    SSL_set_options(m_SSL, SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+    SSL_renegotiate(m_SSL);
+    int ret;
+    int step = 0;
+    while ( (ret = SSL_do_handshake(m_SSL)) != 1) {
+        if (ret < 0) {
+            auto err = SSL_get_error(m_SSL, ret);
+            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+                if (++step > 5) {
+                    (*m_readYield)();
+                    step = 0;
+                }
+                continue;
+            }
+        }
+        return;
+    }
+    SSL_set_state(m_SSL, SSL_ST_ACCEPT);
+
+    step = 0;
+    while ( (ret = SSL_do_handshake(m_SSL)) != 1) {
+        if (ret < 0) {
+            auto err = SSL_get_error(m_SSL, ret);
+            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+                if (++step > 5) {
+                    (*m_readYield)();
+                    step = 0;
+                }
+                continue;
+            }
+        }
+        break;
+    }
 }
 
 } // namespace Getodac

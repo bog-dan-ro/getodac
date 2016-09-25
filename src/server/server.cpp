@@ -71,6 +71,7 @@ void operator delete(void *p, std::size_t n) noexcept
 }
 
 namespace Getodac {
+int Server::SSLDataIndex = -1;
 
 namespace {
     const uint32_t QUEUED_CONNECTIONS = 10000;
@@ -344,6 +345,7 @@ int Server::exec(int argc, char *argv[])
                 if (!properties.get("https.compression", false))
                     SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_COMPRESSION);
 
+                SSLDataIndex = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
             } else {
                 httpsPort = 0;
             }

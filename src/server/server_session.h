@@ -99,7 +99,7 @@ public:
     void responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds = 10, bool continousWrite = false) override;
     void responseComplete() override;
 
-private:
+protected:
     virtual void readLoop(Yield &yield);
     void writeLoop(Yield &yield);
     inline void quitRWLoops(Action action)
@@ -119,6 +119,7 @@ private:
     static int headersComplete(http_parser *parser);
     static int body(http_parser *parser, const char *at, size_t length);
     static int messageComplete(http_parser *parser);
+    virtual inline void messageComplete() {}
 
 private:
     SessionsEventLoop *m_eventLoop;

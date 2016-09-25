@@ -51,6 +51,7 @@ public:
     inline void sessionServed() { ++m_servedSessions; }
     uint64_t servedSessions() const { return m_servedSessions; }
     SSL_CTX *sslContext() const;
+    static int SSLDataIndex;
 
 private:
     Server();

@@ -19,7 +19,6 @@
 #define SECURED_SERVER_SESSION_H
 
 #include "server_session.h"
-#include <openssl/ssl.h>
 #include <openssl/err.h>
 
 namespace Getodac {
@@ -32,6 +31,8 @@ public:
 
     // ServerSession interface
     bool isSecuredConnection() const override { return true; }
+    void verifyPeer(const std::string &caFile) override;
+    X509* getPeerCertificate() const;
 
     ssize_t read(void *buf, size_t size) override
     {
@@ -80,8 +81,15 @@ public:
         return ServerSession::shutdown();
     }
 
+    static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
+
+    void readLoop(Yield &yield) override;
+    void messageComplete() override;
+
 private:
     SSL *m_SSL = nullptr;
+    bool m_renegotiate = false;
+    Yield *m_readYield = nullptr;
 };
 
 } // namespace Getodac

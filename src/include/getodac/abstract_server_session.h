@@ -22,6 +22,7 @@
 #include <sys/uio.h>
 #include <string>
 #include <stdexcept>
+#include <openssl/ssl.h>
 
 #include <boost/coroutine/symmetric_coroutine.hpp>
 
@@ -54,6 +55,17 @@ public:
      */
     virtual bool isSecuredConnection() const { return false; }
 
+    /*!
+     * \brief verifyPeer initiate the peer verification procedure
+     * \param caFiles the clients ca files to verify
+     */
+    virtual void verifyPeer(const std::string &caFile = std::string{}) {(void)caFile;}
+
+    /*!
+     * \brief getPeerCertificate
+     * \return the peer certificate if any
+     */
+    X509* getPeerCertificate() const { return nullptr; }
 
     /*!
      * \brief Yield

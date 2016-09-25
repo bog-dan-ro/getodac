@@ -485,6 +485,7 @@ int ServerSession::messageComplete(http_parser *parser)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
+        thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();
     } catch (const ResponseStatusError &status) {
         thiz->m_tempStr = status.what();

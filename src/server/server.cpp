@@ -436,9 +436,9 @@ int Server::exec(int argc, char *argv[])
                         // Let's try to create a new session
                         std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
-                            m_activeSessions.insert((new SecuredServerSession(bestLoop, nonBlocking(sock)))->sessionReady());
+                            m_activeSessions.insert((new SecuredServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
                         else
-                            m_activeSessions.insert((new ServerSession(bestLoop, nonBlocking(sock)))->sessionReady());
+                            m_activeSessions.insert((new ServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
                     } catch (...) {
                         // if we can't create a new session
                         // then just close the socket

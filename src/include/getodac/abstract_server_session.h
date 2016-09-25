@@ -43,6 +43,12 @@ public:
     };
 
     /*!
+     * \brief peerAddress
+     * \return the peer address structure
+     */
+    virtual const struct sockaddr_storage& peerAddress() const = 0;
+
+    /*!
      * \brief isSecuredConnection
      * \return true if this is a SSL connection
      */

@@ -98,11 +98,12 @@ namespace {
     }
 }
 
-ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock)
+ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr)
     : m_eventLoop(eventLoop)
     , m_sock(sock)
     , m_readResume(std::bind(&ServerSession::readLoop, this, std::placeholders::_1))
     , m_writeResume(std::bind(&ServerSession::writeLoop, this, std::placeholders::_1))
+    , m_peerAddr(sockAddr)
 {
     int opt = 1;
     if (setsockopt(m_sock, SOL_TCP, TCP_NODELAY, &opt, sizeof(int)))

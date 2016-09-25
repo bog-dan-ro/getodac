@@ -27,7 +27,7 @@ namespace Getodac {
 class SecuredServerSession : public ServerSession
 {
 public:
-    SecuredServerSession(SessionsEventLoop *eventLoop, int sock);
+    SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr);
     ~SecuredServerSession();
 
     // ServerSession interface

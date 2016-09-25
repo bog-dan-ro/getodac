@@ -50,7 +50,7 @@ class ServerSession : public AbstractServerSession
     using TimePoint = std::chrono::time_point<Clock>;
 
 public:
-    ServerSession(SessionsEventLoop *eventLoop, int sock);
+    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr);
     ~ServerSession() override;
 
     ServerSession *sessionReady();
@@ -95,6 +95,7 @@ public:
     }
 
     // AbstractServerSession interface
+    inline const struct sockaddr_storage& peerAddress() const { return m_peerAddr; }
     void write(Yield &yield, const void *buf, size_t size) override;
     void writev(Yield &yield, iovec *vec, size_t count) override;
     void responseStatus(uint32_t code) override;
@@ -138,6 +139,7 @@ private:
     std::shared_ptr<AbstractServiceSession> m_serviceSession;
     std::ostringstream m_resonseHeader;
     uint32_t m_keepAliveSeconds = 10;
+    struct sockaddr_storage m_peerAddr;
 };
 
 } // namespace Getodac

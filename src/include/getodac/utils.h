@@ -168,7 +168,7 @@ private:
         while (m_cacheHash.size() >= m_cacheSize) {
             auto it = m_cacheItems.rbegin();
             m_cacheHash.erase(it->first);
-            m_cacheItems.pop_front();
+            m_cacheItems.pop_back();
         }
     }
 

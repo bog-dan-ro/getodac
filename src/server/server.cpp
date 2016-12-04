@@ -400,7 +400,7 @@ int Server::exec(int argc, char *argv[])
             if (sessions > m_peakSessions)
                 m_peakSessions = sessions;
 
-            if (!sessions) // No more pending sessions?
+            if (sessions <= 1) // No more pending sessions?
                 malloc_trim(0); // release the memory to OS
         }
 

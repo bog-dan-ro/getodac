@@ -298,7 +298,10 @@ void ServerSession::responseComplete()
 {
     // switch to read mode
     m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET);
-    setTimeout(std::chrono::seconds(m_keepAliveSeconds));
+    if (m_keepAliveSeconds)
+        setTimeout(std::chrono::seconds(m_keepAliveSeconds));
+    else
+        terminateSession(Action::Quit);
     Server::instance()->sessionServed();
 }
 
@@ -381,7 +384,7 @@ void ServerSession::terminateSession(Action action)
     if (shutdown())
         m_eventLoop->deleteLater(this);
     else
-        setTimeout(1s);
+        setTimeout(50ms);
 }
 
 void ServerSession::setTimeout(const std::chrono::milliseconds &ms)

@@ -115,6 +115,7 @@ namespace {
         pthread_rwlock_t m_lock;
     };
 
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL
     // SSL Crypto thread stuff
     std::unique_ptr<PthreadRW[]> s_cryptoMutexes;
     void sslThreadLock(int mode, int type, const char */*file*/, int /*line*/)
@@ -132,6 +133,7 @@ namespace {
     {
         return ::pthread_self();
     }
+#endif
 }
 
 /*!
@@ -527,9 +529,11 @@ SSL_CTX *Getodac::Server::sslContext() const
  */
 Server::Server()
 {
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL
     s_cryptoMutexes = std::make_unique<PthreadRW[]>(CRYPTO_num_locks());
     CRYPTO_set_locking_callback(&sslThreadLock);
     CRYPTO_set_id_callback(&sslGetThreadId);
+#endif
 
     m_shutdown.store(false);
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);

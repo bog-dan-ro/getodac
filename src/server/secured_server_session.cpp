@@ -99,7 +99,10 @@ void SecuredServerSession::messageComplete()
         }
         return;
     }
+
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL
     SSL_set_state(m_SSL, SSL_ST_ACCEPT);
+#endif
 
     step = 0;
     while ( (ret = SSL_do_handshake(m_SSL)) != 1) {

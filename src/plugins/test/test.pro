@@ -10,15 +10,15 @@ INCLUDEPATH += $$PWD/../../include
 
 DESTDIR = ../../../plugins
 
-QMAKE_CFLAGS += -Wall -Wextra -Werror -fdevirtualize -fvisibility=hidden
-QMAKE_CXXFLAGS += -Wall -Wextra -Werror -fdevirtualize -fvisibility=hidden -fnon-call-exceptions
-
 QMAKE_LFLAGS += -Wl,--no-undefined
 
-release {
-    QMAKE_CXXFLAGS += -Ofast
-    QMAKE_CFLAGS += -Ofast
-}
+QMAKE_CFLAGS += -Wall -Wextra -Werror
+QMAKE_CXXFLAGS += -Wall -Wextra -Werror -fnon-call-exceptions
+
+#release {
+#    QMAKE_CXXFLAGS += -Ofast -fdevirtualize -fdevirtualize-speculatively -fdevirtualize-at-ltrans
+#    QMAKE_CFLAGS += -Ofast -fdevirtualize -fdevirtualize-speculatively -fdevirtualize-at-ltrans
+#}
 
 LIBS += -lboost_coroutine -lboost_context -lboost_system
 

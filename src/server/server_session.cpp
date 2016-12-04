@@ -20,6 +20,7 @@
 #include <netinet/tcp.h>
 #include <sys/epoll.h>
 
+#include <cstring>
 #include <functional>
 #include <unordered_map>
 #include <stdexcept>

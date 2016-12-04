@@ -24,7 +24,7 @@
 #include <stdexcept>
 #include <openssl/ssl.h>
 
-#include <boost/coroutine/symmetric_coroutine.hpp>
+#include <boost/coroutine2/coroutine.hpp>
 
 namespace Getodac {
 
@@ -73,7 +73,7 @@ public:
      * An object of this type is used by write & writev methods to yield the execution
      * of the current context until they manage to write all the data
      */
-    using Yield = boost::coroutines::symmetric_coroutine<Action>::yield_type;
+    using Yield = boost::coroutines2::coroutine<Action>::pull_type;
 
 public:
     virtual ~AbstractServerSession() {}

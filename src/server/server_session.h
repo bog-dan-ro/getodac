@@ -30,7 +30,7 @@
 #include <mutex>
 #include <sstream>
 
-#include <boost/coroutine/all.hpp>
+#include <boost/coroutine2/coroutine.hpp>
 
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
@@ -127,7 +127,7 @@ private:
     std::mutex m_sockMutex;
     TimePoint m_nextTimeout;
 
-    typedef boost::coroutines::symmetric_coroutine<Action>::call_type Call;
+    typedef boost::coroutines2::coroutine<Action>::push_type Call;
     Call m_readResume;
     Call m_writeResume;
     uint32_t m_statusCode = 0;

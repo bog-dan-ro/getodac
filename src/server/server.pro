@@ -28,13 +28,13 @@ SOURCES += \
     http-parser/http_parser.c \
     secured_server_session.cpp
 
-QMAKE_CFLAGS += -Wall -Wextra -Werror -fsplit-stack -fdevirtualize -fvisibility=hidden
-QMAKE_CXXFLAGS += -Wall -Wextra -Werror -fsplit-stack -fdevirtualize -fvisibility=hidden -fnon-call-exceptions
+QMAKE_CFLAGS += -Wall -Wextra -Werror
+QMAKE_CXXFLAGS += -Wall -Wextra -Werror -fnon-call-exceptions
 
-release {
-    QMAKE_CXXFLAGS += -Ofast
-    QMAKE_CFLAGS += -Ofast
-}
+#release {
+#    QMAKE_CFLAGS += -Ofast
+#    QMAKE_CXXFLAGS += -Ofast
+#}
 
 LIBS += -lboost_coroutine -lboost_context -lboost_system -lboost_thread -lboost_program_options -lboost_filesystem -lcrypto -lssl -ldl
 

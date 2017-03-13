@@ -62,9 +62,15 @@ public:
 
     inline bool canHanldle(const std::string &url, const std::string &method)
     {
-        return url.size() >= m_urlPrefix.size() &&
+        bool res = url.size() >= m_urlPrefix.size() &&
                 std::memcmp(url.c_str(), m_urlPrefix.c_str(), m_urlPrefix.size()) == 0 &&
                 m_methods.find(method) != m_methods.end();
+
+        if (res && url.size() > m_urlPrefix.size() &&
+                url[m_urlPrefix.size()] != '/') {
+            return false;
+        }
+        return res;
     }
 
     /*!

@@ -52,14 +52,40 @@ public:
      * Sets the method callback and parameters
      *
      * \param method to set, most common are GET, POST, PUT, PATCH and DELETE
-     * \param callback function
      * \param parameters accepted by this urlPrefix
      */
-    void setMethodCallback(const std::string &method, const Func &callback, std::initializer_list<std::string> resources)
+    template<typename T>
+    void setMethodCallback(const std::string &method, std::initializer_list<std::string> resources = {})
+    {
+        auto callback = [&](Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources) {
+            return std::make_shared<T>(serverSession, std::move(resources));
+        };
+        m_methods.emplace(std::make_pair(method, std::make_pair(callback, resources)));
+    }
+
+    /*!
+     * \brief setMethodCallback
+     *
+     * Sets the method callback and parameters
+     *
+     * \param method to set, most common are GET, POST, PUT, PATCH and DELETE
+     * \param custom callback function
+     * \param parameters accepted by this urlPrefix
+     */
+    void setMethodCallback(const std::string &method, const Func &callback, std::initializer_list<std::string> resources = {})
     {
         m_methods.emplace(std::make_pair(method, std::make_pair(callback, resources)));
     }
 
+    /*!
+     * \brief canHanldle
+     *
+     *  Checks if it can handle this restful request
+     *
+     * \param url the url
+     * \param method HTTP verb
+     * \return true if it can handle this request
+     */
     inline bool canHanldle(const std::string &url, const std::string &method)
     {
         bool res = url.size() >= m_urlPrefix.size() &&

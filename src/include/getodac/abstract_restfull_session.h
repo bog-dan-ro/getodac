@@ -42,7 +42,7 @@ public:
     void headerFieldValue(const std::string &field, const std::string &value) override
     {
         auto type = [&value] {
-            if (value == "application/json")
+            if (value == "application/json" || value == "*/*")
                 return DataType::Json;
             else if (value == "application/xml")
                 return DataType::XML;
@@ -130,15 +130,28 @@ public:
         : AbstractRestfullGETSession(serverSession, std::move(resources))
     {}
 
+    void headerFieldValue(const std::string &field, const std::string &value) override
+    {
+        if (field == "Access-Control-Request-Headers")
+            m_allowHeaders = value;
+        else
+            AbstractRestfullGETSession::headerFieldValue(field, value);
+    }
+
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override {(void)yield;}
     void requestComplete() override
     {
         m_serverSession->responseStatus(200);
         setResponseHeaders();
         m_serverSession->responseHeader("Access-Control-Allow-Methods", OPTIONS);
+        if (!m_allowHeaders.empty())
+             m_serverSession->responseHeader("Access-Control-Allow-Headers", m_allowHeaders);
         m_serverSession->responseEndHeader(0);
         m_serverSession->responseComplete();
     }
+
+protected:
+    std::string m_allowHeaders;
 };
 
 /// PPP stands for post, put, patch. These oprerations have a request body which must be

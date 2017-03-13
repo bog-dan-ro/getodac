@@ -137,6 +137,7 @@ private:
     std::ostringstream m_resonseHeader;
     uint32_t m_keepAliveSeconds = 10;
     struct sockaddr_storage m_peerAddr;
+    bool m_requestComplete = false;
 };
 
 } // namespace Getodac

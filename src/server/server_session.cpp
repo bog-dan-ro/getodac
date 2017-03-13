@@ -297,6 +297,8 @@ void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAlive
 void ServerSession::responseComplete()
 {
     // switch to read mode
+    m_statusCode = 0;
+    m_requestComplete = false;
     m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET);
     if (m_keepAliveSeconds)
         setTimeout(std::chrono::seconds(m_keepAliveSeconds));
@@ -367,15 +369,17 @@ void ServerSession::writeLoop(Yield &yield)
 void ServerSession::terminateSession(Action action)
 {
     quitRWLoops(action);
-    if (action == Action::Timeout && m_statusCode && m_statusCode != 200) {
+    if (m_requestComplete && m_statusCode && m_statusCode != 200) {
         try {
-            m_statusCode = 200;
             m_resonseHeader.str({});
             responseStatus(m_statusCode);
             responseEndHeader(m_tempStr.size(), 0);
             m_resonseHeader << m_tempStr;
             auto str = m_resonseHeader.str();
             write(str.c_str(), str.size());
+            m_statusCode = 0;
+            m_resonseHeader.str({});
+            m_tempStr.clear();
         } catch (...) { }
     }
 
@@ -486,6 +490,7 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
 int ServerSession::messageComplete(http_parser *parser)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    thiz->m_requestComplete = true;
     try {
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();

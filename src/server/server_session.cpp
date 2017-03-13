@@ -190,6 +190,7 @@ void ServerSession::write(Yield &yield, const void *buf, size_t size)
         vec[1].iov_base = (void *)buf;
         vec[1].iov_len = size;
         writev(yield, (iovec *)&vec, 2);
+        m_canWriteError = false;
         return;
     }
     while (yield.get() == Action::Continue) {
@@ -284,6 +285,7 @@ void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAlive
     if (!contentLenght) {
         std::string headers = m_resonseHeader.str();
         write(headers.c_str(), headers.size());
+        m_canWriteError = false;
     } else {
         // Switch to write mode
         uint32_t events = EPOLLOUT | EPOLLRDHUP;
@@ -298,7 +300,6 @@ void ServerSession::responseComplete()
 {
     // switch to read mode
     m_statusCode = 0;
-    m_requestComplete = false;
     m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET);
     if (m_keepAliveSeconds)
         setTimeout(std::chrono::seconds(m_keepAliveSeconds));
@@ -395,17 +396,23 @@ void ServerSession::writeLoop(Yield &yield)
 void ServerSession::terminateSession(Action action)
 {
     quitRWLoops(action);
-    if (m_requestComplete && m_statusCode && m_statusCode != 200) {
+    if (m_canWriteError && m_statusCode && m_statusCode != 200) {
         try {
             m_resonseHeader.str({});
             responseStatus(m_statusCode);
-            responseEndHeader(m_tempStr.size(), 0);
-            m_resonseHeader << m_tempStr;
-            auto str = m_resonseHeader.str();
-            write(str.c_str(), str.size());
+            auto contentLength = m_tempStr.size();
+            responseEndHeader(contentLength, 0);
+            if (contentLength) {
+                // responseEndHeader doesn't write the headers immediately
+                // if there is some data to send
+                m_resonseHeader << m_tempStr;
+                auto str = m_resonseHeader.str();
+                write(str.c_str(), str.size());
+            }
             m_statusCode = 0;
             m_resonseHeader.str({});
             m_tempStr.clear();
+            m_canWriteError = false;
         } catch (...) { }
     }
 
@@ -434,6 +441,7 @@ int ServerSession::url(http_parser *parser, const char *at, size_t length)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
+        thiz->m_canWriteError = true;
         thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
                                                                           std::string(http_method_str(http_method(parser->method))));
     } catch (const ResponseStatusError &status) {
@@ -516,7 +524,6 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
 int ServerSession::messageComplete(http_parser *parser)
 {
     ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
-    thiz->m_requestComplete = true;
     try {
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();

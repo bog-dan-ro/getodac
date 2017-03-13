@@ -87,7 +87,7 @@ public:
 
     virtual bool shutdown()
     {
-        return ::shutdown(m_sock, SHUT_RDWR);
+        return 0 == ::shutdown(m_sock, SHUT_RDWR);
     }
 
     // AbstractServerSession interface
@@ -141,7 +141,7 @@ private:
     std::ostringstream m_resonseHeader;
     uint32_t m_keepAliveSeconds = 10;
     struct sockaddr_storage m_peerAddr;
-    bool m_requestComplete = false;
+    bool m_canWriteError = true;
 };
 
 } // namespace Getodac

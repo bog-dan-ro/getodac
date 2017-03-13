@@ -307,6 +307,32 @@ void ServerSession::responseComplete()
     Server::instance()->sessionServed();
 }
 
+int ServerSession::sendBufferSize() const
+{
+    int optval = 0;
+    socklen_t optlen = sizeof(optval);
+    getsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &optval, &optlen);
+    return optval;
+}
+
+bool ServerSession::setSendBufferSize(int size)
+{
+    return 0 == setsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &size, sizeof(int));
+}
+
+int ServerSession::receiveBufferSize() const
+{
+    int optval = 0;
+    socklen_t optlen = sizeof(optval);
+    getsockopt(m_sock, SOL_SOCKET, SO_RCVBUF, &optval, &optlen);
+    return optval;
+}
+
+bool ServerSession::setReceiveBufferSize(int size)
+{
+    return 0 == setsockopt(m_sock, SOL_SOCKET, SO_RCVBUF, &size, sizeof(int));
+}
+
 void ServerSession::readLoop(Yield &yield)
 {
     http_parser_settings settings;

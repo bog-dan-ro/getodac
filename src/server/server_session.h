@@ -98,6 +98,10 @@ public:
     void responseHeader(const std::string &field, const std::string &value) override;
     void responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds = 10, bool continousWrite = false) override;
     void responseComplete() override;
+    int sendBufferSize() const override;
+    bool setSendBufferSize(int size) override;
+    int receiveBufferSize() const override;
+    bool setReceiveBufferSize(int size) override;
 
 protected:
     virtual void readLoop(Yield &yield);

@@ -44,30 +44,6 @@ public:
     };
 
     /*!
-     * \brief peerAddress
-     * \return the peer address structure
-     */
-    virtual const struct sockaddr_storage& peerAddress() const = 0;
-
-    /*!
-     * \brief isSecuredConnection
-     * \return true if this is a SSL connection
-     */
-    virtual bool isSecuredConnection() const { return false; }
-
-    /*!
-     * \brief verifyPeer initiate the peer verification procedure
-     * \param caFiles the clients ca files to verify
-     */
-    virtual void verifyPeer(const std::string &caFile = std::string{}) {(void)caFile;}
-
-    /*!
-     * \brief getPeerCertificate
-     * \return the peer certificate if any
-     */
-    X509* getPeerCertificate() const { return nullptr; }
-
-    /*!
      * \brief Yield
      *
      * An object of this type is used by write & writev methods to yield the execution
@@ -143,6 +119,62 @@ public:
      * After this function is called, AbstractServiceSession should be ready to be destroyed immediately
      */
     virtual void responseComplete() = 0;
+
+    /*!
+     * \brief peerAddress
+     * \return the peer address structure
+     */
+    virtual const struct sockaddr_storage& peerAddress() const = 0;
+
+    /*!
+     * \brief isSecuredConnection
+     * \return true if this is a SSL connection
+     */
+    virtual bool isSecuredConnection() const { return false; }
+
+    /*!
+     * \brief verifyPeer initiate the peer verification procedure
+     * \param caFiles the clients ca files to verify
+     */
+    virtual void verifyPeer(const std::string &caFile = std::string{}) {(void)caFile;}
+
+    /*!
+     * \brief getPeerCertificate
+     * \return the peer certificate if any
+     */
+    virtual X509* getPeerCertificate() const { return nullptr; }
+
+    /*!
+     * \brief sendBufferSize
+     * \return the socket send buffer size in bytes
+     */
+    virtual int sendBufferSize() const = 0;
+
+    /*!
+     * \brief setSendBufferSize
+     *
+     * Set's the socket sending buffer size
+     *
+     * \param size in bytes
+     * \return true on success
+     */
+    virtual bool setSendBufferSize(int size) = 0;
+
+    /*!
+     * \brief receiveBufferSize
+     * \return the socket receive buffer size in bytes
+     */
+    virtual int receiveBufferSize() const = 0;
+
+    /*!
+     * \brief setReceiveBufferSize
+     *
+     * Set's the socket receiving buffer size
+     *
+     * \param size in bytes
+     * \return true on success
+     */
+    virtual bool setReceiveBufferSize(int size) = 0;
 };
 
 } // namespace Getodac

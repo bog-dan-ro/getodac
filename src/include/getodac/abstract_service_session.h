@@ -121,6 +121,7 @@ public:
         writeChunkedData(yield, data.c_str(), data.size());
     }
 
+    inline size_t sendBufferSize() const { return m_serverSession->sendBufferSize(); }
 protected:
     AbstractServerSession *m_serverSession = nullptr;
 };

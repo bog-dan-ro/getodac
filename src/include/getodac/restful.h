@@ -122,10 +122,16 @@ public:
 
                 // the resource name should not be escaped
                 auto it = methodResources.find(resourcesName);
-                if ( it == methodResources.end())
-                    throw ResponseStatusError{400, "Unknown resource name \"" + resourcesName + "\""};
+                if ( it == methodResources.end()) {
+                    if (resourses.empty()) {
+                        resourses.emplace_back(std::make_pair(std::string{}, resourcesName));
+                        continue;
+                    } else {
+                        throw ResponseStatusError{400, "Unknown resource name \"" + resourcesName + "\""};
+                    }
+                }
                 methodResources.erase(it);
-                resourses.emplace_back(std::make_pair(resourcesName, std::string()));
+                resourses.emplace_back(std::make_pair(resourcesName, std::string{}));
             }
             searchForValue = !searchForValue;
         }

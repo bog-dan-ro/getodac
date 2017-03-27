@@ -74,7 +74,10 @@ public:
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
             throw std::logic_error("Socket is closed");
-        return ::write(m_sock, buf, size);
+        auto ret = ::write(m_sock, buf, size);
+        if (ret < 0 && errno == EPIPE)
+            throw std::logic_error("Socket is closed");
+        return ret;
     }
 
     virtual ssize_t writev(const struct iovec *vec, int count)
@@ -82,11 +85,17 @@ public:
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
             throw std::logic_error("Socket is closed");
-        return ::writev(m_sock, vec, count);
+        auto ret = ::writev(m_sock, vec, count);
+        if (ret < 0 && errno == EPIPE)
+            throw std::logic_error("Socket is closed");
+        return ret;
     }
 
     virtual bool shutdown()
     {
+        if (m_wasShutdown)
+            return true;
+        m_wasShutdown = true;
         return 0 == ::shutdown(m_sock, SHUT_RDWR);
     }
 
@@ -142,6 +151,7 @@ private:
     uint32_t m_keepAliveSeconds = 10;
     struct sockaddr_storage m_peerAddr;
     bool m_canWriteError = true;
+    bool m_wasShutdown = false;
 };
 
 } // namespace Getodac

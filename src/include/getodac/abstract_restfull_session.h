@@ -113,8 +113,10 @@ public:
     explicit AbstractRestfullDELETESession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
         : AbstractRestfullGETSession(serverSession, std::move(resources))
     {
+#ifndef NO_SSL
         if (!m_serverSession->isSecuredConnection())
             throw Getodac::ResponseStatusError(401, "Unsecure connection");
+#endif
     }
 
     /// Usually DELETE operations doesn't have to write any response body
@@ -162,8 +164,17 @@ public:
     explicit AbstractRestfullPPPSession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
         : AbstractRestfullServiceSession(serverSession, std::move(resources))
     {
+#ifndef NO_SSL
         if (!m_serverSession->isSecuredConnection())
             throw Getodac::ResponseStatusError(401, "Unsecure connection");
+#endif
+    }
+
+    void finishSession(uint32_t statusCode)
+    {
+        m_serverSession->responseStatus(statusCode);
+        m_serverSession->responseEndHeader(0);
+        m_serverSession->responseComplete();
     }
 
     // Post, put, patch, etc. operations don't usually need to send any data

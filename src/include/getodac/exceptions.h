@@ -45,20 +45,6 @@ private:
 
 
 /*!
- * \brief The broken_pipe_error class
- *
- * Used by AbstractServerSession to throw a broken_pipe_error
- */
-class BrokenPipeError : public std::runtime_error
-{
-public:
-  explicit BrokenPipeError(const std::string& __arg)
-        : std::runtime_error(__arg){}
-  explicit BrokenPipeError(const char* __arg)
-        : std::runtime_error(__arg){}
-};
-
-/*!
  * \brief The segmentation_fault_error class
  *
  * The server converts any SIGSEGV signals into an exception

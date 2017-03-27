@@ -148,13 +148,6 @@ void Server::exitSignalHandler(int)
     std::cout << "Please wait, shutting down the server " << std::flush;
 }
 
-/// Transform broken pipe signals into exceptions
-SIGNAL_HANDLER(catch_pipe)
-{
-    unblockSignal(SIGPIPE);
-    throw BrokenPipeError(stackTrace());
-}
-
 /// Transform segmentation violations signals into exceptions
 SIGNAL_HANDLER(catch_segv)
 {
@@ -545,7 +538,9 @@ Server::Server()
     if (signal(SIGTERM, Server::exitSignalHandler) == SIG_ERR)
         throw std::runtime_error{"Can't register SIGTERM signal callback"};
 
-    INIT_PIPE;
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+        throw std::runtime_error{"Can't set SIGPIPE SIG_IGN"};
+
     INIT_SEGV;
     INIT_FPE;
 }

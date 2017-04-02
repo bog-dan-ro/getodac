@@ -34,7 +34,7 @@ public:
     void verifyPeer(const std::string &caFile) override;
     X509* getPeerCertificate() const;
 
-    ssize_t read(void *buf, size_t size) override
+    ssize_t sockRead(void *buf, size_t size) override
     {
         auto sz = SSL_read(m_SSL, buf, size);
         if (sz == 0) {
@@ -47,7 +47,7 @@ public:
         return sz;
     }
 
-    ssize_t write(const void *buf, size_t size) override
+    ssize_t sockWrite(const void *buf, size_t size) override
     {
         auto sz = SSL_write(m_SSL, buf, size);
         if (sz == 0) {
@@ -60,13 +60,13 @@ public:
         return sz;
     }
 
-    ssize_t writev(const iovec *vec, int count) override
+    ssize_t sockWritev(const iovec *vec, int count) override
     {
         ssize_t written = 0;
         for (int i = 0; i < count; i++) {
             if (!vec[i].iov_len)
                 continue;
-            auto sz = write(vec[i].iov_base, vec[i].iov_len);
+            auto sz = sockWrite(vec[i].iov_base, vec[i].iov_len);
             if (sz < 0)
                 break;
             written += sz;
@@ -74,11 +74,11 @@ public:
         return written;
     }
 
-    bool shutdown() override
+    bool sockShutdown() override
     {
         if (m_SSL && SSL_shutdown(m_SSL) == 0)
             return false;
-        return ServerSession::shutdown();
+        return ServerSession::sockShutdown();
     }
 
     static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);

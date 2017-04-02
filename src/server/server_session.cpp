@@ -194,7 +194,7 @@ void ServerSession::write(Yield &yield, const void *buf, size_t size)
         return;
     }
     while (yield.get() == Action::Continue) {
-        auto written = write(buf, size);
+        auto written = sockWrite(buf, size);
         if (written < 0) {
             yield();
             continue;
@@ -226,7 +226,7 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
     }
 
     while (yield.get() == Action::Continue) {
-        auto written = writev(vec, count);
+        auto written = sockWritev(vec, count);
         if (written < 0) {
             yield();
             continue;
@@ -284,7 +284,7 @@ void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAlive
 
     if (!contentLenght) {
         std::string headers = m_resonseHeader.str();
-        write(headers.c_str(), headers.size());
+        sockWrite(headers.c_str(), headers.size());
         m_canWriteError = false;
     } else {
         // Switch to write mode
@@ -352,7 +352,7 @@ void ServerSession::readLoop(Yield &yield)
         try {
             setTimeout();
             auto tempSize = tempBuffer.size();
-            auto sz = read(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
+            auto sz = sockRead(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
 
             if (sz <= 0) {
                 yield();
@@ -407,7 +407,7 @@ void ServerSession::terminateSession(Action action)
                 // if there is some data to send
                 m_resonseHeader << m_tempStr;
                 auto str = m_resonseHeader.str();
-                write(str.c_str(), str.size());
+                sockWrite(str.c_str(), str.size());
             }
             m_statusCode = 0;
             m_resonseHeader.str({});
@@ -416,7 +416,7 @@ void ServerSession::terminateSession(Action action)
         } catch (...) { }
     }
 
-    if (shutdown())
+    if (sockShutdown())
         m_eventLoop->deleteLater(this);
     else
         setTimeout(50ms);

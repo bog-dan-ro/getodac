@@ -61,7 +61,7 @@ public:
     void processEvents(uint32_t events) noexcept;
     void timeout() noexcept;
 
-    virtual ssize_t read(void  *buf, size_t size)
+    virtual ssize_t sockRead(void  *buf, size_t size)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
@@ -69,7 +69,7 @@ public:
         return ::read(m_sock, buf, size);
     }
 
-    virtual ssize_t write(const void  *buf, size_t size)
+    virtual ssize_t sockWrite(const void  *buf, size_t size)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
@@ -80,7 +80,7 @@ public:
         return ret;
     }
 
-    virtual ssize_t writev(const struct iovec *vec, int count)
+    virtual ssize_t sockWritev(const struct iovec *vec, int count)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
@@ -91,7 +91,7 @@ public:
         return ret;
     }
 
-    virtual bool shutdown()
+    virtual bool sockShutdown()
     {
         if (m_wasShutdown)
             return true;

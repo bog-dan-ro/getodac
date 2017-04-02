@@ -83,13 +83,13 @@ public:
 
     static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
 
-    void readLoop(Yield &yield) override;
+    void readLoop(YieldType &yield) override;
     void messageComplete() override;
 
 private:
     SSL *m_SSL = nullptr;
     bool m_renegotiate = false;
-    Yield *m_readYield = nullptr;
+    YieldType *m_readYield = nullptr;
 };
 
 } // namespace Getodac

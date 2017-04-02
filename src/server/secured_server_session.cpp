@@ -69,7 +69,7 @@ int SecuredServerSession::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
     return 1;
 }
 
-void SecuredServerSession::readLoop(AbstractServerSession::Yield &yield)
+void SecuredServerSession::readLoop(YieldType &yield)
 {
     m_readYield = &yield;
     ServerSession::readLoop(yield);

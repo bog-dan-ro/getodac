@@ -97,6 +97,23 @@ namespace {
 
         return codes.at(500);
     }
+
+    struct YieldImpl : AbstractServerSession::Yield
+    {
+        YieldImpl(YieldType &yield)
+            : m_yield(yield)
+        {}
+        inline void operator ()() override
+        {
+            m_yield();
+        }
+
+        inline AbstractServerSession::Action get() override
+        {
+            return m_yield.get();
+        }
+        YieldType &m_yield;
+    };
 }
 
 ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr)
@@ -334,7 +351,7 @@ bool ServerSession::setReceiveBufferSize(int size)
     return 0 == setsockopt(m_sock, SOL_SOCKET, SO_RCVBUF, &size, sizeof(int));
 }
 
-void ServerSession::readLoop(Yield &yield)
+void ServerSession::readLoop(YieldType &yield)
 {
     http_parser_settings settings;
     memset(&settings, 0, sizeof(settings));
@@ -378,12 +395,13 @@ void ServerSession::readLoop(Yield &yield)
     }
 }
 
-void ServerSession::writeLoop(Yield &yield)
+void ServerSession::writeLoop(YieldType &yield)
 {
+    YieldImpl yi{yield};
     while (yield.get() == Action::Continue) {
         try {
             if (m_serviceSession)
-                m_serviceSession->writeResponse(yield);
+                m_serviceSession->writeResponse(yi);
             setTimeout();
             yield();
         } catch (...) {

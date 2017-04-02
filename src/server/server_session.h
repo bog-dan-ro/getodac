@@ -44,6 +44,7 @@ namespace Getodac {
  *
  * This class servers HTTP requests
  */
+using YieldType = boost::coroutines2::coroutine<AbstractServerSession::Action>::pull_type;
 class ServerSession : public AbstractServerSession
 {
     using Clock = std::chrono::high_resolution_clock;
@@ -113,8 +114,8 @@ public:
     bool setReceiveBufferSize(int size) override;
 
 protected:
-    virtual void readLoop(Yield &yield);
-    void writeLoop(Yield &yield);
+    virtual void readLoop(YieldType &yield);
+    void writeLoop(YieldType &yield);
     inline void quitRWLoops(Action action)
     {
         while (m_readResume) // Quit read loop

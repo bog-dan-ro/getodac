@@ -20,6 +20,7 @@
 
 #include <string>
 #include <sstream>
+#include <memory>
 
 #include <getodac/abstract_server_session.h>
 

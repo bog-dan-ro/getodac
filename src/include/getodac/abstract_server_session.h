@@ -24,8 +24,6 @@
 #include <stdexcept>
 #include <openssl/ssl.h>
 
-#include <boost/coroutine2/coroutine.hpp>
-
 namespace Getodac {
 
 enum {
@@ -49,7 +47,16 @@ public:
      * An object of this type is used by write & writev methods to yield the execution
      * of the current context until they manage to write all the data
      */
-    using Yield = boost::coroutines2::coroutine<Action>::pull_type;
+    struct Yield {
+        /*!
+         * \brief operator ()
+         *
+         * Yield the execution until next write event
+         */
+        virtual void operator()() = 0;
+        virtual Action get() = 0;
+    };
+
 
 public:
     virtual ~AbstractServerSession() {}
@@ -116,7 +123,8 @@ public:
     /*!
      * \brief responseComplete
      *
-     * After this function is called, AbstractServiceSession should be ready to be destroyed immediately
+     * End the response transimission.
+     * After this function is called, AbstractServiceSession should be ready to be destroyed immediately.
      */
     virtual void responseComplete() = 0;
 

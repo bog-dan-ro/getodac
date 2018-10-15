@@ -19,6 +19,7 @@
 #include <getodac/abstract_service_session.h>
 #include <getodac/restful.h>
 
+#include <cassert>
 #include <iostream>
 #include <mutex>
 

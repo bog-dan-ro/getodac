@@ -48,7 +48,7 @@ public:
         : m_serverSession(serverSession)
     {}
 
-    virtual ~AbstractServiceSession() {}
+    virtual ~AbstractServiceSession() = default;
 
     /*!
      * \brief headerFieldValue
@@ -170,16 +170,16 @@ PLUGIN_EXPORT void destoryPlugin()
 */
 
 /// The server calls this function when it loads the plugin
-typedef bool (*InitPluginType)(const std::string &confDir);
+using InitPluginType = bool (*)(const std::string &);
 
 /// The server calls this function to get the plugin order
-typedef uint32_t (*PluginOrder)();
+using PluginOrder = uint32_t (*)();
 
 /// The server calls this function when it needs to create a new session
-typedef std::shared_ptr<AbstractServiceSession> (*CreateSessionType)(AbstractServerSession *serverSession, const std::string &url, const std::string &method);
+using CreateSessionType = std::shared_ptr<AbstractServiceSession> (*)(AbstractServerSession *, const std::string &, const std::string &);
 
 /// The server calls this function when it destoyes the plugins
-typedef void (*DestoryPluginType)();
+using DestoryPluginType = void (*)();
 
 } // namespace Getodac
 

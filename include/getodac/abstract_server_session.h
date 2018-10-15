@@ -68,7 +68,7 @@ public:
 
 
 public:
-    virtual ~AbstractServerSession() {}
+    virtual ~AbstractServerSession() = default;
 
     /*!
      * \brief responseStatus

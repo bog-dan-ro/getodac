@@ -45,7 +45,7 @@ SessionsEventLoop::SessionsEventLoop()
     unsigned long mem_min, mem_default, mem_max = 4194304; // 4Mb
     FILE *f = fopen("/proc/sys/net/ipv4/tcp_rmem", "r");
     if (f) {
-        fscanf(f, "%lu %lu %lu", &mem_min,&mem_default,&mem_max);
+        fscanf(f, "%lu %lu %lu", &mem_min, &mem_default, &mem_max);
         fclose(f);
     }
 

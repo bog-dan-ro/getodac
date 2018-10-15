@@ -15,10 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <errno.h>
+#include <cerrno>
+#include <csignal>
 #include <execinfo.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <unistd.h>
 #include <malloc.h>
 
@@ -94,7 +94,7 @@ namespace {
         sigset_t sigs;
         sigemptyset(&sigs);
         sigaddset(&sigs, signum);
-        sigprocmask(SIG_UNBLOCK, &sigs, NULL);
+        sigprocmask(SIG_UNBLOCK, &sigs, nullptr);
     }
 
     class PthreadRW {
@@ -117,7 +117,7 @@ namespace {
 
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL
     // SSL Crypto thread stuff
-    std::unique_ptr<PthreadRW[]> s_cryptoMutexes;
+    static std::unique_ptr<PthreadRW[]> s_cryptoMutexes;
     void sslThreadLock(int mode, int type, const char */*file*/, int /*line*/)
     {
         if (mode & CRYPTO_UNLOCK) {
@@ -129,7 +129,7 @@ namespace {
                 s_cryptoMutexes[type].lock_write();
         }
     }
-    unsigned long sslGetThreadId(void)
+    unsigned long sslGetThreadId()
     {
         return ::pthread_self();
     }
@@ -223,7 +223,7 @@ int Server::bind(SocketType type, int port)
         throw std::runtime_error{"Can't listen on the socket"};
 
     struct epoll_event event;
-    event.data.ptr = 0;
+    event.data.ptr = nullptr;
     event.data.fd = sock;
     event.events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET;
 

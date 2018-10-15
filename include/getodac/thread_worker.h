@@ -29,6 +29,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <stack>
 #include <thread>
 #include <vector>
@@ -69,8 +70,8 @@ public:
     {
         m_quit.store(true);
         m_waitCondition.notify_all();
-        for (auto it = m_workers.begin(); it != m_workers.end(); ++it)
-            it->join();
+        for (auto & m_worker : m_workers)
+            m_worker.join();
     }
 
     /*!

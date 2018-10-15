@@ -34,7 +34,7 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
 {
     m_handler = std::shared_ptr<void>(dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL), [](void *ptr){
         if (ptr) {
-            DestoryPluginType destroy = (DestoryPluginType)dlsym(ptr, "destoryPlugin");
+            auto destroy = DestoryPluginType(dlsym(ptr, "destoryPlugin"));
             if (destroy)
                 destroy();
             dlclose(ptr);
@@ -44,15 +44,15 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
     if (!m_handler)
         throw std::runtime_error{"Can't open " + path};
 
-    InitPluginType init = (InitPluginType) dlsym(m_handler.get(), "initPlugin");
+    auto init = InitPluginType(dlsym(m_handler.get(), "initPlugin"));
     if (init && !init(confDir))
         throw std::runtime_error{"initPlugin failed"};
 
-    auto order = (PluginOrder)dlsym(m_handler.get(), "pluginOrder");
+    auto order = PluginOrder(dlsym(m_handler.get(), "pluginOrder"));
     if (!order)
         throw std::runtime_error{"Can't find pluginOrder function"};
     m_order = order();
-    createSession = (CreateSessionType)dlsym(m_handler.get(), "createSession");
+    createSession = CreateSessionType(dlsym(m_handler.get(), "createSession"));
 
     if (!createSession)
         throw std::runtime_error{dlerror()};
@@ -69,7 +69,6 @@ ServerPlugin::ServerPlugin(CreateSessionType funcPtr, uint32_t order)
 {
 }
 
-ServerPlugin::~ServerPlugin()
-{}
+ServerPlugin::~ServerPlugin() = default;
 
 } // namespace Getodac

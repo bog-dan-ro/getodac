@@ -29,6 +29,7 @@
 
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -111,7 +112,7 @@ public:
     /*!
      * \brief parse
      *
-     * Parses the givem url and executes the method callback set by setMethodCallback and it returns the T value of that method
+     * Parses the given url and executes the method callback set by setMethodCallback and it returns the T value of that method
      *
      * \param url to parse
      * \param method method to execute

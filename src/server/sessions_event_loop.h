@@ -62,7 +62,7 @@ private:
     std::atomic_bool m_quit;
     std::thread m_loopThread;
     std::mutex m_sessionsMutex;
-    volatile bool m_sessionsRehashed;
+    volatile bool m_sessionsRehashed = false;
     std::unordered_set<ServerSession *> m_sessions;
     SpinLock m_deleteLaterMutex;
     std::unordered_set<ServerSession *> m_deleteLaterObjects;

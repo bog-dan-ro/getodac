@@ -271,7 +271,7 @@ int Server::exec(int argc, char *argv[])
     int httpsPort = 8443; // Default HTTPS port
 
     // Default plugins path
-    std::string pluginsPath = fs::path(argv[0]).parent_path().parent_path().append("/libs/getodac/plugins").string();
+    std::string pluginsPath = fs::path(argv[0]).parent_path().parent_path().append("/lib/getodac/plugins").string();
     std::string confDir;
 
     // Server arguments

@@ -2,11 +2,17 @@ TEMPLATE = app
 
 CONFIG += console c++14
 
+CONFIG(debug, debug|release): CONFIG += sanitizer sanitize_address sanitize_undefined
+else: {
+    QMAKE_CFLAGS += -Ofast
+    QMAKE_CXXFLAGS += -Ofast
+}
+
 TARGET = getodac
 
 QT =
 
-INCLUDEPATH += http-parser $$PWD/../include
+INCLUDEPATH += http-parser $$PWD/../../include
 
 HEADERS += \
     server_plugin.h \
@@ -31,22 +37,4 @@ SOURCES += \
 QMAKE_CFLAGS += -Wall -Wextra -Werror
 QMAKE_CXXFLAGS += -Wall -Wextra -Werror -fnon-call-exceptions
 
-#release {
-#    QMAKE_CFLAGS += -Ofast
-#    QMAKE_CXXFLAGS += -Ofast
-#}
-
 LIBS += -lboost_coroutine -lboost_context -lboost_system -lboost_thread -lboost_program_options -lboost_filesystem -lcrypto -lssl -ldl
-
-#!android {
-#    SANITIZE = -fsanitize=address -fsanitize=unreachable -fsanitize=bounds -fsanitize=object-size -fsanitize=enum
-#    QMAKE_CXXFLAGS += -fno-omit-frame-pointer $$SANITIZE
-#    QMAKE_CFLAGS   += -fno-omit-frame-pointer $$SANITIZE
-#    QMAKE_LFLAGS += $$SANITIZE
-#}
-
-#!android {
-#    QMAKE_CXXFLAGS += -fsanitize=thread -fno-omit-frame-pointer
-#    QMAKE_CFLAGS += -fsanitize=thread -fno-omit-frame-pointer
-#    QMAKE_LFLAGS += -fsanitize=thread
-#}

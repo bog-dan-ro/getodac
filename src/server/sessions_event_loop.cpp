@@ -138,6 +138,7 @@ void SessionsEventLoop::unregisterSession(ServerSession *session)
     {
         std::unique_lock<std::mutex> lock{m_sessionsMutex};
         m_sessions.erase(session);
+        m_sessionsRehashed = true;
     }
     if (epoll_ctl(m_epollHandler, EPOLL_CTL_DEL, session->sock(), nullptr))
         throw std::runtime_error{"Can't remove the session"};
@@ -199,19 +200,21 @@ void SessionsEventLoop::loop()
             // Some session(s) have timeout
             timeout = 1s; // maximum timeout
             std::unique_lock<std::mutex> lock{m_sessionsMutex};
-            m_sessionsRehashed = false; // reset sessionsRehashed flag
+            do {
+                m_sessionsRehashed = false; // reset sessionsRehashed flag
 
-            auto it = m_sessions.begin();
-            while (!m_sessionsRehashed && it != m_sessions.end()) {
-                auto session = it++;
-                lock.unlock(); // Allow the server to insert new connections
-                auto sessionTimeout = (*session)->nextTimeout();
-                if (sessionTimeout <= now)
-                    (*session)->timeout();
-                else       // round to 100ms
-                    timeout = std::min(timeout, std::max(100ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
-                lock.lock();
-            }
+                auto it = m_sessions.begin();
+                while (!m_sessionsRehashed && it != m_sessions.end()) {
+                    auto session = it++;
+                    lock.unlock(); // Allow the server to insert new connections
+                    auto sessionTimeout = (*session)->nextTimeout();
+                    if (sessionTimeout <= now)
+                        (*session)->timeout();
+                    else       // round to 100ms
+                        timeout = std::min(timeout, std::max(100ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
+                    lock.lock();
+                }
+            } while (m_sessionsRehashed);
         }
 
         // Delete all deleteLater pending sessions

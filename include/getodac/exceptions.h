@@ -24,8 +24,7 @@
 
 */
 
-#ifndef EXCEPTIONS_H
-#define EXCEPTIONS_H
+#pragma once
 
 #include <stdexcept>
 
@@ -82,5 +81,3 @@ public:
 };
 
 } // namespace Getodac
-
-#endif // EXCEPTIONS_H

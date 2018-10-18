@@ -24,8 +24,7 @@
 
 */
 
-#ifndef THREAD_WORKER_H
-#define THREAD_WORKER_H
+#pragma once
 
 #include <atomic>
 #include <condition_variable>
@@ -118,5 +117,3 @@ private:
 };
 
 } // namespace Getodac
-
-#endif // THREAD_WORKER_H

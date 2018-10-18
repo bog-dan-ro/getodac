@@ -24,8 +24,7 @@
 
 */
 
-#ifndef RESTFUL_H
-#define RESTFUL_H
+#pragma once
 
 #include <cstring>
 #include <functional>
@@ -220,5 +219,3 @@ private:
 };
 
 } // namespace Getodac
-
-#endif // RESTFUL_H

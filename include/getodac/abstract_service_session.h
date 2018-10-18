@@ -24,14 +24,13 @@
 
 */
 
-#ifndef SERVICE_SESSION_H
-#define SERVICE_SESSION_H
+#pragma once
 
 #include <string>
 #include <sstream>
 #include <memory>
 
-#include <getodac/abstract_server_session.h>
+#include "abstract_server_session.h"
 
 namespace Getodac {
 static const char crlf[] = "\r\n";
@@ -182,5 +181,3 @@ using CreateSessionType = std::shared_ptr<AbstractServiceSession> (*)(AbstractSe
 using DestoryPluginType = void (*)();
 
 } // namespace Getodac
-
-#endif // SERVICE_SESSION_H

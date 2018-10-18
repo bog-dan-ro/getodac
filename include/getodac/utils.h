@@ -24,8 +24,7 @@
 
 */
 
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 
 #include <atomic>
 #include <list>
@@ -191,5 +190,3 @@ private:
 };
 
 } // namespace Getodac
-
-#endif // UTILS_H

@@ -24,11 +24,10 @@
 
 */
 
-#ifndef ABSTRACTRESTFULLSERVICESESSION_H
-#define ABSTRACTRESTFULLSERVICESESSION_H
+#pragma once
 
-#include <getodac/abstract_service_session.h>
-#include <getodac/restful.h>
+#include "abstract_service_session.h"
+#include "restful.h"
 
 namespace Getodac {
 
@@ -192,5 +191,3 @@ public:
 
 
 } // namespace Getodac
-
-#endif // ABSTRACTRESTFULLSERVICESESSION_H

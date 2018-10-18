@@ -24,8 +24,7 @@
 
 */
 
-#ifndef ABSTRACT_SERVER_SESSION_H
-#define ABSTRACT_SERVER_SESSION_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/uio.h>
@@ -195,4 +194,3 @@ public:
 };
 
 } // namespace Getodac
-#endif // ABSTRACT_SERVER_SESSION_H

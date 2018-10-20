@@ -31,163 +31,91 @@
 
 namespace Getodac {
 
-class AbstractRestfullServiceSession : public AbstractServiceSession
+using RESTfullResourceType = RESTfullResource<std::shared_ptr<AbstractServiceSession>, AbstractServerSession*>;
+
+template <typename T>
+RESTfullResourceMethodCreator<std::shared_ptr<T>, AbstractServerSession*> sessionCreator()
+{
+    return [](ParsedUrl &&parsedUrl, AbstractServerSession* session) -> std::shared_ptr<T> {
+        return std::make_shared<T>(std::move(parsedUrl), session);
+    };
+}
+
+template <typename BaseClass>
+class AbstractRestfullBaseSession : public BaseClass
 {
 public:
-    enum class DataType {
-        Json,
-        XML,
-        ProtocolBuffers,
-        Flatbuffers
-    };
-
-public:
-    explicit AbstractRestfullServiceSession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
-        : AbstractServiceSession(serverSession)
-        , m_restData(std::move(resources))
+    explicit AbstractRestfullBaseSession(ParsedUrl &&parsedUrl, AbstractServerSession *serverSession)
+        : BaseClass(serverSession)
+        , m_parsedUrl(std::move(parsedUrl))
     {}
-
-    void headerFieldValue(const std::string &field, const std::string &value) override
-    {
-        auto type = [&value] {
-            if (value == "application/json" || value == "*/*")
-                return DataType::Json;
-            else if (value == "application/xml")
-                return DataType::XML;
-            else if (value == "application/x-protobuf")
-                return DataType::ProtocolBuffers;
-            else if (value == "application/x-flatbuf")
-                return DataType::Flatbuffers;
-            throw Getodac::ResponseStatusError(400, "Unknown content type");
-        };
-        if (field == "content-type")
-            m_requestDataType = type();
-        else if (field == "accept")
-            m_responseDataType = type();
-    }
-    void headersComplete() override {}
-
-    inline void setResponseHeaders()
-    {
-        auto type = [this] {
-            switch (m_responseDataType) {
-            case DataType::Json:
-                return "application/json";
-            case DataType::XML:
-                return "application/xml";
-            case DataType::ProtocolBuffers:
-                return "application/x-protobuf";
-            case DataType::Flatbuffers:
-                return "application/x-flatbuf";
-            }
-            throw Getodac::ResponseStatusError(400, "Unknown content type");
-        };
-        m_serverSession->responseHeader("Access-Control-Allow-Origin", "*");
-        m_serverSession->responseHeader("Content-Type", type());
-    }
 
 protected:
-    DataType m_requestDataType = DataType::Json;
-    DataType m_responseDataType = DataType::Json;
-    ParsedUrl m_restData;
+    ParsedUrl m_parsedUrl;
 };
 
-class AbstractRestfullGETSession : public AbstractRestfullServiceSession
+template <typename BaseClass>
+class AbstractRestfullGETSession : public AbstractRestfullBaseSession<BaseClass>
 {
 public:
-    explicit AbstractRestfullGETSession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
-        : AbstractRestfullServiceSession(serverSession, std::move(resources))
+    explicit AbstractRestfullGETSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRestfullBaseSession<BaseClass>(std::move(resources), serverSession)
     {}
 
-    void requestComplete() override
+    AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
     {
-        m_serverSession->responseStatus(200);
-        setResponseHeaders();
-        m_serverSession->responseEndHeader(ChuckedData);
+        auto response = AbstractRestfullBaseSession<BaseClass>::responseHeaders();
+        if (response.status != 200)
+            return response;
+        response.contentLenght = Getodac::ChunckedData;
+        return response;
     }
-
     // Usually GET and Delete methods don't expect any body
     void body(const char *data, size_t length) override
     {
         (void)data;
         (void)length;
-        throw Getodac::ResponseStatusError(400, "Unexpected body data");
+        throw ResponseStatusError(400, "Unexpected body data");
     }
 };
 
-class AbstractRestfullDELETESession : public AbstractRestfullGETSession
+template <typename BaseClass>
+class AbstractRestfullDELETESession : public AbstractRestfullGETSession<BaseClass>
 {
 public:
-    explicit AbstractRestfullDELETESession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
-        : AbstractRestfullGETSession(serverSession, std::move(resources))
+    explicit AbstractRestfullDELETESession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRestfullGETSession<BaseClass>(std::move(resources), serverSession)
     {
-#ifndef NO_SSL
-        if (!m_serverSession->isSecuredConnection())
-            throw Getodac::ResponseStatusError(401, "Unsecure connection");
-#endif
     }
 
     /// Usually DELETE operations doesn't have to write any response body
     /// override is needed
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override {(void)yield;}
+    void writeResponse(std::ostream &) override {}
 };
 
-template<const char* OPTIONS = "GET, POST, DELETE, PUT, PATCH">
-class RestfullOPTIONSSession : public AbstractRestfullGETSession
+template <typename BaseClass>
+class RestfullOPTIONSSession : public AbstractRestfullGETSession<BaseClass>
 {
 public:
-    explicit RestfullOPTIONSSession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
-        : AbstractRestfullGETSession(serverSession, std::move(resources))
-    {}
-
-    void headerFieldValue(const std::string &field, const std::string &value) override
+    explicit RestfullOPTIONSSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRestfullGETSession<BaseClass>(std::move(resources), serverSession)
     {
-        if (field == "Access-Control-Request-Headers")
-            m_allowHeaders = value;
-        else
-            AbstractRestfullGETSession::headerFieldValue(field, value);
+        AbstractRestfullGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
     }
 
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override {(void)yield;}
-    void requestComplete() override
+    AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
     {
-        m_serverSession->responseStatus(200);
-        setResponseHeaders();
-        m_serverSession->responseHeader("Access-Control-Allow-Methods", OPTIONS);
-        if (!m_allowHeaders.empty())
-             m_serverSession->responseHeader("Access-Control-Allow-Headers", m_allowHeaders);
-        m_serverSession->responseEndHeader(0);
-        m_serverSession->responseComplete();
+        auto response = AbstractRestfullGETSession<BaseClass>::responseHeaders();
+        if (response.status != 200)
+            return response;
+        response.headers.emplace("Access-Control-Allow-Methods", AbstractRestfullGETSession<BaseClass>::m_parsedUrl.allButOPTIONSNodeMethods);
+        auto it = AbstractRestfullGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
+        if (it != AbstractRestfullGETSession<BaseClass>::m_requestHeaders.end())
+             response.headers.emplace("Access-Control-Allow-Headers", it->second);
+        return response;
     }
 
-protected:
-    std::string m_allowHeaders;
+    void writeResponse(std::ostream &) override {}
 };
-
-/// PPP stands for post, put, patch. These oprerations have a request body which must be
-/// handled properly
-class AbstractRestfullPPPSession : public AbstractRestfullServiceSession
-{
-public:
-    explicit AbstractRestfullPPPSession(Getodac::AbstractServerSession *serverSession, ParsedUrl &&resources)
-        : AbstractRestfullServiceSession(serverSession, std::move(resources))
-    {
-#ifndef NO_SSL
-        if (!m_serverSession->isSecuredConnection())
-            throw Getodac::ResponseStatusError(401, "Unsecure connection");
-#endif
-    }
-
-    void finishSession(uint32_t statusCode)
-    {
-        m_serverSession->responseStatus(statusCode);
-        m_serverSession->responseEndHeader(0);
-        m_serverSession->responseComplete();
-    }
-
-    // Post, put, patch, etc. operations don't usually need to send any data
-    void writeResponse(AbstractServerSession::Yield &yield) override {(void)yield;}
-};
-
 
 } // namespace Getodac

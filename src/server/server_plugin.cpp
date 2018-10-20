@@ -42,7 +42,7 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
     });
 
     if (!m_handler)
-        throw std::runtime_error{"Can't open " + path};
+        throw std::runtime_error{dlerror()};
 
     auto init = InitPluginType(dlsym(m_handler.get(), "initPlugin"));
     if (init && !init(confDir))

@@ -285,7 +285,7 @@ void ServerSession::responseHeader(const std::string &field, const std::string &
 
 void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds, bool continousWrite)
 {
-    if (contentLenght == ChuckedData)
+    if (contentLenght == ChunckedData)
         m_resonseHeader << "Transfer-Encoding: chunked\r\n";
     else
         m_resonseHeader << "Content-Length: " << contentLenght << crlf;

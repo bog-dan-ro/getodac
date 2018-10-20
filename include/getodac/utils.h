@@ -64,6 +64,51 @@ private:
 };
 
 /*!
+ * \brief toHex
+ *
+ * \param ch
+ * \return
+ */
+
+inline char fromHex(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (ch >= 'a' && ch <= 'f')
+        return 10 + ch -'a';
+    if (ch >= 'A' && ch <= 'F')
+        return 10 + ch -'A';
+
+    throw std::runtime_error{"Bad hex value"};
+}
+
+inline std::string unEscapeUrl(const std::string &in)
+{
+    std::string out;
+    out.reserve(in.size());
+    for (std::string::size_type i = 0 ; i < in.size(); ++i) {
+        switch (in[i]) {
+        case '%':
+            if (i + 2 < in.size()) {
+                                        // it's faster than std::stoi(in.substr(i + 1, 2)) ...
+                out += static_cast<char>(fromHex(in[i + 1]) << 4 | fromHex(in[i + 2]));
+                i += 2;
+            } else {
+                throw std::runtime_error{"Malformated URL"};
+            }
+            break;
+        case '+':
+            out += ' ';
+            break;
+        default:
+            out += in[i];
+            break;
+        }
+    }
+    return out;
+}
+
+/*!
  * \brief findInSubstr
  *
  * Find the ch in str starting from pos to nchars
@@ -72,6 +117,7 @@ private:
  * \param pos in str from where to search
  * \param nchars to search
  * \param ch to serch
+ *
  * \return the position of the ch in str or npos if not found
  */
 inline std::string::size_type findInSubstr(const std::string &str, std::string::size_type pos, std::string::size_type nchars, char ch)
@@ -94,7 +140,8 @@ inline std::string::size_type findInSubstr(const std::string &str, std::string::
  *
  * \return a vector of pair<pos, nchars> substr chunks
  */
-inline std::vector<std::pair<std::string::size_type, std::string::size_type>> split(const std::string &str, char ch, std::string::size_type pos = 0, std::string::size_type nchars = std::string::npos)
+using SplitVector = std::vector<std::pair<std::string::size_type, std::string::size_type>>;
+inline SplitVector split(const std::string &str, char ch, std::string::size_type pos = 0, std::string::size_type nchars = std::string::npos)
 {
     std::vector<std::pair<std::string::size_type, std::string::size_type>> ret;
     if (!nchars)

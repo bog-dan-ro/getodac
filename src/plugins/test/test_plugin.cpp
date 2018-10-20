@@ -17,7 +17,7 @@
 
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
-#include <getodac/restful.h>
+#include <getodac/abstract_restfull_session.h>
 
 #include <cassert>
 #include <iostream>
@@ -32,7 +32,7 @@ const std::string test0Key{"/test0"};
 const std::string test50MKey{"/test50m"};
 const std::string test50MSKey{"/test50ms"};
 
-Getodac::RESTful<std::shared_ptr<Getodac::AbstractServiceSession>> s_testRestful("/test/rest/v1/");
+Getodac::RESTfullResourceType s_testRootRestful("/test/rest/v1/");
 
 class Test0 : public Getodac::AbstractServiceSession
 {
@@ -149,47 +149,25 @@ public:
     }
 };
 
-class TestRESTGET : public Getodac::AbstractServiceSession
+class TestRESTGET : public Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>
 {
 public:
-    TestRESTGET(Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources)
-        : Getodac::AbstractServiceSession(serverSession)
-        , m_resources(std::move(resources))
+    TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
     {}
 
-    // ServiceSession interface
-    void headerFieldValue(const std::string &, const std::string &) override {}
-    void headersComplete() override {}
-    void body(const char *, size_t) override {}
-    void requestComplete() override
+    void writeResponse(std::ostream &stream) override
     {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChuckedData);
-    }
-
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        std::stringstream stream;
-        stream << "Got " << m_resources.first.size() << " resources\n";
-        stream << "and " << m_resources.second.size() << " queries\n";
-        writeChunkedData(yield, stream.str());
-        stream.str({});
-        for (const auto &resource : m_resources.first) {
+        stream << "Got " << m_parsedUrl.resources.size() << " resources\n";
+        stream << "and " << m_parsedUrl.queryStrings.size() << " queries\n";
+        stream << "All methods but OPTIONS " << m_parsedUrl.allButOPTIONSNodeMethods << " \n";
+        for (const auto &resource : m_parsedUrl.resources) {
             stream << "Resource name: " << resource.first << "  value: " << resource.second << std::endl;
-            writeChunkedData(yield, stream.str());
-            stream.str({});
         }
-        for (const auto &query : m_resources.second) {
+        for (const auto &query : m_parsedUrl.queryStrings) {
             stream << "Query name: " << query.first << "  value: " << query.second << std::endl;
-            writeChunkedData(yield, stream.str());
-            stream.str({});
         }
-        writeChunkedData(yield, nullptr, 0);
-        m_serverSession->responseComplete();
     }
-
-private:
-    Getodac::ParsedUrl m_resources;
 };
 
 } // namespace
@@ -208,10 +186,7 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
     if (url == test0Key)
         return std::make_shared<Test0>(serverSession, url, method);
 
-    if (s_testRestful.canHanldle(url, method))
-            return s_testRestful.parse(serverSession, url, method);
-
-    return std::shared_ptr<Getodac::AbstractServiceSession>();
+    return s_testRootRestful.create(url, method, serverSession);
 }
 
 PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
@@ -220,10 +195,9 @@ PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
     for (int i = 0; i < 500000; ++i)
         test50mresponse += test100response;
 
-    auto getMethod = [](Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources) {
-        return std::make_shared<TestRESTGET>(serverSession, std::move(resources));
-    };
-    s_testRestful.setMethodCallback("GET", getMethod, {"customers", "orders"});
+    Getodac::RESTfullResourceType customersResource{"customers"};
+    customersResource.addMethodCreator("GET", Getodac::sessionCreator<TestRESTGET>());
+    s_testRootRestful.addSubResource(customersResource);
     return true;
 }
 

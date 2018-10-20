@@ -26,11 +26,14 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <sstream>
-#include <memory>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "abstract_server_session.h"
+#include "exceptions.h"
 
 namespace Getodac {
 static const char crlf[] = "\r\n";
@@ -131,8 +134,206 @@ public:
     }
 
     inline size_t sendBufferSize() const { return m_serverSession->sendBufferSize(); }
+    inline AbstractServerSession * serverSession() const { return m_serverSession; }
 protected:
     AbstractServerSession *m_serverSession = nullptr;
+};
+
+
+class OStreamBuffer : public std::streambuf
+{
+public:
+    OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield, bool chuncked)
+        : m_chuncked(chuncked)
+        , m_serviceSession(serverSession)
+        , m_yield(yield)
+    {
+        m_buffer.reserve(m_serviceSession->sendBufferSize());
+    }
+
+    ~OStreamBuffer() override
+    {
+        sync();
+        if (m_chuncked)
+            m_serviceSession->writeChunkedData(m_yield, nullptr, 0);
+        m_serviceSession->serverSession()->responseComplete();
+    }
+
+    // basic_streambuf interface
+protected:
+    int sync() override
+    {
+        if (!m_buffer.empty()) {
+            if (m_chuncked)
+                m_serviceSession->writeChunkedData(m_yield, m_buffer);
+            else
+                m_serviceSession->serverSession()->write(m_yield, m_buffer.c_str(), m_buffer.size());
+            m_buffer.clear();
+            m_buffer.reserve(m_serviceSession->sendBufferSize());
+        }
+        return 0;
+    }
+
+    int_type overflow(int_type __c) override
+    {
+        if (m_buffer.size() >= m_buffer.capacity())
+            sync();
+        m_buffer += traits_type::to_char_type(__c);
+        return 1;
+    }
+
+    std::streamsize xsputn(const char_type *__s, std::streamsize __n) override
+    {
+        std::streamsize sz = __n;
+        while (sz) {
+            if (m_buffer.size() >= m_buffer.capacity())
+                sync();
+            size_t len = std::min(size_t(sz), m_buffer.capacity() - m_buffer.size());
+            m_buffer.append(__s, len);
+            sz -= len;
+            __s += len;
+        };
+        return __n;
+    }
+
+private:
+    bool m_chuncked;
+    AbstractServiceSession *m_serviceSession;
+    AbstractServerSession::Yield &m_yield;
+    std::string m_buffer;
+};
+
+class AbstractSimplifiedServiceSession : public AbstractServiceSession
+{
+public:
+    struct RequestHeadersFilter
+    {
+        /*!
+         * \brief acceptedHeades. Only this headers will be caputured, the rest of them will be ignored.
+         */
+        std::unordered_set<std::string> acceptedHeades;
+
+        /*!
+         * \brief strictHeaders. Closes the connection if it's true and a header
+         * field is not found in acceptedHeades
+         */
+        bool strictHeaders = false;
+
+        /*!
+         * \brief maxHeaders. If the headers exceed this value the connection
+         * wil be closed immediately.
+         */
+        size_t maxHeaders = 100;
+
+        /*!
+         * \brief maxValueLength, the maximum accepted header value length.
+         *  The conection will be closed immediately if exceeded.
+         */
+        size_t maxValueLength = 4096;
+
+        /*!
+         * \brief maxKeyLength, the maximum accepted header value length.
+         *  The conection will be closed immediately if exceeded.
+         */
+        size_t maxKeyLength = 512;
+    };
+
+    using HeadersData = std::unordered_map<std::string, std::string>;
+
+    struct ResponseHeaders
+    {
+        /*!
+         * \brief status. The HTTP response status code.
+         * Check https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for the complete list
+         */
+        uint32_t status = 200;
+
+        /*!
+         * \brief headers. The HTTP response headers.
+         */
+        HeadersData headers;
+
+        /*!
+         * \brief contentLenght. The content lenght in bytes or Getodac::ChunckedData for a chuncked transfer.
+         */
+        uint64_t contentLenght = 0;
+
+        /*!
+         * \brief keepAliveSeconds. The number of seconds to keep the connection alive.
+         */
+        uint32_t keepAliveSeconds = 10;
+
+        /*!
+         * \brief continousWrite. true means it will use edge-triggered write notifications, this means that the
+         *                       service session must fill the *entire* socket buffer to get another notification.
+         *                       false means that it will be called every time when the kernel consumes the written buffer.
+         *                       In other word use *continousWrite = false* when you dont have all the data for response
+         *                       otherwise use *continousWrite = true*.
+         * \sa AbstractServerSession::sendBufferSize
+         */
+        bool continousWrite = false;
+    };
+
+public:
+    AbstractSimplifiedServiceSession(AbstractServerSession *serverSession)
+        : AbstractServiceSession(serverSession)
+    {}
+
+    /*!
+     * \brief responseHeaders
+     *  This method is called after the request is completed. Here the session must return a ResponseHeaders
+     *
+     * \return ResponseHeaders
+     */
+    virtual ResponseHeaders responseHeaders() { return {} ;}
+
+    /*!
+     * \brief writeResponse
+     *  This method is called when you need to write the resounse. The session is ended when this function exits.
+     *
+     * \param stream. A stream object which can be used to write the response body.
+     */
+    virtual void writeResponse(std::ostream &stream) = 0;
+
+    // AbstractServiceSession interface
+protected:
+    void headerFieldValue(const std::string &field, const std::string &value) override
+    {
+        if (!--m_requestHeadersFilter.maxHeaders ||
+                field.size() > m_requestHeadersFilter.maxKeyLength ||
+                value.size() > m_requestHeadersFilter.maxValueLength) {
+            throw ResponseStatusError(431, "Invalid request headers");
+        }
+
+        if (m_requestHeadersFilter.acceptedHeades.find(field) != m_requestHeadersFilter.acceptedHeades.end())
+            m_requestHeaders.emplace(field, value);
+        else if (m_requestHeadersFilter.strictHeaders)
+            throw ResponseStatusError(400, "Invalid request headers");
+
+    }
+    void headersComplete() override {}
+    void requestComplete() final
+    {
+        auto rh = responseHeaders();
+        m_serverSession->responseStatus(rh.status);
+        for (auto kv : rh.headers)
+            m_serverSession->responseHeader(kv.first, kv.second);
+        m_chuncked = rh.contentLenght == ChunckedData;
+        m_serverSession->responseEndHeader(rh.contentLenght, rh.keepAliveSeconds, rh.continousWrite);
+    }
+
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) final
+    {
+        OStreamBuffer streamBuffer{this, yield, m_chuncked};
+        std::ostream stream(&streamBuffer);
+        writeResponse(stream);
+    }
+
+
+protected:
+    bool m_chuncked = false;
+    HeadersData m_requestHeaders;
+    RequestHeadersFilter m_requestHeadersFilter;
 };
 
 #define PLUGIN_EXPORT extern "C" __attribute__ ((visibility("default")))

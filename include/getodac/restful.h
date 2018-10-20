@@ -40,95 +40,123 @@
 namespace Getodac {
 class AbstractServerSession;
 
+template <typename ReturnType, typename ...Args> class RESTfullResource;
+
 using Resources = std::vector<std::pair<std::string, std::string>>;
 using QueryStrings = std::vector<std::pair<std::string, std::string>>;
 
-using ParsedUrl = std::pair<Resources, QueryStrings>;
+struct ParsedUrl {
+    /*!
+     * \brief The parsed resources.
+     * It's a key value pair vector. The order is the same as the URL order
+     */
+    Resources resources;
 
-/*!
- * The RESTful class
- */
-template <typename Return, typename Param = AbstractServerSession*>
-class RESTful
+    /*!
+     * \brief The parsed queryStrings.
+     * It's a key value pair vector. The order is the same as the URL order
+     */
+    QueryStrings queryStrings;
+
+    /*!
+     * \brief allNodeMethodsButOPTIONS
+     *
+     *  All the route node methods but without OPTIONS.
+     *  It's alredy formated to send OPTIONS responses.
+     */
+    std::string allButOPTIONSNodeMethods;
+
+    bool operator ==(const ParsedUrl &other) const
+    {
+        return allButOPTIONSNodeMethods == other.allButOPTIONSNodeMethods &&
+                resources == other.resources && queryStrings == other.queryStrings;
+    }
+};
+
+template <typename ReturnType, typename ...Args>
+using RESTfullResourceMethodCreator = std::function<ReturnType(ParsedUrl parsedUrl, Args ...args)>;
+
+template <typename ReturnType, typename ...Args>
+class RESTfullResource
 {
 public:
-    using Func = std::function<Return(Param param, ParsedUrl &&resources)>;
-    RESTful(const std::string &urlPrefix) : m_urlPrefix(urlPrefix) {}
 
     /*!
-     * \brief setMethodCallback
+     * \brief RESTfullResource
+     *  A RESTfull resource node. This type is useful to create complex routes for
+     *  REST API.
      *
-     * Sets the method callback and parameters
+     * \param resource. for the root node, this parameter contains the base url
+     *  for all the other resources (e.g /api/v1/) and it should end with an /.
+     *  An empty string means it's a resource id placeholder and its value it
+     *  will be added to it's parent resource.
      *
-     * \param method to set, most common are GET, POST, PUT, PATCH and DELETE
-     * \param parameters accepted by this urlPrefix
+     * \example
+     *
      */
-    template<typename T>
-    void setMethodCallback(const std::string &method, std::initializer_list<std::string> resources = {})
+    RESTfullResource(const std::string &resource = {})
+        : d(std::make_shared<RESTfullResourceData>())
     {
-        auto callback = [&](Getodac::AbstractServerSession *serverSession, Getodac::ParsedUrl &&resources) {
-            return std::make_shared<T>(serverSession, std::move(resources));
-        };
-        m_methods.emplace(std::make_pair(method, std::make_pair(callback, resources)));
+          d->resource = resource;
     }
 
     /*!
-     * \brief setMethodCallback
-     *
-     * Sets the method callback and parameters
-     *
-     * \param method to set, most common are GET, POST, PUT, PATCH and DELETE
-     * \param custom callback function
-     * \param parameters accepted by this urlPrefix
+     * \brief addSubResource
+     * \param res
+     * \return this
      */
-    void setMethodCallback(const std::string &method, const Func &callback, std::initializer_list<std::string> resources = {})
+    RESTfullResource &addSubResource(RESTfullResource<ReturnType, Args...> res)
     {
-        m_methods.emplace(std::make_pair(method, std::make_pair(callback, resources)));
-    }
-
-    /*!
-     * \brief canHanldle
-     *
-     *  Checks if it can handle this restful request
-     *
-     * \param url the url
-     * \param method HTTP verb
-     * \return true if it can handle this request
-     */
-    inline bool canHanldle(const std::string &url, const std::string &method)
-    {
-        bool res = url.size() >= m_urlPrefix.size() &&
-                std::memcmp(url.c_str(), m_urlPrefix.c_str(), m_urlPrefix.size()) == 0 &&
-                m_methods.find(method) != m_methods.end();
-
-        if (res && url.size() > m_urlPrefix.size() &&
-                url[m_urlPrefix.size()] != '/') {
-            return false;
+        if (!d->subResources.empty()) {
+            // Do some sanity check
+            if (res.d->resource.empty() && d->subResources.back().d->resource.empty())
+                throw std::runtime_error{"There can be only one subresource placeholder"};
+            if (!res.d->resource.empty() && d->subResources.back().d->resource.empty()) {
+                d->subResources.emplace(d->subResources.begin() + d->subResources.size() - 1, std::move(res));
+                return *this;
+            }
         }
-        return res;
+        d->subResources.emplace_back(std::move(res));
+        return *this;
     }
 
     /*!
-     * \brief parse
-     *
-     * Parses the given url and executes the method callback set by setMethodCallback and it returns the T value of that method
-     *
-     * \param url to parse
-     * \param method method to execute
-     * \return returns
+     * \brief addMethodCreator
+     * \param method
+     * \param creator
+     * \return this
      */
-    Return parse(Param param, const std::string &url, const std::string &method)
+    RESTfullResource &addMethodCreator(std::string method, RESTfullResourceMethodCreator<ReturnType, Args...> creator)
     {
-        if (!canHanldle(url, method))
-            throw std::runtime_error("Unhandled url / method");
+        if (d->methods.find(method) == d->methods.end()) {
+            if (method != "OPTIONS")
+                d->allMethods += d->allMethods.empty() ? method : ", " + method;
+            d->methods.emplace(std::move(method), std::move(creator));
+        } else {
+            d->methods[method] = std::move(creator);
+        }
+        return *this;
+    }
 
-        const auto &methodPair = m_methods[method];
-        auto methodResources = methodPair.second;
+    /*!
+     * \brief create
+     * \param url
+     * \param method
+     * \param args
+     * \return ReturnType
+     */
+    ReturnType create(const std::string &url, const std::string &method, Args ...args) const
+    {
+        if (url.size() <= d->resource.size() ||
+                std::memcmp(url.c_str(), d->resource.c_str(), d->resource.size())) {
+            return {};
+        }
 
-
+        ReturnType ret;
         // Search for ?
-        QueryStrings queryStrings;
-        auto qpos = findInSubstr(url, m_urlPrefix.size(), url.size() - m_urlPrefix.size(), '?');
+        ParsedUrl parsedUrl;
+        auto &queryStrings = parsedUrl.queryStrings;
+        auto qpos = findInSubstr(url, 0, url.size(), '?');
         if (qpos != std::string::npos) {
             // time to parse the queryStrings
             // the parser only supports key1=value1&key2=value2... format
@@ -137,11 +165,11 @@ public:
                 auto kv = split(url, '=', kvPair.first, kvPair.second);
                 switch (kv.size()) {
                 case 1:
-                    queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)), ""));
+                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(url.substr(kv[0].first, kv[0].second)), ""));
                     break;
                 case 2:
-                    queryStrings.emplace_back(std::make_pair(unEscape(url.substr(kv[0].first, kv[0].second)),
-                                                                        unEscape(url.substr(kv[1].first, kv[1].second))));
+                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(url.substr(kv[0].first, kv[0].second)),
+                                                                        unEscapeUrl(url.substr(kv[1].first, kv[1].second))));
                     break;
                 default:
                     throw ResponseStatusError{400, "Invalid query strings"};
@@ -152,70 +180,62 @@ public:
             qpos = url.size();
         }
 
-        // Split resources
-        Resources resourses;
-        bool searchForValue =  false;
-        for (const auto &resourceChunck : split(url, '/', m_urlPrefix.size(), qpos - m_urlPrefix.size())) {
-            if (searchForValue) {
-                resourses.back().second = std::move(unEscape(url.substr(resourceChunck.first, resourceChunck.second)));
-            } else {
-                std::string resourcesName = std::move(url.substr(resourceChunck.first, resourceChunck.second));
+        auto pos = d->resource.size();
 
-                // the resource name should not be escaped
-                auto it = methodResources.find(resourcesName);
-                if ( it == methodResources.end()) {
-                    if (resourses.empty()) {
-                        resourses.emplace_back(std::make_pair(std::string{}, resourcesName));
-                        continue;
-                    } else {
-                        throw ResponseStatusError{400, "Unknown resource name \"" + resourcesName + "\""};
-                    }
-                }
-                methodResources.erase(it);
-                resourses.emplace_back(std::make_pair(resourcesName, std::string{}));
-            }
-            searchForValue = !searchForValue;
+        for (const auto &subResource : d->subResources) {
+            if (subResource.createSubResource(ret, method, url, pos, qpos, parsedUrl, std::forward<Args>(args)...))
+                return ret;
         }
-
-        return methodPair.first(param, std::move(std::make_pair(resourses, queryStrings)));
+        return {};
     }
 
-private:
-
-    inline char toHex(char ch)
+    bool operator==(const RESTfullResource<ReturnType, Args...> &other) const
     {
-        return isdigit(ch) ? ch - '0' : 10 + tolower(ch) - 'a';
+        return d == other.d;
     }
 
-    inline std::string unEscape(const std::string &in)
+
+protected:
+    bool createSubResource(ReturnType &ret, const std::string &method, const std::string &url, std::string::size_type pos, std::string::size_type queryPos, ParsedUrl partialParsedUrl, Args ...args) const
     {
-        std::string out;
-        out.reserve(in.size());
-        for (std::string::size_type i = 0 ; i < in.size(); ++i) {
-            switch (in[i]) {
-            case '%':
-                if (i + 3 < in.size()) {
-                                            // it's faster than std::stoi(in.substr(i + 1, 2)) ...
-                    out += static_cast<char>(toHex(in[i + 1]) << 4 | toHex(in[i + 2]));
-                    i += 2;
-                } else {
-                    return in;
-                }
-                break;
-            case '+':
-                out += ' ';
-                break;
-            default:
-                out += in[i];
-                break;
+        if (d->resource.empty() || (url.size() >= d->resource.size() + pos
+                                   && std::memcmp(url.c_str() + pos, d->resource.c_str(), d->resource.size()) == 0)) {
+
+            auto nextPos = findInSubstr(url, pos, queryPos - pos, '/');
+            auto data = nextPos == std::string::npos ? url.substr(pos, queryPos - pos)
+                                                     : url.substr(pos, nextPos - pos);
+
+            // Placeholder?
+            if (d->resource.empty())
+                partialParsedUrl.resources.back().second = std::move(unEscapeUrl(data));
+            else
+                partialParsedUrl.resources.push_back({std::move(data), {}});
+
+            if (nextPos == std::string::npos) {
+                auto methodIt = d->methods.find(method);
+                if (methodIt == d->methods.end())
+                    return false;
+
+                partialParsedUrl.allButOPTIONSNodeMethods = d->allMethods;
+                ret = std::move(methodIt->second(partialParsedUrl, args...));
+                return true;
             }
+
+            for (const auto &subResource : d->subResources)
+                if (subResource.createSubResource(ret, method, url, nextPos + 1, queryPos, partialParsedUrl, args...))
+                    return true;
         }
-        return out;
+        return false;
     }
 
-private:
-    std::unordered_map<std::string, std::pair<Func, std::unordered_set<std::string>>> m_methods;
-    std::string m_urlPrefix;
+protected:
+    struct RESTfullResourceData {
+        std::string allMethods;
+        std::string resource;
+        std::unordered_map<std::string, RESTfullResourceMethodCreator<ReturnType, Args...>> methods;
+        std::vector<RESTfullResource<ReturnType, Args...>> subResources;
+    };
+    std::shared_ptr<RESTfullResourceData> d;
 };
 
 } // namespace Getodac

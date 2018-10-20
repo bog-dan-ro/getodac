@@ -27,6 +27,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <unordered_map>
 
 namespace Getodac {
 
@@ -36,10 +37,12 @@ namespace Getodac {
 class ResponseStatusError : public std::runtime_error
 {
 public:
-    explicit ResponseStatusError(int statusCode, const std::string &errorMessage)
-        : std::runtime_error(errorMessage), m_statusCode(statusCode) {}
-    explicit ResponseStatusError(int statusCode, const char *errorMessage)
-        : std::runtime_error(errorMessage), m_statusCode(statusCode) {}
+    using HeadersData = std::unordered_map<std::string, std::string>;
+    ResponseStatusError(int statusCode, const std::string &errorMessage, HeadersData headers = {})
+        : std::runtime_error(errorMessage)
+        , m_statusCode(statusCode)
+        , m_headers(std::move(headers))
+    {}
 
     /*!
      * \brief statusCode
@@ -49,6 +52,7 @@ public:
 
 private:
     int m_statusCode;
+    HeadersData m_headers;
 };
 
 

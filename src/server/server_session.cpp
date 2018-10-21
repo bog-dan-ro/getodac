@@ -416,8 +416,9 @@ void ServerSession::terminateSession(Action action)
     quitRWLoops(action);
     if (m_canWriteError && m_statusCode && m_statusCode != 200) {
         try {
-            m_resonseHeader.str({});
             responseStatus(m_statusCode);
+            for (const auto &kv : m_responseStatusErrorHeaders)
+                responseHeader(kv.first, kv.second);
             auto contentLength = m_tempStr.size();
             responseEndHeader(contentLength, 0);
             if (contentLength) {
@@ -450,21 +451,20 @@ void ServerSession::setTimeout(const std::chrono::milliseconds &ms)
 
 int ServerSession::messageBegin(http_parser *parser)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     thiz->m_tempStr.clear();
     return 0;
 }
 
 int ServerSession::url(http_parser *parser, const char *at, size_t length)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_canWriteError = true;
         thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
                                                                           std::string(http_method_str(http_method(parser->method))));
     } catch (const ResponseStatusError &status) {
-        thiz->m_tempStr = status.what();
-        return (thiz->m_statusCode = status.statusCode());
+        return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -477,7 +477,7 @@ int ServerSession::url(http_parser *parser, const char *at, size_t length)
 
 int ServerSession::headerField(http_parser *parser, const char *at, size_t length)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     if (length > 2 && at[0] == '"' && at[length - 1] == '"') {
         ++at;
         length -= 2;
@@ -493,7 +493,7 @@ int ServerSession::headerField(http_parser *parser, const char *at, size_t lengt
 
 int ServerSession::headerValue(http_parser *parser, const char *at, size_t length)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     if (length > 2 && at[0] == '"' && at[length - 1] == '"') {
         ++at;
         length -= 2;
@@ -503,8 +503,7 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
         thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, std::string(at, length));
         thiz->m_tempStr.clear();
     } catch (const ResponseStatusError &status) {
-        thiz->m_tempStr = status.what();
-        return (thiz->m_statusCode = status.statusCode());
+        return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -513,12 +512,11 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
 
 int ServerSession::headersComplete(http_parser *parser)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->headersComplete();
     } catch (const ResponseStatusError &status) {
-        thiz->m_tempStr = status.what();
-        return (thiz->m_statusCode = status.statusCode());
+        return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -527,12 +525,11 @@ int ServerSession::headersComplete(http_parser *parser)
 
 int ServerSession::body(http_parser *parser, const char *at, size_t length)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->m_serviceSession->body(at, length);
     } catch (const ResponseStatusError &status) {
-        thiz->m_tempStr = status.what();
-        return (thiz->m_statusCode = status.statusCode());
+        return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
@@ -541,17 +538,23 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
 
 int ServerSession::messageComplete(http_parser *parser)
 {
-    ServerSession *thiz = reinterpret_cast<ServerSession *>(parser->data);
+    auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();
     } catch (const ResponseStatusError &status) {
-        thiz->m_tempStr = status.what();
-        return (thiz->m_statusCode = status.statusCode());
+        return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
+}
+
+int ServerSession::setResponseStatusError(const ResponseStatusError &status)
+{
+    m_responseStatusErrorHeaders = status.headers();
+    m_tempStr = status.what();
+    return (m_statusCode = status.statusCode());
 }
 
 } // namespace Getodac

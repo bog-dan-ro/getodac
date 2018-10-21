@@ -17,12 +17,14 @@
 
 #include <exception>
 #include <iostream>
+#include <unistd.h>
 
 #include "server.h"
 
 int main(int argc, char*argv[])
 {
     try {
+        std::cout << "pid:" << getpid() << std::endl;
         return Getodac::Server::instance()->exec(argc, argv);
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

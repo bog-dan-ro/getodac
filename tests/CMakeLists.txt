@@ -1,5 +1,6 @@
-include_directories(${GTEST_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
+add_subdirectory(library)
 
-add_executable(GETodacTests GETodacTests.cpp GETodacUtils.cpp GETodacRESTfull.cpp)
-target_link_libraries(GETodacTests ${GTEST_BOTH_LIBRARIES} pthread)
-add_test(AllTestsInFoo GETodacTests)
+find_package(CURL)
+if (CURL_FOUND)
+    add_subdirectory(server_tests)
+endif()

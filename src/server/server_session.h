@@ -134,6 +134,7 @@ protected:
     static int body(http_parser *parser, const char *at, size_t length);
     static int messageComplete(http_parser *parser);
     virtual inline void messageComplete() {}
+    int setResponseStatusError(const ResponseStatusError &status);
 
 private:
     SessionsEventLoop *m_eventLoop;
@@ -153,6 +154,7 @@ private:
     struct sockaddr_storage m_peerAddr;
     bool m_canWriteError = true;
     bool m_wasShutdown = false;
+    std::unordered_map<std::string, std::string> m_responseStatusErrorHeaders;
 };
 
 } // namespace Getodac

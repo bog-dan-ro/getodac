@@ -38,7 +38,7 @@ class ResponseStatusError : public std::runtime_error
 {
 public:
     using HeadersData = std::unordered_map<std::string, std::string>;
-    ResponseStatusError(int statusCode, const std::string &errorMessage, HeadersData headers = {})
+    ResponseStatusError(int statusCode, const std::string &errorMessage = {}, HeadersData headers = {})
         : std::runtime_error(errorMessage)
         , m_statusCode(statusCode)
         , m_headers(std::move(headers))
@@ -49,6 +49,12 @@ public:
      * \return returns the http status code
      */
     int statusCode() const { return m_statusCode; }
+
+    /*!
+     * \brief headers
+     * \return returns the headers
+     */
+    const HeadersData headers() const {return m_headers; }
 
 private:
     int m_statusCode;

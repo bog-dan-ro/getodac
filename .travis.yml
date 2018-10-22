@@ -1,44 +1,10 @@
-language: cpp
-dist: trusty
 sudo: required
 
-compiler:
-  - gcc
-
-before_install:
-  - sudo add-apt-repository ppa:afrank/boost -y
-  - sudo add-apt-repository ppa:beineri/opt-qt561-trusty -y
-  - sudo apt-get update -qq
+services:
+  - docker
 
 install:
-  - sudo apt-get install -qq libboost1.57-all qt56tools; source /opt/qt56/bin/qt56-env.sh
-
-env:
-  global:
-   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
-   #   via the "travis encrypt" command using the project repo's public key
-   - secure: "OA1D8pS0f5TRwWbKUA6K9KgNP9MfS/1TW//XLWuoyD3J4zZ7PKJ9TcJct1GZk6hYWudilV93sDDbQCwC07gGgqTu0LkGx3T54r4wXwkv1fVTL5H5AHuIOV+SA866LbOfc3Kvvb1Nj02AkvZ8tRArKeY+b4TYGv4XfpDz8gFrlTogYh7c5SkyeSlJXycBneu67VCe67HdQW3qof555Xc3QMEr7F2Gxz0KSOFsa5MVaLQnuNPqY+1k3el1ziiE0atEY04GcuP7c9JAzJtpWSGo79kteo8MaJ67IOPL72+syPJnxUkvA/N18/pZo4PGqJDjlKr/03qKZw9RNKSSUEU9jbtMCpqRLowlHQgKkkuEk0rzC1tLshWX4NQd4lDgylX8uh2OtgPtvwuxbeCx6sOboJyD5/AGMdoXbokmmcgDJ8TrO28Ofc5hH5a9R93jLa8k/9vAmW3CufRk1daLeKZ5KMmvtYJUdkN+DKDLzaVwU4n5gw8qhNiOCi4JVLtpzSFl0J3B4hZobC+W23Gkocp76JXjne/Siqm9kVRoj+DjENTpSaeuihhx8FrOC5xjRqV1sGpHAYscXHrATrUeyf0HzAWudaBPcXOgR9toGfIVX4mAVO9QL6IjpMsK7qTAGhh4h7bDCaVh1Tu0UyXM/c3auEC2p6z2sX5xt6bAiKskT+c="
-
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-
-    packages:
-      - g++-6
-      - gcc-6
-
-  coverity_scan:
-    project:
-      name: "bog-dan-ro/getodac"
-      description: "Build submitted via Travis CI"
-    notification_email: bogdan@kde.org
-    build_command_prepend: "./qmake"
-    build_command: "make -j 4"
-    branch_pattern: coverity_scan
-
-env: COMPILER=g++-6
+  - docker build -t bog-dan-ro/getodac .
 
 script:
-  - qmake getodac.pro
-  - make
+  - docker run bog-dan-ro/getodac /code/build_test.sh

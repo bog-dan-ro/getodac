@@ -27,7 +27,7 @@ namespace ServerSessions {
 class ServerStatus : public Getodac::AbstractServiceSession
 {
 public:
-    ServerStatus(Getodac::AbstractServerSession *serverSession)
+    explicit ServerStatus(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
     {}
 

@@ -33,7 +33,7 @@ Getodac::RESTfullResourceType s_testRootRestful("/test/rest/v1/");
 class BaseTestSession : public Getodac::AbstractServiceSession
 {
 public:
-    BaseTestSession(Getodac::AbstractServerSession *serverSession)
+    explicit BaseTestSession(Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractServiceSession(serverSession)
     {}
     // AbstractServiceSession interface
@@ -56,7 +56,7 @@ public:
 class TestSecureOnly : public BaseTestSession
 {
 public:
-    TestSecureOnly(Getodac::AbstractServerSession *serverSession)
+    explicit TestSecureOnly(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {
         if (!serverSession->isSecuredConnection())
@@ -78,7 +78,7 @@ public:
 
 struct TestThowFromHeaderFieldValue : public BaseTestSession
 {
-    TestThowFromHeaderFieldValue(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+    explicit TestThowFromHeaderFieldValue(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
     void headerFieldValue(const std::string &, const std::string &) override
     {
         throw Getodac::ResponseStatusError{400, "Too many headers", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
@@ -87,7 +87,7 @@ struct TestThowFromHeaderFieldValue : public BaseTestSession
 
 struct TestThowFromHeadersComplete : public BaseTestSession
 {
-    TestThowFromHeadersComplete(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+    explicit TestThowFromHeadersComplete(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
 
     void headersComplete() override
     {
@@ -98,7 +98,7 @@ struct TestThowFromHeadersComplete : public BaseTestSession
 
 struct TestThowFromBody : public BaseTestSession
 {
-    TestThowFromBody(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+    explicit TestThowFromBody(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
 
     void body(const char *, size_t ) override
     {
@@ -110,7 +110,7 @@ struct TestThowFromBody : public BaseTestSession
 class Test0 : public BaseTestSession
 {
 public:
-    Test0(Getodac::AbstractServerSession *serverSession)
+    explicit Test0(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -125,7 +125,7 @@ public:
 class Test100 : public BaseTestSession
 {
 public:
-    Test100(Getodac::AbstractServerSession *serverSession)
+    explicit Test100(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -150,7 +150,7 @@ public:
 class Test50M : public BaseTestSession
 {
 public:
-    Test50M(Getodac::AbstractServerSession *serverSession)
+    explicit Test50M(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -176,7 +176,7 @@ public:
 class Test50MS : public BaseTestSession
 {
 public:
-    Test50MS(Getodac::AbstractServerSession *serverSession)
+    explicit Test50MS(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -207,7 +207,7 @@ public:
 class Test50MChuncked : public BaseTestSession
 {
 public:
-    Test50MChuncked(Getodac::AbstractServerSession *serverSession)
+    explicit Test50MChuncked(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -236,7 +236,7 @@ private:
 class Test50MChunckedAtOnce : public BaseTestSession
 {
 public:
-    Test50MChunckedAtOnce(Getodac::AbstractServerSession *serverSession)
+    explicit Test50MChunckedAtOnce(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -270,7 +270,7 @@ private:
 class TestRESTGET : public Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>
 {
 public:
-    TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
+    explicit TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
         : Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
     {}
 

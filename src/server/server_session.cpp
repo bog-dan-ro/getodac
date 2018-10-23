@@ -100,7 +100,7 @@ namespace {
 
     struct YieldImpl : AbstractServerSession::Yield
     {
-        YieldImpl(YieldType &yield)
+        explicit YieldImpl(YieldType &yield)
             : m_yield(yield)
         {}
         inline void operator ()() override

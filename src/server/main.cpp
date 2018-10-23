@@ -24,7 +24,7 @@
 int main(int argc, char*argv[])
 {
     try {
-        std::cout << "pid:" << getpid() << std::endl;
+        std::cout << "pid:" << getpid() << std::endl << std::flush;
         return Getodac::Server::instance()->exec(argc, argv);
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

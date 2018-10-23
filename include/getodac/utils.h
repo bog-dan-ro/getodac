@@ -122,6 +122,8 @@ inline std::string unEscapeUrl(const std::string &in)
  */
 inline std::string::size_type findInSubstr(const std::string &str, std::string::size_type pos, std::string::size_type nchars, char ch)
 {
+    pos = std::min(pos, str.size() - 1);
+    nchars = std::min(str.size() - pos, nchars);
     for (; nchars; ++pos, --nchars)
         if (str[pos] == ch)
             return pos;

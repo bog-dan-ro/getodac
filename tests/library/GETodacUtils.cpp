@@ -35,11 +35,11 @@ using namespace std;
 
     TEST(Utils, findInSubstr)
     {
-        string str = unEscapeUrl("/api/v1/parents/123/childern");
+        string str = unEscapeUrl("/api/v1/parents/123/children");
         string::size_type expectedPositions[]={0, 4, 7, 15, 19, string::npos};
         string::size_type pos = -1;
         for (auto ep : expectedPositions) {
-            pos = findInSubstr(str, pos + 1, str.size(), '/');
+            pos = findInSubstr(str, pos + 1, str.size() - pos - 1, '/');
             EXPECT_EQ(pos, ep);
         }
     }

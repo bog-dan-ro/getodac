@@ -14,11 +14,27 @@
 static FILE * s_getodacHandle = nullptr;
 static pid_t s_getodacPid = -1;
 
+static pid_t pidof(const char *name)
+{
+    std::string cmd{"pidof "};
+    cmd += name;
+    FILE *fp = popen(cmd.c_str(), "r");
+    char buff[200];
+    memset(buff, 0, 200);
+    fread(buff, 1, 200, fp);
+    fclose(fp);
+    return atoi(buff);
+}
+
 void startGetodacServer(const std::string &path)
 {
+    if (pidof("GETodac"))
+        return;
+
     s_getodacHandle = popen(path.c_str(), "r");
     std::string output;
     char buf[8];
+    memset(buf, 0, sizeof(buf));
     size_t rd;
     using clock = std::chrono::system_clock;
     auto start = clock::now();
@@ -45,8 +61,10 @@ void startGetodacServer(const std::string &path)
 
 void terminateGetodacServer()
 {
-    kill(s_getodacPid, SIGTERM);
-    pclose(s_getodacHandle);
+    if (s_getodacPid != -1) {
+        kill(s_getodacPid, SIGTERM);
+        pclose(s_getodacHandle);
+    }
 }
 
 EasyCurl::EasyCurl()

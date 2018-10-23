@@ -1,4 +1,4 @@
-# Getodac server
+# GETodac server
 
 [![Build & Testing Status](https://travis-ci.org/bog-dan-ro/getodac.svg?branch=master)](https://travis-ci.org/bog-dan-ro/getodac)
 

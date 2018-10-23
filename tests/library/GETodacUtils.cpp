@@ -42,5 +42,6 @@ using namespace std;
             pos = findInSubstr(str, pos + 1, str.size() - pos - 1, '/');
             EXPECT_EQ(pos, ep);
         }
+        EXPECT_EQ(findInSubstr(str, str.size(), string::npos, '.'), string::npos);
     }
 }

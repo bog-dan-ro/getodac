@@ -15,20 +15,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <gtest/gtest.h>
-#include <boost/filesystem.hpp>
-#include <iostream>
+#pragma once
 
-#include <GETodacServer.h>
+#include <string>
 
-extern std::string hugeData;
+namespace Getodac {
+namespace Test {
 
-int main(int argc, char **argv) {
-    Getodac::Test::startServer(boost::filesystem::canonical(boost::filesystem::path(argv[0])).parent_path().append("/GETodac").string());
-    for (int i = 0; i < 50 * 1024 * 1024; ++i)
-        hugeData += char(33 + (i % 93));
-    ::testing::InitGoogleTest(&argc, argv);
-    int res = RUN_ALL_TESTS();
-    Getodac::Test::terminateServer();
-    return res;
-}
+void startServer(const std::string &path);
+void terminateServer();
+
+} // namespace Test
+} // namespace Getodac

@@ -16,7 +16,7 @@
 */
 
 #include <gtest/gtest.h>
-#include "global.h"
+#include <EasyCurl.h>
 
 std::string hugeData;
 
@@ -26,7 +26,7 @@ using namespace std;
 TEST(Responses, zero)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test0"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
@@ -42,7 +42,7 @@ TEST(Responses, zero)
 TEST(Responses, test100)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
@@ -58,7 +58,7 @@ TEST(Responses, test100)
 TEST(Responses, test50m)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50m"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
@@ -74,7 +74,7 @@ TEST(Responses, test50m)
 TEST(Responses, test50m_iovec)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50ms"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
@@ -90,7 +90,7 @@ TEST(Responses, test50m_iovec)
 TEST(Responses, test50mChuncked)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChuncked"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
@@ -106,7 +106,7 @@ TEST(Responses, test50mChuncked)
 TEST(Responses, test50mChunckedAtOnce)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChunckedAtOnce"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");

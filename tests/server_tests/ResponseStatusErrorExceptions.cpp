@@ -16,7 +16,7 @@
 */
 
 #include <gtest/gtest.h>
-#include "global.h"
+#include <EasyCurl.h>
 
 namespace {
 using namespace std;
@@ -25,7 +25,7 @@ using namespace std;
 TEST(ResponseStatusError, constructor)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/secureOnly"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "400");
@@ -40,7 +40,7 @@ TEST(ResponseStatusError, constructor)
 TEST(ResponseStatusError, fromHeaderValue)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromHeaderFieldValue"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "400");
@@ -55,7 +55,7 @@ TEST(ResponseStatusError, fromHeaderValue)
 TEST(ResponseStatusError, fromHeadersComplete)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromHeadersComplete"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "401");
@@ -70,7 +70,7 @@ TEST(ResponseStatusError, fromHeadersComplete)
 TEST(ResponseStatusError, fromBody)
 {
     try {
-        EasyCurl curl;
+        Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromBody"));
         auto reply = curl.request("GET", "some data");
         EXPECT_EQ(reply.status, "400");

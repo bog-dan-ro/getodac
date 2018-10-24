@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <curl/curl.h>
 
-void startGetodacServer(const std::string &path);
-void terminateGetodacServer();
+namespace Getodac {
+namespace Test {
 
 class EasyCurl
 {
@@ -59,3 +59,5 @@ private:
     CURL *m_curl;
 };
 
+} // namespace Test
+} // namespace Getodac

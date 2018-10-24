@@ -32,7 +32,7 @@ public:
     // ServerSession interface
     bool isSecuredConnection() const override { return true; }
     void verifyPeer(const std::string &caFile) override;
-    X509* getPeerCertificate() const;
+    X509* getPeerCertificate() const override;
 
     ssize_t sockRead(void *buf, size_t size) override
     {

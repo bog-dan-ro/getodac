@@ -94,7 +94,7 @@ public:
      * \example
      *
      */
-    RESTfullResource(const std::string &resource = {})
+    explicit RESTfullResource(const std::string &resource = {})
         : d(std::make_shared<RESTfullResourceData>())
     {
           d->resource = resource;

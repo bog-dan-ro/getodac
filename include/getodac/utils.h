@@ -172,7 +172,7 @@ template <typename K, typename V, typename Lock = SpinLock>
 class LRUCache
 {
 public:
-    LRUCache(size_t cacheSize)
+    explicit LRUCache(size_t cacheSize)
         : m_cacheSize(cacheSize) {}
 
     inline void put(const K &key, const V &value)

@@ -68,7 +68,7 @@ private:
     std::atomic_bool m_shutdown;
     std::atomic<uint32_t> m_peakSessions;
     std::atomic<uint64_t> m_servedSessions;
-    int m_eventsSize;
+    int m_eventsSize = 0;
     int m_epollHandler;
     SpinLock m_activeSessionsMutex;
     std::unordered_set<ServerSession*> m_activeSessions;

@@ -101,7 +101,7 @@ public:
     }
 
     // AbstractServerSession interface
-    inline const struct sockaddr_storage& peerAddress() const { return m_peerAddr; }
+    inline const struct sockaddr_storage& peerAddress() const override { return m_peerAddr; }
     void write(Yield &yield, const void *buf, size_t size) override;
     void writev(Yield &yield, iovec *vec, size_t count) override;
     void responseStatus(uint32_t code) override;

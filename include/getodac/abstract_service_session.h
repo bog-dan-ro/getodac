@@ -275,7 +275,7 @@ public:
     };
 
 public:
-    AbstractSimplifiedServiceSession(AbstractServerSession *serverSession)
+    explicit AbstractSimplifiedServiceSession(AbstractServerSession *serverSession)
         : AbstractServiceSession(serverSession)
     {}
 

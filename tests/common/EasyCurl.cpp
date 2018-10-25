@@ -35,6 +35,7 @@ EasyCurl::EasyCurl()
 
 EasyCurl::~EasyCurl()
 {
+    curl_slist_free_all(m_headersList);
     curl_easy_cleanup(m_curl);
 }
 
@@ -46,17 +47,15 @@ EasyCurl &EasyCurl::setUrl(const std::string &url)
 
 EasyCurl &EasyCurl::setHeaders(const EasyCurl::Headers &headers)
 {
-    struct curl_slist *list = nullptr;
-    for (const auto &kv: headers)
-        list = curl_slist_append(list, (kv.first + ": " + kv.second).c_str());
-
-    try {
-        setOpt(CURLOPT_HTTPHEADER, list);
-    } catch(...) {
-        curl_slist_free_all(list);
-        throw;
+    if (m_headersList) {
+        curl_slist_free_all(m_headersList);
+        m_headersList = nullptr;
     }
-    curl_slist_free_all(list);
+
+    for (const auto &kv: headers)
+        m_headersList = curl_slist_append(m_headersList, (kv.first + ": " + kv.second).c_str());
+
+    setOpt(CURLOPT_HTTPHEADER, m_headersList);
     return *this;
 }
 
@@ -70,7 +69,7 @@ EasyCurl::Response EasyCurl::request(const std::string &method, std::string uplo
     if (upload.size()) {
         setOpt(CURLOPT_READDATA, &upload);
         setOpt(CURLOPT_READFUNCTION, &read_callback);
-        setOpt(CURLOPT_UPLOAD, (void*)1);
+        setOpt(CURLOPT_UPLOAD, 1L);
         setOpt(CURLOPT_INFILESIZE_LARGE, curl_off_t(upload.size()));
     }
 

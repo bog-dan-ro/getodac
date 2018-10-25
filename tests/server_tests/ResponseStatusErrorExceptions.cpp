@@ -72,7 +72,7 @@ TEST(ResponseStatusError, fromBody)
     try {
         Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromBody"));
-        auto reply = curl.request("GET", "some data");
+        auto reply = curl.post("some data");
         EXPECT_EQ(reply.status, "400");
         EXPECT_EQ(reply.headers["BodyKey1"], "Value1");
         EXPECT_EQ(reply.headers["BodyKey2"], "Value2");

@@ -57,6 +57,7 @@ private:
     }
 private:
     CURL *m_curl;
+    curl_slist *m_headersList = nullptr;
 };
 
 } // namespace Test

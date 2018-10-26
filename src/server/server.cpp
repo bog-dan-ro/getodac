@@ -301,12 +301,11 @@ int Server::exec(int argc, char *argv[])
     if (eventLoopsSize < 1)
         throw std::runtime_error("Invalid workers count");
 
-
     if (!confDir.empty()) {
         namespace pt = boost::property_tree;
         pt::ptree properties;
         pt::read_info(boost::filesystem::path(confDir).append("/server.conf").string(), properties);
-        httpPort = properties.get("http_port", httpPort);
+        httpPort = properties.get("http_port", -1);
         if (properties.find("https") != properties.not_found()) {
             if (properties.get("https.enabled", false)) {
                 httpsPort = properties.get("https.port", httpsPort);
@@ -341,10 +340,13 @@ int Server::exec(int argc, char *argv[])
 
                 SSLDataIndex = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
             } else {
-                httpsPort = 0;
+                httpsPort = -1;
             }
         }
     }
+
+    if (httpPort < 0 && httpsPort < 0)
+        throw std::runtime_error{"No HTTP nor HTTPS ports specified"};
 
     // load plugins
     if (fs::is_directory(pluginsPath)) {
@@ -369,11 +371,13 @@ int Server::exec(int argc, char *argv[])
     pthread_setschedparam(pthread_self(), SCHED_RR, &sch);
 
     // Bind IPv4 & IPv6 http ports
-    bind(IPV4, httpPort);
-    bind(IPV6, httpPort);
-    std::cout << "listen on :"<< httpPort << " port" << std::endl;
+    if (httpPort > 0) {
+        bind(IPV4, httpPort);
+        bind(IPV6, httpPort);
+        std::cout << "listen on :"<< httpPort << " port" << std::endl;
+    }
 
-    if (httpsPort) {
+    if (httpsPort > 0) {
         // Bind IPv4 & IPv6 https ports
         https4Sock = bind(IPV4, httpsPort);
         https6Sock = bind(IPV6, httpsPort);

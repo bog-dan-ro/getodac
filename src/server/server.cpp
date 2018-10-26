@@ -298,10 +298,9 @@ int Server::exec(int argc, char *argv[])
         throw;
     }
 
-    if (!eventLoopsSize)
+    if (eventLoopsSize < 1)
         throw std::runtime_error("Invalid workers count");
 
-    auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
 
     if (!confDir.empty()) {
         namespace pt = boost::property_tree;
@@ -380,6 +379,8 @@ int Server::exec(int argc, char *argv[])
         https6Sock = bind(IPV6, httpsPort);
         std::cout << "listen on :"<< httpsPort << " port" << std::endl;
     }
+
+    auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
 
     std::cout << "Using:" << eventLoopsSize << " worker threads" << std::endl << std::flush;
 

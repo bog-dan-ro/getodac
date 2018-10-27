@@ -90,7 +90,7 @@ public:
 
     /// Usually DELETE operations doesn't have to write any response body
     /// override is needed
-    void writeResponse(std::ostream &) override {}
+    void writeResponse(Getodac::OStream &) override {}
 };
 
 template <typename BaseClass>
@@ -115,7 +115,7 @@ public:
         return response;
     }
 
-    void writeResponse(std::ostream &) override {}
+    void writeResponse(Getodac::OStream &) override {}
 };
 
 } // namespace Getodac

@@ -274,7 +274,7 @@ public:
         : Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
     {}
 
-    void writeResponse(std::ostream &stream) override
+    void writeResponse(Getodac::OStream &stream) override
     {
         stream << "Got " << m_parsedUrl.resources.size() << " resources\n";
         stream << "and " << m_parsedUrl.queryStrings.size() << " queries\n";

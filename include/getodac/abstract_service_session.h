@@ -159,6 +159,8 @@ public:
         m_serviceSession->serverSession()->responseComplete();
     }
 
+    inline AbstractServerSession::Yield &yield() const { return m_yield; }
+
     // basic_streambuf interface
 protected:
     int sync() override
@@ -201,6 +203,19 @@ private:
     AbstractServiceSession *m_serviceSession;
     AbstractServerSession::Yield &m_yield;
     std::string m_buffer;
+};
+
+class OStream : public std::ostream
+{
+public:
+    explicit OStream(OStreamBuffer &buff)
+        : std::ostream(&buff)
+        , m_buff(buff) {}
+
+    inline AbstractServerSession::Yield &yield() const { return m_buff.yield(); }
+
+private:
+    OStreamBuffer &m_buff;
 };
 
 class AbstractSimplifiedServiceSession : public AbstractServiceSession
@@ -293,7 +308,7 @@ public:
      *
      * \param stream. A stream object which can be used to write the response body.
      */
-    virtual void writeResponse(std::ostream &stream) = 0;
+    virtual void writeResponse(OStream &stream) = 0;
 
     // AbstractServiceSession interface
 protected:
@@ -325,7 +340,7 @@ protected:
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) final
     {
         OStreamBuffer streamBuffer{this, yield, m_chuncked};
-        std::ostream stream(&streamBuffer);
+        OStream stream(streamBuffer);
         writeResponse(stream);
     }
 

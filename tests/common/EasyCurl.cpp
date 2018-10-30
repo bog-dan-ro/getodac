@@ -29,8 +29,8 @@ EasyCurl::EasyCurl()
     m_curl = curl_easy_init();
     if (!m_curl)
         throw std::runtime_error{"Can't init CUrl"};
-    setOpt(CURLOPT_WRITEFUNCTION, &write_callback);
-    setOpt(CURLOPT_HEADERFUNCTION, &header_callback);
+    setOptions(CURLOPT_WRITEFUNCTION, &write_callback);
+    setOptions(CURLOPT_HEADERFUNCTION, &header_callback);
 }
 
 EasyCurl::~EasyCurl()
@@ -41,7 +41,7 @@ EasyCurl::~EasyCurl()
 
 EasyCurl &EasyCurl::setUrl(const std::string &url)
 {
-    setOpt(CURLOPT_URL, url.c_str());
+    setOptions(CURLOPT_URL, url.c_str());
     return *this;
 }
 
@@ -55,22 +55,22 @@ EasyCurl &EasyCurl::setHeaders(const EasyCurl::Headers &headers)
     for (const auto &kv: headers)
         m_headersList = curl_slist_append(m_headersList, (kv.first + ": " + kv.second).c_str());
 
-    setOpt(CURLOPT_HTTPHEADER, m_headersList);
+    setOptions(CURLOPT_HTTPHEADER, m_headersList);
     return *this;
 }
 
 EasyCurl::Response EasyCurl::request(const std::string &method, std::string upload) const
 {
     Response res;
-    setOpt(CURLOPT_WRITEDATA, &res);
-    setOpt(CURLOPT_HEADERDATA, &res);
-    setOpt(CURLOPT_CUSTOMREQUEST, method.c_str());
+    setOptions(CURLOPT_WRITEDATA, &res);
+    setOptions(CURLOPT_HEADERDATA, &res);
+    setOptions(CURLOPT_CUSTOMREQUEST, method.c_str());
 
     if (upload.size()) {
-        setOpt(CURLOPT_READDATA, &upload);
-        setOpt(CURLOPT_READFUNCTION, &read_callback);
-        setOpt(CURLOPT_UPLOAD, 1L);
-        setOpt(CURLOPT_INFILESIZE_LARGE, curl_off_t(upload.size()));
+        setOptions(CURLOPT_READDATA, &upload);
+        setOptions(CURLOPT_READFUNCTION, &read_callback);
+        setOptions(CURLOPT_UPLOAD, 1L);
+        setOptions(CURLOPT_INFILESIZE_LARGE, curl_off_t(upload.size()));
     }
 
     auto err = curl_easy_perform(m_curl);

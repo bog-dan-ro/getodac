@@ -84,6 +84,7 @@ size_t EasyCurl::read_callback(char *buffer, size_t size, size_t nitems, std::st
 {
     size_t sz = std::min(size * nitems, upload->size());
     mempcpy(buffer, upload->c_str(), sz);
+    upload->erase(0, sz);
     return sz;
 }
 

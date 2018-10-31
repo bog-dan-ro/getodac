@@ -307,10 +307,12 @@ int Server::exec(int argc, char *argv[])
     if (eventLoopsSize < 1)
         throw std::runtime_error("Invalid workers count");
 
+    bool enableServerStatus = false;
     if (!confDir.empty()) {
         namespace pt = boost::property_tree;
         pt::ptree properties;
         pt::read_info(boost::filesystem::path(confDir).append("/server.conf").string(), properties);
+        enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
         if (properties.find("https") != properties.not_found()) {
             if (properties.get("https.enabled", false)) {
@@ -368,8 +370,10 @@ int Server::exec(int argc, char *argv[])
     }
 
     // at the end add the server sessions
-    m_plugins.emplace_back(&ServerSessions::createSession, UINT32_MAX / 2);
+    if (enableServerStatus)
+        m_plugins.emplace_back(&ServerSessions::createSession, UINT32_MAX / 2);
     std::sort(m_plugins.begin(), m_plugins.end(), [](const ServerPlugin &a, const ServerPlugin &b){return a.order() < b.order();});
+
     // accept thread must have insane priority to be able to accept connections
     // as fast as possible
     sched_param sch;

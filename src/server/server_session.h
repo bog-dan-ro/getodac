@@ -155,6 +155,7 @@ private:
     bool m_canWriteError = true;
     bool m_wasShutdown = false;
     std::unordered_map<std::string, std::string> m_responseStatusErrorHeaders;
+    size_t m_contentLength = ChunckedData;
 };
 
 } // namespace Getodac

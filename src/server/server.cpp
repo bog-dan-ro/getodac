@@ -318,7 +318,7 @@ int Server::exec(int argc, char *argv[])
                         throw std::runtime_error("Can't create SSL Context");
 
                 std::string path = properties.get<std::string>("https.certificate");
-                if (SSL_CTX_use_certificate_file(m_SSLContext, path.c_str(), SSL_FILETYPE_PEM) <= 0)
+                if (SSL_CTX_use_certificate_chain_file(m_SSLContext, path.c_str()) <= 0)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
                 path = properties.get<std::string>("https.privateKey");

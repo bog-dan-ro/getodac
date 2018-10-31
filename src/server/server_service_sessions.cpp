@@ -33,6 +33,7 @@ public:
 
     // ServiceSession interface
     void headerFieldValue(const std::string &, const std::string &) override {}
+    bool acceptContentLength(size_t) override {return false;}
     void headersComplete() override {}
     void body(const char *, size_t) override {}
     void requestComplete() override

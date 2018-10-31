@@ -63,6 +63,17 @@ public:
     virtual void headerFieldValue(const std::string &field, const std::string &value) = 0;
 
     /*!
+     * \brief acceptContentLength
+     *
+     * AbstractServerSession calls this function when it detects a "Expect: 100-continue" header
+     *
+     * \param length the "Content-Length"
+     * \return true if the service accepts the body, in this case a "HTTP/1.1 100 Continue" will be sent immediately.
+     *         False will send a "HTTP/1.1 417 Expectation Failed" and it will close the connection.
+     */
+    virtual bool acceptContentLength(size_t length) = 0;
+
+    /*!
      * \brief headersComplete
      *
      *  AbstractServerSession calls this function when all the headers are parsed

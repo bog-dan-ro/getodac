@@ -70,7 +70,12 @@ public:
         response.contentLenght = Getodac::ChunckedData;
         return response;
     }
+
     // Usually GET and Delete methods don't expect any body
+    bool acceptContentLength(size_t length) override
+    {
+        (void)length; return false;
+    }
     void body(const char *data, size_t length) override
     {
         (void)data;

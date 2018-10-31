@@ -100,7 +100,7 @@ size_t EasyCurl::header_callback(char *buffer, size_t size, size_t nitems, EasyC
         return size * nitems;
 
     std::string header{buffer, size * nitems - 2};
-    if (response->status.empty()) {
+    if (header.substr(0, 8) == "HTTP/1.1") {
         std::vector<std::string> status;
         boost::split(status, header, boost::is_any_of(" "));
         response->status = status.size() > 1 ? status[1] : "unknown";

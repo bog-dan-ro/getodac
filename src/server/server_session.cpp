@@ -89,6 +89,8 @@ namespace {
         {505, "505 HTTP Version Not Supported\r\n"}
     };
 
+    const char ContinueResponse[] = "HTTP/1.1 100 Continue\r\n\r\n";
+
     inline const char *statusCode(unsigned status)
     {
         auto it = codes.find(status);
@@ -453,6 +455,7 @@ int ServerSession::messageBegin(http_parser *parser)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     thiz->m_tempStr.clear();
+    thiz->m_contentLength = ChunckedData;
     return 0;
 }
 
@@ -500,7 +503,21 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
     }
 
     try {
-        thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, std::string(at, length));
+        std::string value{at, length};
+        if (thiz->m_tempStr == "Content-Length") {
+            char *end;
+            thiz->m_contentLength = std::strtoul(value.c_str(), &end, 10);
+            if (end != value.c_str() + length)
+                thiz->m_contentLength = ChunckedData;
+        } else if (thiz->m_tempStr == "Expect" && length > 3 && std::memcmp(value.c_str(), "100", 3) == 0) {
+            if (thiz->m_contentLength == ChunckedData || !thiz->m_serviceSession->acceptContentLength(thiz->m_contentLength)) {
+                thiz->m_tempStr.clear();
+                return (thiz->m_statusCode = 417); // Internal Server error
+            } else {
+                thiz->sockWrite(ContinueResponse, sizeof(ContinueResponse));
+            }
+        }
+        thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, value);
         thiz->m_tempStr.clear();
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);

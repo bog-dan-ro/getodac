@@ -355,6 +355,21 @@ int Server::exec(int argc, char *argv[])
                 if (!properties.get("https.compression", false))
                     SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_COMPRESSION);
 
+                if (properties.get("https.protocols.SSL_OP_NO_SSLv3", true))
+                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_SSLv2);
+
+                if (properties.get("https.protocols.SSL_OP_NO_SSLv3", true))
+                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_SSLv3);
+
+                if (properties.get("https.protocols.SSL_OP_NO_TLSv1", false))
+                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1);
+
+                if (properties.get("https.protocols.SSL_OP_NO_TLSv1_1", false))
+                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1_1);
+
+                if (properties.get("https.protocols.SSL_OP_NO_TLSv1_2", false))
+                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1_2);
+
                 SSLDataIndex = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
             } else {
                 httpsPort = -1;

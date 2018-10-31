@@ -283,6 +283,12 @@ int Server::exec(int argc, char *argv[])
             ("help,h", "print this help")
             ;
 
+    auto absolteToConfPath = [&] (std::string path) {
+        if (path.empty() || path[0] == '/')
+            return path;
+        return confDir + '/' + path;
+    };
+
     try {
         po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -317,11 +323,11 @@ int Server::exec(int argc, char *argv[])
                 if (!(m_SSLContext = SSL_CTX_new(SSLv23_server_method())))
                         throw std::runtime_error("Can't create SSL Context");
 
-                std::string path = properties.get<std::string>("https.certificate");
+                std::string path = absolteToConfPath(properties.get<std::string>("https.certificate"));
                 if (SSL_CTX_use_certificate_chain_file(m_SSLContext, path.c_str()) <= 0)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
-                path = properties.get<std::string>("https.privateKey");
+                path = absolteToConfPath(properties.get<std::string>("https.privateKey"));
                 if (SSL_CTX_use_PrivateKey_file(m_SSLContext, path.c_str(), SSL_FILETYPE_PEM) <= 0)
                  throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 

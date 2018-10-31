@@ -17,21 +17,24 @@
 
 #include <cerrno>
 #include <csignal>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <thread>
+#include <stdexcept>
+
 #include <execinfo.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <grp.h>
 #include <malloc.h>
+#include <pwd.h>
+#include <unistd.h>
 
 #include <arpa/inet.h>
 #include <openssl/err.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 
-#include <cstring>
-#include <memory>
-#include <stdexcept>
-#include <thread>
-#include <iostream>
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
@@ -273,6 +276,8 @@ int Server::exec(int argc, char *argv[])
     // Default plugins path
     std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/lib/getodac/plugins").string();
     std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/conf").string();
+    std::string dropUser;
+    std::string dropGroup;
 
     // Server arguments
     po::options_description desc{"GETodac options"};
@@ -280,6 +285,8 @@ int Server::exec(int argc, char *argv[])
             ("conf,c", po::value<std::string>(&confDir), "configurations path")
             ("plugins-dir,d", po::value<std::string>(&pluginsPath)->default_value(pluginsPath), "plugins dir")
             ("workers,w", po::value<uint32_t>(&eventLoopsSize), "configuration file")
+            ("user,u", po::value<std::string>(&dropUser), "username to drop privileges to")
+            ("group,g", po::value<std::string>(&dropGroup), "optional group to drop privileges to, if missing the main user group will be used")
             ("help,h", "print this help")
             ;
 
@@ -308,6 +315,8 @@ int Server::exec(int argc, char *argv[])
         throw std::runtime_error("Invalid workers count");
 
     bool enableServerStatus = false;
+    gid_t gid = gid_t(-1);
+    uid_t uid = uid_t(-1);
     if (!confDir.empty()) {
         namespace pt = boost::property_tree;
         pt::ptree properties;
@@ -349,6 +358,23 @@ int Server::exec(int argc, char *argv[])
                 SSLDataIndex = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
             } else {
                 httpsPort = -1;
+            }
+
+            if (!getuid() && !dropUser.empty() ||
+                    (properties.find("privileges") != properties.not_found() && properties.get("privileges.drop", false))) {
+                auto usr = dropUser.empty() ? properties.get<std::string>("privileges.user") : dropUser;
+                auto user = getpwnam(usr.c_str());
+                if (!user)
+                    throw std::runtime_error("Can't find user \"" + usr + "\"");
+                uid = user->pw_uid;
+                gid = user->pw_gid;
+                auto grp = dropGroup.empty() ? properties.get<std::string>("privileges.group") : dropGroup;
+                if (!grp.empty()) {
+                    auto group =getgrnam(grp.c_str());
+                    if (!group)
+                        throw std::runtime_error("Can't find group \"" + grp + "\"");
+                    gid = group->gr_gid;
+                }
             }
         }
     }
@@ -392,6 +418,12 @@ int Server::exec(int argc, char *argv[])
         https4Sock = bind(IPV4, httpsPort);
         https6Sock = bind(IPV6, httpsPort);
         std::cout << "listen on :"<< httpsPort << " port" << std::endl;
+    }
+
+    if (!getuid() && gid != gid_t(-1) && uid != uid_t(-1)) {
+        if (setgid(gid) || setuid(uid))
+             throw std::runtime_error("Can't drop privileges");
+        std::cout << "Droping privileges" << std::endl << std::flush;
     }
 
     auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);

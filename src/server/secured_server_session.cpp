@@ -28,9 +28,6 @@ SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int soc
     if (!SSL_set_fd(m_SSL, sock))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
 
-    if (!SSL_set_ex_data(m_SSL, Server::SSLDataIndex, this))
-        throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
-
     SSL_set_accept_state(m_SSL);
 }
 
@@ -99,10 +96,6 @@ void SecuredServerSession::messageComplete()
         }
         return;
     }
-
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
-    SSL_set_state(m_SSL, SSL_ST_ACCEPT);
-#endif
 
     step = 0;
     while ( (ret = SSL_do_handshake(m_SSL)) != 1) {

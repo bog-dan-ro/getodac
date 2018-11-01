@@ -36,6 +36,7 @@
 #include <sys/socket.h>
 
 
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/info_parser.hpp>
@@ -51,6 +52,9 @@
 
 #include "x86_64-signal.h"
 
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL
+# error "Only SSL 1.1+ is supported"
+#endif
 
 void * operator new(std::size_t n)
 {
@@ -73,8 +77,10 @@ void operator delete(void *p, std::size_t n) noexcept
         free(p);
 }
 
+template<typename T>
+using deleted_unique_ptr = std::unique_ptr<T,std::function<void(T*)>>;
+
 namespace Getodac {
-int Server::SSLDataIndex = -1;
 
 namespace {
     const uint32_t QUEUED_CONNECTIONS = 10000;
@@ -117,26 +123,6 @@ namespace {
     private:
         pthread_rwlock_t m_lock;
     };
-
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
-    // SSL Crypto thread stuff
-    static std::unique_ptr<PthreadRW[]> s_cryptoMutexes;
-    void sslThreadLock(int mode, int type, const char */*file*/, int /*line*/)
-    {
-        if (mode & CRYPTO_UNLOCK) {
-            s_cryptoMutexes[type].unlock();
-        } else {
-            if (mode & CRYPTO_READ)
-                s_cryptoMutexes[type].lock_read();
-            else
-                s_cryptoMutexes[type].lock_write();
-        }
-    }
-    unsigned long sslGetThreadId()
-    {
-        return ::pthread_self();
-    }
-#endif
 }
 
 /*!
@@ -331,46 +317,86 @@ int Server::exec(int argc, char *argv[])
                 SSL_library_init();
                 SSL_load_error_strings();
                 OpenSSL_add_all_algorithms();
-                if (!(m_SSLContext = SSL_CTX_new(SSLv23_server_method())))
+                std::string ctxMethod = boost::algorithm::to_lower_copy(properties.get<std::string>("https.ssl.ctx_method"));
+                if (!(m_SSLContext = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
                         throw std::runtime_error("Can't create SSL Context");
 
-                std::string path = absolteToConfPath(properties.get<std::string>("https.certificate"));
-                if (SSL_CTX_use_certificate_chain_file(m_SSLContext, path.c_str()) <= 0)
+                // load SSL CTX configuration
+                auto ctxConf = deleted_unique_ptr<SSL_CONF_CTX>(SSL_CONF_CTX_new(), [](SSL_CONF_CTX *ptr){SSL_CONF_CTX_free(ptr);});
+                if (!ctxConf)
+                    throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
+                SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_SSLContext);
+                SSL_CONF_CTX_set_flags(ctxConf.get(), SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_SERVER | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_REQUIRE_PRIVATE | SSL_CONF_FLAG_SHOW_ERRORS);
+
+                std::string path = absolteToConfPath(properties.get<std::string>("https.ssl.ctx_conf_file"));
+                std::ifstream confCtx(path);
+                if (!confCtx.is_open())
+                    throw std::runtime_error{"Can't open ctx_conf_file \"" + path + +"\""};
+                int line = 0;
+                std::string txt;
+                while (getline(confCtx, txt)) {
+                    ++line;
+                    boost::algorithm::trim(txt);
+                    if (txt.empty() || txt[0] == ';')
+                        continue;
+
+                    std::vector<std::string> kv;
+                    boost::algorithm::split(kv, txt, boost::is_any_of("\t "), boost::token_compress_on);
+                    if (kv.size() > 2 || kv.empty()) {
+                        std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
+                        msg << line;
+                        throw std::runtime_error{msg.str()};
+                    }
+
+                    switch (SSL_CONF_cmd_value_type(ctxConf.get(), kv[0].c_str())) {
+                    case SSL_CONF_TYPE_UNKNOWN:
+                    {
+                        std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
+                        msg << line << ". ";
+                        msg << ERR_error_string(ERR_get_error(), nullptr);
+                        throw std::runtime_error{msg.str()};
+                    }
+                        break;
+
+                    case SSL_CONF_TYPE_FILE:
+                    case SSL_CONF_TYPE_DIR:
+                        if (kv.size() != 2) {
+                            std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
+                            msg << line << ". Command \"" << kv[0] << " expects a value";
+                            throw std::runtime_error{msg.str()};
+                        }
+                        kv[1] = absolteToConfPath(kv[1]);
+                        break;
+
+                    case SSL_CONF_TYPE_STRING:
+                        if (kv.size() != 2) {
+                            std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
+                            msg << line << ". Command \"" << kv[0] << " expects a value";
+                            throw std::runtime_error{msg.str()};
+                        }
+                        break;
+                    case SSL_CONF_TYPE_NONE:
+                        break;
+
+                    default:
+                        std::ostringstream msg{"Unkown conf type at line ", std::ios_base::ate};
+                        msg << line << ". ";
+                        msg << ERR_error_string(ERR_get_error(), nullptr);
+                        throw std::runtime_error{msg.str()};
+                        break;
+                    }
+
+                    if (SSL_CONF_cmd(ctxConf.get(), kv[0].c_str(), kv.size() == 2 ? kv[1].c_str() : nullptr) < 1) {
+                        std::ostringstream msg{"Error attempting to set the command at line ", std::ios_base::ate};
+                        msg << line << ". ";
+                        msg << ERR_error_string(ERR_get_error(), nullptr);
+                        throw std::runtime_error{msg.str()};
+                    }
+                }
+
+                if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_SSLContext) != 1)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
-                path = absolteToConfPath(properties.get<std::string>("https.privateKey"));
-                if (SSL_CTX_use_PrivateKey_file(m_SSLContext, path.c_str(), SSL_FILETYPE_PEM) <= 0)
-                 throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
-
-                if (SSL_CTX_check_private_key(m_SSLContext) != 1)
-                    throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
-
-                std::string ciphers = properties.get("https.ciphers", std::string{});
-                if (!ciphers.empty() && ! SSL_CTX_set_cipher_list(m_SSLContext, ciphers.c_str()))
-                    throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
-
-                if (properties.get("https.honorCipherOrder", false))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_CIPHER_SERVER_PREFERENCE);
-
-                if (!properties.get("https.compression", false))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_COMPRESSION);
-
-                if (properties.get("https.protocols.SSL_OP_NO_SSLv3", true))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_SSLv2);
-
-                if (properties.get("https.protocols.SSL_OP_NO_SSLv3", true))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_SSLv3);
-
-                if (properties.get("https.protocols.SSL_OP_NO_TLSv1", false))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1);
-
-                if (properties.get("https.protocols.SSL_OP_NO_TLSv1_1", false))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1_1);
-
-                if (properties.get("https.protocols.SSL_OP_NO_TLSv1_2", false))
-                    SSL_CTX_set_options(m_SSLContext, SSL_OP_NO_TLSv1_2);
-
-                SSLDataIndex = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
             } else {
                 httpsPort = -1;
             }
@@ -584,12 +610,6 @@ SSL_CTX *Getodac::Server::sslContext() const
  */
 Server::Server()
 {
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
-    s_cryptoMutexes = std::make_unique<PthreadRW[]>(CRYPTO_num_locks());
-    CRYPTO_set_locking_callback(&sslThreadLock);
-    CRYPTO_set_id_callback(&sslGetThreadId);
-#endif
-
     m_shutdown.store(false);
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
 

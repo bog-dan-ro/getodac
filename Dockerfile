@@ -7,7 +7,11 @@ ADD . /code
 RUN apt-get update && apt-get -y install \
   g++ \
   libssl-dev \
-  libboost-all-dev \
+  libboost-coroutine-dev \
+  libboost-program-options-dev \
+  libboost-filesystem-dev \
+  libboost-system-dev \
+  libboost-iostreams-dev \
   libgtest-dev \
   libcurl4-openssl-dev \
   cmake \

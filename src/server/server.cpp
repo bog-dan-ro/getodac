@@ -38,17 +38,29 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/log/attributes.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/common.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/utility/setup/filter_parser.hpp>
+#include <boost/log/utility/setup/formatter_parser.hpp>
+#include <boost/log/utility/setup/from_settings.hpp>
+#include <boost/log/utility/setup/settings.hpp>
+#include <boost/log/sources/severity_feature.hpp>
+#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 #include <getodac/exceptions.h>
+#include <getodac/logging.h>
 
-#include "server.h"
-#include "server_session.h"
-#include "sessions_event_loop.h"
-#include "server_service_sessions.h"
 #include "secured_server_session.h"
+#include "server.h"
+#include "server_logger.h"
+#include "server_session.h"
+#include "server_service_sessions.h"
+#include "sessions_event_loop.h"
 
 #include "x86_64-signal.h"
 
@@ -82,6 +94,8 @@ using deleted_unique_ptr = std::unique_ptr<T,std::function<void(T*)>>;
 
 namespace Getodac {
 
+TaggedLogger<> serverLogger{"Server"};
+
 namespace {
     const uint32_t QUEUED_CONNECTIONS = 10000;
     uint32_t eventLoopsSize = std::max(uint32_t(2), std::thread::hardware_concurrency());
@@ -89,13 +103,13 @@ namespace {
     std::string stackTrace()
     {
         void *array[100];
-        size_t count = backtrace(array, 100);
+        auto count = backtrace(array, 100);
         char **symbols = backtrace_symbols(array, count);
         std::ostringstream stackTtrace;
-        for (size_t i = 0; i < count; ++i)
+        for (int i = 0; i < count; ++i)
             stackTtrace << symbols[i] << std::endl;
         free(symbols);
-        return std::move(stackTtrace.str());
+        return stackTtrace.str();
     }
 
     static void unblockSignal(int signum)
@@ -106,23 +120,23 @@ namespace {
         sigprocmask(SIG_UNBLOCK, &sigs, nullptr);
     }
 
-    class PthreadRW {
-    public:
-        PthreadRW()
-        {
-            if (pthread_rwlock_init(&m_lock, nullptr))
-                throw std::runtime_error("rwlock_init failed");
+    std::vector<std::pair<std::string, std::string>> mergedProperties(const boost::property_tree::ptree &node, const std::string &prevNodes = {})
+    {
+        std::vector<std::pair<std::string, std::string>> res;
+        if (node.empty()) {
+            res.emplace_back(std::pair<std::string, std::string>{prevNodes, node.data()});
+            return res;
         }
-        ~PthreadRW()
-        {
-            pthread_rwlock_destroy(&m_lock);
+        for (const auto &n : node) {
+            auto pn = prevNodes;
+            if (!pn.empty())
+                pn += ".";
+            pn += n.first;
+            auto props = mergedProperties(n.second, pn);
+            res.insert(res.end(), props.begin(), props.end());
         }
-        inline void lock_read(){ pthread_rwlock_rdlock(&m_lock); }
-        inline void lock_write() { pthread_rwlock_wrlock(&m_lock); }
-        inline void unlock() { pthread_rwlock_unlock(&m_lock); }
-    private:
-        pthread_rwlock_t m_lock;
-    };
+        return res;
+    }
 }
 
 /*!
@@ -133,8 +147,8 @@ namespace {
 void Server::exitSignalHandler(int)
 {
     // Quit server loop
+    INFO(serverLogger) << "shutting down the server";
     instance()->m_shutdown.store(true);
-    std::cout << "Please wait, shutting down the server " << std::flush;
 }
 
 /// Transform segmentation violations signals into exceptions
@@ -251,6 +265,10 @@ int Server::exec(int argc, char *argv[])
     if (running)
         throw std::runtime_error{"Already running"};
 
+    boost::log::add_common_attributes();
+    boost::log::register_simple_filter_factory<boost::log::trivial::severity_level, char>("Severity");
+    boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
+
     // Server start time, will be used by server sessions
     m_startTime = std::chrono::system_clock::now();
 
@@ -264,7 +282,7 @@ int Server::exec(int argc, char *argv[])
     std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/conf").string();
     std::string dropUser;
     std::string dropGroup;
-
+    bool printPID = false;
     // Server arguments
     po::options_description desc{"GETodac options"};
     desc.add_options()
@@ -273,14 +291,9 @@ int Server::exec(int argc, char *argv[])
             ("workers,w", po::value<uint32_t>(&eventLoopsSize), "configuration file")
             ("user,u", po::value<std::string>(&dropUser), "username to drop privileges to")
             ("group,g", po::value<std::string>(&dropGroup), "optional group to drop privileges to, if missing the main user group will be used")
+            ("pid", "print GETodac pid")
             ("help,h", "print this help")
             ;
-
-    auto absolteToConfPath = [&] (std::string path) {
-        if (path.empty() || path[0] == '/')
-            return path;
-        return confDir + '/' + path;
-    };
 
     try {
         po::variables_map vm;
@@ -291,6 +304,7 @@ int Server::exec(int argc, char *argv[])
             exitSignalHandler(0);
             return 0;
         }
+        printPID = vm.count("pid");
     } catch (po::error& e) {
         std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
         std::cerr << desc << std::endl;
@@ -304,22 +318,35 @@ int Server::exec(int argc, char *argv[])
     gid_t gid = gid_t(-1);
     uid_t uid = uid_t(-1);
     if (!confDir.empty()) {
+        auto curPath = boost::filesystem::current_path();
+        boost::filesystem::current_path(confDir);
         namespace pt = boost::property_tree;
         pt::ptree properties;
-        pt::read_info(boost::filesystem::path(confDir).append("/server.conf").string(), properties);
+        pt::read_info("server.conf", properties);
+        auto loggingSettings = mergedProperties(properties.get_child("logging"));
+        boost::log::settings setts;
+        for (const auto &kv : loggingSettings)
+            setts[kv.first] = kv.second;
+        boost::log::init_from_settings(setts);
+        TRACE(serverLogger) << "Loading logging settings succeeded";
+
         enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
+        TRACE(serverLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
+            TRACE(serverLogger) << "https section found in config";
             if (properties.get("https.enabled", false)) {
                 httpsPort = properties.get("https.port", httpsPort);
+                TRACE(serverLogger) << "https enabled in configm port=" << httpsPort;
 
                 // Init SSL Context
                 SSL_library_init();
                 SSL_load_error_strings();
                 OpenSSL_add_all_algorithms();
                 std::string ctxMethod = boost::algorithm::to_lower_copy(properties.get<std::string>("https.ssl.ctx_method"));
+                DEBUG(serverLogger) << "SSL_CTX_new(" << ctxMethod << ")";
                 if (!(m_SSLContext = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
-                        throw std::runtime_error("Can't create SSL Context");
+                    throw std::runtime_error("Can't create SSL Context");
 
                 // load SSL CTX configuration
                 auto ctxConf = deleted_unique_ptr<SSL_CONF_CTX>(SSL_CONF_CTX_new(), [](SSL_CONF_CTX *ptr){SSL_CONF_CTX_free(ptr);});
@@ -328,70 +355,11 @@ int Server::exec(int argc, char *argv[])
                 SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_SSLContext);
                 SSL_CONF_CTX_set_flags(ctxConf.get(), SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_SERVER | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_REQUIRE_PRIVATE | SSL_CONF_FLAG_SHOW_ERRORS);
 
-                std::string path = absolteToConfPath(properties.get<std::string>("https.ssl.ctx_conf_file"));
-                std::ifstream confCtx(path);
-                if (!confCtx.is_open())
-                    throw std::runtime_error{"Can't open ctx_conf_file \"" + path + +"\""};
-                int line = 0;
-                std::string txt;
-                while (getline(confCtx, txt)) {
-                    ++line;
-                    boost::algorithm::trim(txt);
-                    if (txt.empty() || txt[0] == ';')
-                        continue;
-
-                    std::vector<std::string> kv;
-                    boost::algorithm::split(kv, txt, boost::is_any_of("\t "), boost::token_compress_on);
-                    if (kv.size() > 2 || kv.empty()) {
-                        std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
-                        msg << line;
-                        throw std::runtime_error{msg.str()};
-                    }
-
-                    switch (SSL_CONF_cmd_value_type(ctxConf.get(), kv[0].c_str())) {
-                    case SSL_CONF_TYPE_UNKNOWN:
-                    {
-                        std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
-                        msg << line << ". ";
-                        msg << ERR_error_string(ERR_get_error(), nullptr);
-                        throw std::runtime_error{msg.str()};
-                    }
-                        break;
-
-                    case SSL_CONF_TYPE_FILE:
-                    case SSL_CONF_TYPE_DIR:
-                        if (kv.size() != 2) {
-                            std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
-                            msg << line << ". Command \"" << kv[0] << " expects a value";
-                            throw std::runtime_error{msg.str()};
-                        }
-                        kv[1] = absolteToConfPath(kv[1]);
-                        break;
-
-                    case SSL_CONF_TYPE_STRING:
-                        if (kv.size() != 2) {
-                            std::ostringstream msg{"Invalid command at line ", std::ios_base::ate};
-                            msg << line << ". Command \"" << kv[0] << " expects a value";
-                            throw std::runtime_error{msg.str()};
-                        }
-                        break;
-                    case SSL_CONF_TYPE_NONE:
-                        break;
-
-                    default:
-                        std::ostringstream msg{"Unkown conf type at line ", std::ios_base::ate};
-                        msg << line << ". ";
-                        msg << ERR_error_string(ERR_get_error(), nullptr);
-                        throw std::runtime_error{msg.str()};
-                        break;
-                    }
-
-                    if (SSL_CONF_cmd(ctxConf.get(), kv[0].c_str(), kv.size() == 2 ? kv[1].c_str() : nullptr) < 1) {
-                        std::ostringstream msg{"Error attempting to set the command at line ", std::ios_base::ate};
-                        msg << line << ". ";
-                        msg << ERR_error_string(ERR_get_error(), nullptr);
-                        throw std::runtime_error{msg.str()};
-                    }
+                auto cxt_settings = mergedProperties(properties.get_child("https.ssl.cxt_settings"));
+                for (const auto &kv : cxt_settings) {
+                    DEBUG(serverLogger) << "SSL_CONF_cmd(" << kv.first << ", " << kv.second << ")";
+                    if (SSL_CONF_cmd(ctxConf.get(), kv.first.c_str(), kv.second.empty() ? nullptr : kv.second.c_str()) < 1)
+                        throw std::runtime_error{ERR_error_string(ERR_get_error(), nullptr)};
                 }
 
                 if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_SSLContext) != 1)
@@ -418,6 +386,7 @@ int Server::exec(int argc, char *argv[])
                 }
             }
         }
+        boost::filesystem::current_path(curPath);
     }
 
     if (httpPort < 0 && httpsPort < 0)
@@ -431,7 +400,7 @@ int Server::exec(int argc, char *argv[])
                 if (fs::is_regular_file(dir_itr->status()))
                     m_plugins.emplace_back(dir_itr->path().string(), confDir);
             } catch (const std::exception &e) {
-                std::cerr << e.what() << std::endl;
+                ERROR(serverLogger) << e.what();
             }
         }
     }
@@ -451,28 +420,31 @@ int Server::exec(int argc, char *argv[])
     if (httpPort > 0) {
         bind(IPV4, httpPort);
         bind(IPV6, httpPort);
-        std::cout << "listen on :"<< httpPort << " port" << std::endl;
+        INFO(serverLogger) << "listen on :"<< httpPort << " port";
     }
 
     if (httpsPort > 0) {
         // Bind IPv4 & IPv6 https ports
         https4Sock = bind(IPV4, httpsPort);
         https6Sock = bind(IPV6, httpsPort);
-        std::cout << "listen on :"<< httpsPort << " port" << std::endl;
+        INFO(serverLogger) << "listen on :"<< httpsPort << " port";
     }
 
     if (!getuid() && gid != gid_t(-1) && uid != uid_t(-1)) {
         if (setgid(gid) || setuid(uid))
              throw std::runtime_error("Can't drop privileges");
-        std::cout << "Droping privileges" << std::endl << std::flush;
+        INFO(serverLogger) << "Droping privileges";
     }
 
     auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
 
-    std::cout << "Using:" << eventLoopsSize << " worker threads" << std::endl << std::flush;
+    INFO(serverLogger) << "using " << eventLoopsSize << " worker threads";
 
     // allocate epoll list
     const auto epollList = std::make_unique<epoll_event[]>(m_eventsSize);
+
+    if (printPID)
+        std::cout << "pid:" << getpid() << std::endl << std::flush;
 
     // Wait for incoming connections
     while (!m_shutdown) {
@@ -521,9 +493,13 @@ int Server::exec(int argc, char *argv[])
                             m_activeSessions.insert((new SecuredServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
                         else
                             m_activeSessions.insert((new ServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
+                    } catch (const std::exception &e) {
+                        WARNING(serverLogger) << " Can't create session, reason: " << e.what();
+                        ::close(sock);
                     } catch (...) {
                         // if we can't create a new session
                         // then just close the socket
+                        WARNING(serverLogger) << " Can't create session, for unknown reason";
                         ::close(sock);
                     }
                 }
@@ -637,7 +613,6 @@ Server::~Server()
         SSL_CTX_free(m_SSLContext);
     CRYPTO_set_locking_callback(nullptr);
     CRYPTO_set_id_callback(nullptr);
-    std::cout << " done" <<std::endl << std::flush;
 }
 
 } // namespace Getodac

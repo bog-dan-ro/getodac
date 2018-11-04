@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <iostream>
 
+#include "server_logger.h"
 #include "server_session.h"
 #include "sessions_event_loop.h"
 
@@ -64,6 +65,7 @@ SessionsEventLoop::SessionsEventLoop()
 //    sched_param sch;
 //    sch.sched_priority = sched_get_priority_max(SCHED_RR);
 //    pthread_setschedparam(m_loopThread.native_handle(), SCHED_RR, &sch);
+    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " tcp_rmax_mem: " << mem_max << " activeSessions = " << activeSessions();
 }
 
 SessionsEventLoop::~SessionsEventLoop()
@@ -82,8 +84,8 @@ SessionsEventLoop::~SessionsEventLoop()
             delete (*session);
             lock.lock();
         }
-        std::cout << '.' << std::flush;
     } catch (...) {}
+    TRACE(serverLogger) << "SessionsEventLoop::~SessionsEventLoop " << this;
 }
 
 /*!
@@ -108,6 +110,7 @@ void SessionsEventLoop::registerSession(ServerSession *session, uint32_t events)
     if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, session->sock(), &event))
         throw std::runtime_error{"Can't register session"};
     ++m_activeSessions;
+    TRACE(serverLogger) << "SessionsEventLoop::registerSession(" << session << ", " << events << "), activeSessions = " << activeSessions();
 }
 
 /*!
@@ -125,6 +128,7 @@ void SessionsEventLoop::updateSession(ServerSession *session, uint32_t events)
     event.events = events;
     if (epoll_ctl(m_epollHandler, EPOLL_CTL_MOD, session->sock(), &event))
         throw std::runtime_error{"Can't change the session"};
+    TRACE(serverLogger) << "SessionsEventLoop::registerSession(" << session << ", " << events << ")";
 }
 
 /*!
@@ -142,6 +146,7 @@ void SessionsEventLoop::unregisterSession(ServerSession *session)
     if (epoll_ctl(m_epollHandler, EPOLL_CTL_DEL, session->sock(), nullptr))
         throw std::runtime_error{"Can't remove the session"};
     --m_activeSessions;
+    TRACE(serverLogger) << "SessionsEventLoop::unregisterSession(" << session << "), activeSessions = " << activeSessions();
 }
 
 /*!

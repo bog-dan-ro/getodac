@@ -49,26 +49,22 @@ void startServer(const std::string &path)
     if (pidof("GETodac"))
         return;
 
-    s_getodacHandle = popen(path.c_str(), "r");
-    std::string output;
-    char buf[8];
+    s_getodacHandle = popen((path + " --pid").c_str(), "r");
+    char buf[1024];
     memset(buf, 0, sizeof(buf));
-    size_t rd;
     using clock = std::chrono::system_clock;
     auto start = clock::now();
     // wait until getodac starts
-    while ((rd = fread(buf, 1, sizeof(buf), s_getodacHandle)) > 0) {
-        output.append(buf, rd);
+    while (fgets(buf, sizeof(buf), s_getodacHandle)) {
+        std::string output = buf;
         if (s_getodacPid == -1) {
             // extract PID
             auto pos = output.find('\n');
-            if (pos != std::string::npos) {
+            if (pos != std::string::npos && output.substr(0, 4) == "pid:") {
                 s_getodacPid = std::strtoll(output.substr(4, pos - 4).c_str(), nullptr, 10);
+                break;
             }
         }
-        if (s_getodacPid != -1 && output.find("Using:") != std::string::npos)
-            break;
-
         using namespace std::chrono_literals;
         if (clock::now() - start > 10s) {
             std::cerr << "Can't start GETodac\n";
@@ -81,6 +77,8 @@ void terminateServer()
 {
     if (s_getodacPid != -1) {
         kill(s_getodacPid, SIGTERM);
+        char buf[1024];
+        while (fgets(buf, sizeof(buf), s_getodacHandle));
         pclose(s_getodacHandle);
     }
 }

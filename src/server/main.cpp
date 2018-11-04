@@ -17,20 +17,20 @@
 
 #include <exception>
 #include <iostream>
-#include <unistd.h>
 
 #include "server.h"
+#include "server_logger.h"
+#include <getodac/logging.h>
 
 int main(int argc, char*argv[])
 {
     try {
-        std::cout << "pid:" << getpid() << std::endl << std::flush;
         return Getodac::Server::instance()->exec(argc, argv);
     } catch (const std::exception &e) {
-        std::cerr << e.what() << std::endl;
+        FATAL(Getodac::serverLogger) << e.what();
         return -1;
     } catch (...) {
-        std::cerr << "Unknown exception" << std::endl;
+        FATAL(Getodac::serverLogger) << "Unknown exception";
         return -1;
     }
 }

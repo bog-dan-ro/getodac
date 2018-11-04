@@ -45,7 +45,7 @@ void SecuredServerSession::verifyPeer(const std::string &caFile)
             throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
         SSL_set_client_CA_list(m_SSL, certs);
     }
-    SSL_set_verify(m_SSL, SSL_VERIFY_PEER, &verify_callback);
+    SSL_set_verify(m_SSL, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_CLIENT_ONCE, &verify_callback);
     SSL_set_verify_depth(m_SSL, 10);
     m_renegotiate = true;
 }
@@ -57,13 +57,8 @@ X509 *SecuredServerSession::getPeerCertificate() const
 
 int SecuredServerSession::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 {
-    (void) preverify_ok;
     (void) ctx;
-
-//    SSL *ssl = reinterpret_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
-//    SecuredServerSession *self = reinterpret_cast<SecuredServerSession *>(SSL_get_ex_data(ssl, Server::SSLDataIndex));
-
-    return 1;
+    return preverify_ok;
 }
 
 void SecuredServerSession::readLoop(YieldType &yield)

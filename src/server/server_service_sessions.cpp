@@ -17,6 +17,7 @@
 
 #include "server_service_sessions.h"
 #include "server.h"
+#include "server_logger.h"
 
 #include <iostream>
 #include <sstream>
@@ -73,7 +74,7 @@ public:
         try {
             m_serverSession->write(yield, m_response.c_str(), m_response.size());
         } catch (const std::exception &e) {
-            std::cerr << e.what() << std::endl;
+            WARNING(Getodac::serverLogger) << e.what();
         } catch (...) {
         }
         m_serverSession->responseComplete();

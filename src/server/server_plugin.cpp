@@ -16,6 +16,7 @@
 */
 
 #include "server_plugin.h"
+#include "server_logger.h"
 
 #include <dlfcn.h>
 
@@ -32,7 +33,12 @@ namespace Getodac {
  */
 ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
 {
-    m_handler = std::shared_ptr<void>(dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL), [](void *ptr){
+    TRACE(serverLogger) << "ServerPlugin loading: " << path << " confDir:" << confDir;
+    int flags = RTLD_NOW | RTLD_LOCAL;
+#if !defined(__SANITIZE_THREAD__) && !defined(__SANITIZE_ADDRESS__)
+    flags |= RTLD_DEEPBIND;
+#endif
+    m_handler = std::shared_ptr<void>(dlopen(path.c_str(), flags), [](void *ptr) {
         if (ptr) {
             auto destroy = DestoryPluginType(dlsym(ptr, "destoryPlugin"));
             if (destroy)

@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 
 #include <getodac/abstract_server_session.h>
+#include <getodac/logging.h>
 #include <getodac/utils.h>
 
 #include "server_plugin.h"

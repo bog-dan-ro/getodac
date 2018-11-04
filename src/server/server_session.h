@@ -142,7 +142,7 @@ private:
     std::mutex m_sockMutex;
     TimePoint m_nextTimeout;
 
-    typedef boost::coroutines2::coroutine<Action>::push_type Call;
+    using Call = boost::coroutines2::coroutine<Action>::push_type;
     Call m_readResume;
     Call m_writeResume;
     uint32_t m_statusCode = 0;

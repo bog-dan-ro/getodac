@@ -18,6 +18,7 @@
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
 #include <getodac/exceptions.h>
+#include <getodac/logging.h>
 #include <getodac/restful.h>
 #include <getodac/utils.h>
 
@@ -34,6 +35,7 @@ namespace {
 using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
 Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
 std::vector<std::pair<std::string, std::string>> s_urls;
+TaggedLogger<> logger{"staticContent"};
 
 class StaticContent : public Getodac::AbstractServiceSession
 {
@@ -43,6 +45,7 @@ public:
     {
         try {
             auto p = boost::filesystem::canonical(path, root);
+            TRACE(logger) << "Serving " << p.string();
             m_file = s_filesCache.getValue(p.string());
             auto lastWriteTime = boost::filesystem::last_write_time(p);
             if (!m_file.second || m_file.first != lastWriteTime) {
@@ -50,6 +53,7 @@ public:
                 s_filesCache.put(p.string(), m_file);
             }
         } catch (const boost::filesystem::filesystem_error &e) {
+            TRACE(logger) << e.what();
             throw Getodac::ResponseStatusError(404, e.what());
         } catch (...) {
             throw Getodac::ResponseStatusError(404, "Unhandled error");
@@ -99,14 +103,13 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
 PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
 {
-    try {
-        namespace pt = boost::property_tree;
-        pt::ptree properties;
-        pt::read_info(boost::filesystem::path(confDir).append("/staticFiles.conf").string(), properties);
-        for (const auto &p : properties.get_child("paths"))
-            s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));
-    } catch (...) {
-        return false;
+    INFO(logger) << "Initializing plugin";
+    namespace pt = boost::property_tree;
+    pt::ptree properties;
+    pt::read_info(boost::filesystem::path(confDir).append("/staticFiles.conf").string(), properties);
+    for (const auto &p : properties.get_child("paths")) {
+        DEBUG(logger) << "Mapping \"" << p.first << "\" to \"" << p.second.get_value<std::string>() << "\"";
+        s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));
     }
 
     return !s_urls.empty();

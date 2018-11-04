@@ -27,7 +27,7 @@ class SecuredServerSession : public ServerSession
 {
 public:
     SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr);
-    ~SecuredServerSession();
+    ~SecuredServerSession() override;
 
     // ServerSession interface
     bool isSecuredConnection() const override { return true; }

@@ -15,32 +15,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SERVER_PLUGIN_H
-#define SERVER_PLUGIN_H
+#pragma once
 
-#include <getodac/abstract_service_session.h>
+#include <getodac/logging.h>
 
 namespace Getodac {
 
-/*!
- * \brief The ServerPlugin class
- *
- * This class is used to load plugins
- */
-class ServerPlugin
-{
-public:
-    explicit ServerPlugin(const std::string &path, const std::string &confDir);
-    explicit ServerPlugin(CreateSessionType funcPtr, uint32_t order);
-    ~ServerPlugin();
-    CreateSessionType createSession;
-    uint32_t order() const { return m_order; }
-
-private:
-    std::shared_ptr<void> m_handler;
-    uint32_t m_order = 0;
-};
+extern TaggedLogger<SeverityLoggerMt> serverLogger;
 
 } // namespace Getodac
-
-#endif // SERVER_PLUGIN_H

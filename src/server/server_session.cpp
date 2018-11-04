@@ -27,8 +27,10 @@
 
 #include <getodac/abstract_service_session.h>
 #include <getodac/exceptions.h>
+#include <getodac/logging.h>
 
 #include "server.h"
+#include "server_logger.h"
 
 namespace Getodac
 {
@@ -125,6 +127,9 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
     , m_writeResume(std::bind(&ServerSession::writeLoop, this, std::placeholders::_1))
     , m_peerAddr(sockAddr)
 {
+    TRACE(Getodac::serverLogger) << "ServerSession::ServerSession " << (void*)this
+                                 << " eventLoop: " << eventLoop
+                                 << " socket:" << sock;
     int opt = 1;
     if (setsockopt(m_sock, SOL_TCP, TCP_NODELAY, &opt, sizeof(int)))
         throw std::runtime_error{"Can't set socket option TCP_NODELAY"};
@@ -139,16 +144,21 @@ ServerSession::~ServerSession()
     quitRWLoops(Action::Quit);
     try {
         Server::instance()->serverSessionDeleted(this);
+    } catch (const std::exception &e) {
+        WARNING(serverLogger) << e.what();
     } catch (...) {}
 
     if (m_sock != -1) {
         try {
             m_eventLoop->unregisterSession(this);
-        } catch (...) {}
+        } catch (const std::exception &e) {
+            WARNING(serverLogger) << e.what();
+        }
         try {
             ::close(m_sock);
         } catch (...) {}
     }
+    TRACE(Getodac::serverLogger) << "ServerSession::~ServerSession " << this;
 }
 
 ServerSession *ServerSession::sessionReady()
@@ -182,7 +192,11 @@ void ServerSession::processEvents(uint32_t events) noexcept
             else
                 terminateSession(Action::Quit);
         }
+    } catch (const std::exception &e) {
+        DEBUG(serverLogger) << e.what();
+        m_eventLoop->deleteLater(this);
     } catch (...) {
+        DEBUG(serverLogger) << "Unkown exception, terminating the session";
         m_eventLoop->deleteLater(this);
     }
 }
@@ -195,6 +209,8 @@ void ServerSession::timeout() noexcept
             m_tempStr.clear();
         }
         terminateSession(Action::Timeout);
+    } catch (const std::exception &e) {
+        DEBUG(serverLogger) << e.what();
     } catch (...) {}
 }
 
@@ -391,6 +407,9 @@ void ServerSession::readLoop(YieldType &yield)
                 memcpy(tempBuffer.data(), m_eventLoop->sharedReadBuffer.data() + parsedBytes, tempLen);
             }
             yield();
+        } catch (const std::exception &e) {
+            DEBUG(serverLogger) << e.what();
+            m_eventLoop->deleteLater(this);
         } catch (...) {
             m_eventLoop->deleteLater(this);
         }
@@ -406,6 +425,10 @@ void ServerSession::writeLoop(YieldType &yield)
                 m_serviceSession->writeResponse(yi);
             setTimeout();
             yield();
+        } catch (const std::exception &e) {
+            DEBUG(serverLogger) << e.what();
+            m_serviceSession.reset();
+            m_eventLoop->deleteLater(this);
         } catch (...) {
             m_serviceSession.reset();
             m_eventLoop->deleteLater(this);
@@ -434,6 +457,8 @@ void ServerSession::terminateSession(Action action)
             m_resonseHeader.str({});
             m_tempStr.clear();
             m_canWriteError = false;
+        } catch (const std::exception &e) {
+            DEBUG(serverLogger) << e.what();
         } catch (...) { }
     }
 

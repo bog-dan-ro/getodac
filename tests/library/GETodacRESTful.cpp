@@ -21,11 +21,11 @@
 namespace {
     using namespace std;
     using namespace Getodac;
-    class TestRRType : public RESTfullResource<int, ParsedUrl>
+    class TestRRType : public RESTfulResource<int, ParsedUrl>
     {
     public:
         TestRRType(const std::string &resource = {})
-            : RESTfullResource(resource)
+            : RESTfulResource(resource)
         {}
 
         const std::string &allMethods() const
@@ -38,19 +38,19 @@ namespace {
             return d->resource;
         }
 
-        const std::unordered_map<std::string, RESTfullResourceMethodCreator<int, ParsedUrl>> &methods() const
+        const std::unordered_map<std::string, RESTfulResourceMethodCreator<int, ParsedUrl>> &methods() const
         {
             return d->methods;
         }
 
-        const vector<RESTfullResource<int, ParsedUrl>> &subResources() const
+        const vector<RESTfulResource<int, ParsedUrl>> &subResources() const
         {
             return d->subResources;
         }
 
     };
 
-    TEST(RESTfullResource, addSubResource)
+    TEST(RESTfulResource, addSubResource)
     {
         TestRRType rootResful{"/api/v1/"};
         TestRRType simpleSubresource{"parents"};
@@ -77,7 +77,7 @@ namespace {
         EXPECT_EQ(*(rootResful.subResources().rbegin() + 1), simpleSubresource);
     }
 
-    TEST(RESTfullResource, addMethodCreator)
+    TEST(RESTfulResource, addMethodCreator)
     {
         TestRRType rootResful{"/api/v1/"};
         rootResful.addMethodCreator("GET", [](ParsedUrl, ParsedUrl) -> int{ return 0; });
@@ -102,7 +102,7 @@ namespace {
         EXPECT_EQ(rootResful.methods().at("OPTIONS")({}, {}), 3);
     }
 
-    TEST(RESTfullResource, create)
+    TEST(RESTfulResource, create)
     {
         map<string, int> resourcesVerbs = {{"GET", 1}, {"POST", 2}, {"OPTIONS", 12}};
         map<string, int> placeholdersVerbs = {{"GET", 1}, {"PUT", 3}, {"DELETE", 4}, {"OPTIONS", 134}};

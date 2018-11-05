@@ -17,7 +17,7 @@
 
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
-#include <getodac/abstract_restfull_session.h>
+#include <getodac/abstract_restful_session.h>
 
 #include <cassert>
 #include <iostream>
@@ -28,7 +28,7 @@ namespace {
 const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"};
 std::string test50mresponse;
 
-Getodac::RESTfullResourceType s_testRootRestful("/test/rest/v1/");
+Getodac::RESTfulResourceType s_testRootRestful("/test/rest/v1/");
 
 class BaseTestSession : public Getodac::AbstractServiceSession
 {
@@ -268,11 +268,11 @@ private:
 };
 
 
-class TestRESTGET : public Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>
+class TestRESTGET : public Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession>
 {
 public:
     explicit TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractRestfullGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
+        : Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
     {}
 
     void writeResponse(Getodac::OStream &stream) override
@@ -331,7 +331,7 @@ PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         test50mresponse += char(33 + (i % 93));
 
-    Getodac::RESTfullResourceType customersResource{"customers"};
+    Getodac::RESTfulResourceType customersResource{"customers"};
     customersResource.addMethodCreator("GET", Getodac::sessionCreator<TestRESTGET>());
     s_testRootRestful.addSubResource(customersResource);
     return true;

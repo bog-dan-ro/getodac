@@ -268,11 +268,11 @@ private:
 };
 
 
-class TestRESTGET : public Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession>
+class TestRESTGET : public Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession<>>
 {
 public:
     explicit TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession>(std::move(resources), serverSession)
+        : Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession<>>(std::move(resources), serverSession)
     {}
 
     void writeResponse(Getodac::OStream &stream) override

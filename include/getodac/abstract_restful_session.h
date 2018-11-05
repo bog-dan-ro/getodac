@@ -62,7 +62,7 @@ public:
         : AbstractRESTfulBaseSession<BaseClass>(std::move(resources), serverSession)
     {}
 
-    AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
+    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
     {
         auto response = AbstractRESTfulBaseSession<BaseClass>::responseHeaders();
         if (response.status != 200)
@@ -108,7 +108,7 @@ public:
         AbstractRESTfulGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
     }
 
-    AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
+    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
     {
         auto response = AbstractRESTfulGETSession<BaseClass>::responseHeaders();
         if (response.status != 200)

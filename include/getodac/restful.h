@@ -40,7 +40,7 @@
 namespace Getodac {
 class AbstractServerSession;
 
-template <typename ReturnType, typename ...Args> class RESTfullResource;
+template <typename ReturnType, typename ...Args> class RESTfulResource;
 
 using Resources = std::vector<std::pair<std::string, std::string>>;
 using QueryStrings = std::vector<std::pair<std::string, std::string>>;
@@ -74,16 +74,16 @@ struct ParsedUrl {
 };
 
 template <typename ReturnType, typename ...Args>
-using RESTfullResourceMethodCreator = std::function<ReturnType(ParsedUrl parsedUrl, Args ...args)>;
+using RESTfulResourceMethodCreator = std::function<ReturnType(ParsedUrl parsedUrl, Args ...args)>;
 
 template <typename ReturnType, typename ...Args>
-class RESTfullResource
+class RESTfulResource
 {
 public:
 
     /*!
-     * \brief RESTfullResource
-     *  A RESTfull resource node. This type is useful to create complex routes for
+     * \brief RESTfulResource
+     *  A RESTful resource node. This type is useful to create complex routes for
      *  REST API.
      *
      * \param resource. for the root node, this parameter contains the base url
@@ -94,8 +94,8 @@ public:
      * \example
      *
      */
-    explicit RESTfullResource(const std::string &resource = {})
-        : d(std::make_shared<RESTfullResourceData>())
+    explicit RESTfulResource(const std::string &resource = {})
+        : d(std::make_shared<RESTfulResourceData>())
     {
           d->resource = resource;
     }
@@ -105,7 +105,7 @@ public:
      * \param res
      * \return this
      */
-    RESTfullResource &addSubResource(RESTfullResource<ReturnType, Args...> res)
+    RESTfulResource &addSubResource(RESTfulResource<ReturnType, Args...> res)
     {
         if (!d->subResources.empty()) {
             // Do some sanity check
@@ -126,7 +126,7 @@ public:
      * \param creator
      * \return this
      */
-    RESTfullResource &addMethodCreator(std::string method, RESTfullResourceMethodCreator<ReturnType, Args...> creator)
+    RESTfulResource &addMethodCreator(std::string method, RESTfulResourceMethodCreator<ReturnType, Args...> creator)
     {
         if (d->methods.find(method) == d->methods.end()) {
             if (method != "OPTIONS")
@@ -189,7 +189,7 @@ public:
         return {};
     }
 
-    bool operator==(const RESTfullResource<ReturnType, Args...> &other) const
+    bool operator==(const RESTfulResource<ReturnType, Args...> &other) const
     {
         return d == other.d;
     }
@@ -229,13 +229,13 @@ protected:
     }
 
 protected:
-    struct RESTfullResourceData {
+    struct RESTfulResourceData {
         std::string allMethods;
         std::string resource;
-        std::unordered_map<std::string, RESTfullResourceMethodCreator<ReturnType, Args...>> methods;
-        std::vector<RESTfullResource<ReturnType, Args...>> subResources;
+        std::unordered_map<std::string, RESTfulResourceMethodCreator<ReturnType, Args...>> methods;
+        std::vector<RESTfulResource<ReturnType, Args...>> subResources;
     };
-    std::shared_ptr<RESTfullResourceData> d;
+    std::shared_ptr<RESTfulResourceData> d;
 };
 
 } // namespace Getodac

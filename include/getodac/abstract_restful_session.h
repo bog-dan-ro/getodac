@@ -31,21 +31,21 @@
 
 namespace Getodac {
 
-using RESTfullResourceType = RESTfullResource<std::shared_ptr<AbstractServiceSession>, AbstractServerSession*>;
+using RESTfulResourceType = RESTfulResource<std::shared_ptr<AbstractServiceSession>, AbstractServerSession*>;
 
 template <typename T>
-RESTfullResourceMethodCreator<std::shared_ptr<T>, AbstractServerSession*> sessionCreator()
+RESTfulResourceMethodCreator<std::shared_ptr<T>, AbstractServerSession*> sessionCreator()
 {
     return [](ParsedUrl &&parsedUrl, AbstractServerSession* session) -> std::shared_ptr<T> {
         return std::make_shared<T>(std::move(parsedUrl), session);
     };
 }
 
-template <typename BaseClass>
-class AbstractRestfullBaseSession : public BaseClass
+template <typename BaseClass = AbstractServiceSession>
+class AbstractRESTfulBaseSession : public BaseClass
 {
 public:
-    explicit AbstractRestfullBaseSession(ParsedUrl &&parsedUrl, AbstractServerSession *serverSession)
+    explicit AbstractRESTfulBaseSession(ParsedUrl &&parsedUrl, AbstractServerSession *serverSession)
         : BaseClass(serverSession)
         , m_parsedUrl(std::move(parsedUrl))
     {}
@@ -55,16 +55,16 @@ protected:
 };
 
 template <typename BaseClass>
-class AbstractRestfullGETSession : public AbstractRestfullBaseSession<BaseClass>
+class AbstractRESTfulGETSession : public AbstractRESTfulBaseSession<BaseClass>
 {
 public:
-    explicit AbstractRestfullGETSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
-        : AbstractRestfullBaseSession<BaseClass>(std::move(resources), serverSession)
+    explicit AbstractRESTfulGETSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulBaseSession<BaseClass>(std::move(resources), serverSession)
     {}
 
     AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
     {
-        auto response = AbstractRestfullBaseSession<BaseClass>::responseHeaders();
+        auto response = AbstractRESTfulBaseSession<BaseClass>::responseHeaders();
         if (response.status != 200)
             return response;
         response.contentLenght = Getodac::ChunckedData;
@@ -85,11 +85,11 @@ public:
 };
 
 template <typename BaseClass>
-class AbstractRestfullDELETESession : public AbstractRestfullGETSession<BaseClass>
+class AbstractRESTfulDELETESession : public AbstractRESTfulGETSession<BaseClass>
 {
 public:
-    explicit AbstractRestfullDELETESession(ParsedUrl &&resources, AbstractServerSession *serverSession)
-        : AbstractRestfullGETSession<BaseClass>(std::move(resources), serverSession)
+    explicit AbstractRESTfulDELETESession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulGETSession<BaseClass>(std::move(resources), serverSession)
     {
     }
 
@@ -99,23 +99,23 @@ public:
 };
 
 template <typename BaseClass>
-class RestfullOPTIONSSession : public AbstractRestfullGETSession<BaseClass>
+class RESTfulOPTIONSSession : public AbstractRESTfulGETSession<BaseClass>
 {
 public:
-    explicit RestfullOPTIONSSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
-        : AbstractRestfullGETSession<BaseClass>(std::move(resources), serverSession)
+    explicit RESTfulOPTIONSSession(ParsedUrl &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulGETSession<BaseClass>(std::move(resources), serverSession)
     {
-        AbstractRestfullGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
+        AbstractRESTfulGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
     }
 
     AbstractSimplifiedServiceSession::ResponseHeaders responseHeaders() override
     {
-        auto response = AbstractRestfullGETSession<BaseClass>::responseHeaders();
+        auto response = AbstractRESTfulGETSession<BaseClass>::responseHeaders();
         if (response.status != 200)
             return response;
-        response.headers.emplace("Access-Control-Allow-Methods", AbstractRestfullGETSession<BaseClass>::m_parsedUrl.allButOPTIONSNodeMethods);
-        auto it = AbstractRestfullGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
-        if (it != AbstractRestfullGETSession<BaseClass>::m_requestHeaders.end())
+        response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulGETSession<BaseClass>::m_parsedUrl.allButOPTIONSNodeMethods);
+        auto it = AbstractRESTfulGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
+        if (it != AbstractRESTfulGETSession<BaseClass>::m_requestHeaders.end())
              response.headers.emplace("Access-Control-Allow-Headers", it->second);
         return response;
     }

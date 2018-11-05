@@ -229,7 +229,8 @@ private:
     OStreamBuffer &m_buff;
 };
 
-class AbstractSimplifiedServiceSession : public AbstractServiceSession
+template <typename BaseClass = Getodac::AbstractServiceSession>
+class AbstractSimplifiedServiceSession : public BaseClass
 {
 public:
     struct RequestHeadersFilter
@@ -341,11 +342,11 @@ protected:
     void requestComplete() final
     {
         auto rh = responseHeaders();
-        m_serverSession->responseStatus(rh.status);
+        BaseClass::m_serverSession->responseStatus(rh.status);
         for (auto kv : rh.headers)
-            m_serverSession->responseHeader(kv.first, kv.second);
+            BaseClass::m_serverSession->responseHeader(kv.first, kv.second);
         m_chuncked = rh.contentLenght == ChunckedData;
-        m_serverSession->responseEndHeader(rh.contentLenght, rh.keepAliveSeconds, rh.continousWrite);
+        BaseClass::m_serverSession->responseEndHeader(rh.contentLenght, rh.keepAliveSeconds, rh.continousWrite);
     }
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) final

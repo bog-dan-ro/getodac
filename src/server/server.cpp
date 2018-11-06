@@ -610,7 +610,6 @@ SSL_CTX *Getodac::Server::sslContext() const
  */
 Server::Server()
 {
-    m_shutdown.store(false);
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
 
     // register signal handlers

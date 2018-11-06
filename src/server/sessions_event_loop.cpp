@@ -54,7 +54,6 @@ SessionsEventLoop::SessionsEventLoop()
     // allocating any memory
     sharedReadBuffer.resize(mem_max);
 
-    m_quit.store(false);
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
     if (m_epollHandler == -1)
         throw std::runtime_error{"Can't create epool handler"};

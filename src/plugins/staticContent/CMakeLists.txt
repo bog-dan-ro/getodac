@@ -7,6 +7,7 @@ add_definitions(-DBOOST_LOG_DYN_LINK -DBOOST_ALL_DYN_LINK)
 set(SRCS staticContentPlugin.cpp)
 
 add_library(staticContent SHARED ${SRCS})
+target_compile_options(staticContent PUBLIC "-fnon-call-exceptions")
 target_link_libraries(staticContent ${Boost_LIBRARIES})
 add_sanitizers(staticContent)
 

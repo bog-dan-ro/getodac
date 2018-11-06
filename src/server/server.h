@@ -64,9 +64,9 @@ private:
     int bind(SocketType type, int port);
 
 private:
-    std::atomic_bool m_shutdown;
-    std::atomic<uint32_t> m_peakSessions;
-    std::atomic<uint64_t> m_servedSessions;
+    std::atomic_bool m_shutdown{false};
+    std::atomic<uint32_t> m_peakSessions{0};
+    std::atomic<uint64_t> m_servedSessions{0};
     int m_eventsSize = 0;
     int m_epollHandler;
     SpinLock m_activeSessionsMutex;

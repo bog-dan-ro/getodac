@@ -109,7 +109,7 @@ private:
     }
 
 private:
-    std::atomic_bool m_quit;
+    std::atomic_bool m_quit{false};
     std::stack<std::function<void()>> m_pendingTasks;
     std::mutex m_lock;
     std::condition_variable m_waitCondition;

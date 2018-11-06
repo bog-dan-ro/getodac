@@ -58,8 +58,8 @@ private:
 
 private:
     int m_epollHandler;
-    std::atomic_uint m_activeSessions;
-    std::atomic_bool m_quit;
+    std::atomic_uint m_activeSessions{0};
+    std::atomic_bool m_quit{false};
     std::thread m_loopThread;
     std::mutex m_sessionsMutex;
     volatile bool m_sessionsRehashed = false;

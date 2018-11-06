@@ -23,6 +23,8 @@
 #include <thread>
 #include <stdexcept>
 
+#include <cxxabi.h>
+#include <dlfcn.h>
 #include <execinfo.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -100,14 +102,29 @@ namespace {
     const uint32_t QUEUED_CONNECTIONS = 10000;
     uint32_t eventLoopsSize = std::max(uint32_t(2), std::thread::hardware_concurrency());
 
-    std::string stackTrace()
+    std::string stackTrace(int discard = 0)
     {
-        void *array[100];
-        auto count = backtrace(array, 100);
-        char **symbols = backtrace_symbols(array, count);
+        void *addresses[100];
+        auto count = backtrace(addresses, 100);
+        char **symbols = backtrace_symbols(addresses, count);
         std::ostringstream stackTtrace;
-        for (int i = 0; i < count; ++i)
-            stackTtrace << symbols[i] << std::endl;
+        for (int i = discard; i < count; ++i) {
+            Dl_info dlinfo;
+            if(!dladdr(addresses[i], &dlinfo))
+                break;
+            const char * symbol = dlinfo.dli_sname;
+            int status;
+            auto demangled = abi::__cxa_demangle(symbol, NULL, 0, &status);
+            if (demangled && !status)
+                symbol = demangled;
+            if (symbol)
+                stackTtrace <<  dlinfo.dli_fname << " (" << symbol << ")" << " [" << addresses[i] << "]" << std::endl;
+            else
+                stackTtrace << symbols[i] << std::endl;
+
+            if (demangled)
+                free(demangled);
+        }
         free(symbols);
         return stackTtrace.str();
     }
@@ -155,14 +172,14 @@ void Server::exitSignalHandler(int)
 SIGNAL_HANDLER(catch_segv)
 {
     unblockSignal(SIGSEGV);
-    throw SegmentationFaultError(stackTrace());
+    throw SegmentationFaultError(stackTrace(3));
 }
 
 /// Transform floation-point errors signals into exceptions
 SIGNAL_HANDLER(catch_fpe)
 {
     unblockSignal(SIGFPE);
-    throw FloatingPointError(stackTrace());
+    throw FloatingPointError(stackTrace(3));
 }
 
 /// Makes socket nonblocking

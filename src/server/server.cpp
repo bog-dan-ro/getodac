@@ -99,7 +99,7 @@ namespace Getodac {
 TaggedLogger<> serverLogger{"Server"};
 
 namespace {
-    const uint32_t QUEUED_CONNECTIONS = 10000;
+    uint32_t queuedConnections = 20000;
     uint32_t eventLoopsSize = std::max(uint32_t(2), std::thread::hardware_concurrency());
 
     std::string stackTrace(int discard = 0)
@@ -183,22 +183,6 @@ SIGNAL_HANDLER(catch_fpe)
 }
 
 /// Makes socket nonblocking
-static int nonBlocking(int sock)
-{
-    int flags = ::fcntl(sock, F_GETFL, 0);
-    if (flags == -1)
-        throw std::runtime_error{"F_GETFL error"};
-
-    if (flags & O_NONBLOCK)
-        return sock;
-
-    flags |= O_NONBLOCK;
-    if (::fcntl(sock, F_SETFL, flags) == -1)
-        throw std::runtime_error{"F_SETFL error"};
-
-    return sock;
-}
-
 /*!
  * \brief Server::bind
  *
@@ -210,7 +194,7 @@ static int nonBlocking(int sock)
 int Server::bind(SocketType type, int port)
 {
     int sock = -1;
-    if ((sock = ::socket(type == IPV4 ? AF_INET : AF_INET6, SOCK_STREAM, 0)) < 0)
+    if ((sock = ::socket(type == IPV4 ? AF_INET : AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0)
         throw std::runtime_error{"Can't create the socket"};
 
     int opt = 1;
@@ -239,7 +223,7 @@ int Server::bind(SocketType type, int port)
             throw std::runtime_error{"Can't bind the socket"};
     }
 
-    if (::listen(nonBlocking(sock), QUEUED_CONNECTIONS) == -1)
+    if (::listen(sock, queuedConnections) == -1)
         throw std::runtime_error{"Can't listen on the socket"};
 
     struct epoll_event event;
@@ -349,6 +333,7 @@ int Server::exec(int argc, char *argv[])
 
         enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
+        queuedConnections = properties.get("queued_connections", queuedConnections);
         TRACE(serverLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
             TRACE(serverLogger) << "https section found in config";
@@ -386,8 +371,8 @@ int Server::exec(int argc, char *argv[])
                 httpsPort = -1;
             }
 
-            if (!getuid() && !dropUser.empty() ||
-                    (properties.find("privileges") != properties.not_found() && properties.get("privileges.drop", false))) {
+            if (!getuid() && (!dropUser.empty() ||
+                    (properties.find("privileges") != properties.not_found() && properties.get("privileges.drop", false)))) {
                 auto usr = dropUser.empty() ? properties.get<std::string>("privileges.user") : dropUser;
                 auto user = getpwnam(usr.c_str());
                 if (!user)
@@ -457,6 +442,8 @@ int Server::exec(int argc, char *argv[])
 
     INFO(serverLogger) << "using " << eventLoopsSize << " worker threads";
 
+    INFO(serverLogger) << "using " << queuedConnections << " queued connections";
+
     // allocate epoll list
     const auto epollList = std::make_unique<epoll_event[]>(m_eventsSize);
 
@@ -489,7 +476,7 @@ int Server::exec(int argc, char *argv[])
                 while (!m_shutdown) {
                     int fd = epollList[i].data.fd;
                     bool ssl = fd == https4Sock || fd == https6Sock;
-                    int sock = ::accept(fd, (struct sockaddr *)&in_addr, &in_len);
+                    int sock = ::accept4(fd, (struct sockaddr *)&in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
                     if (-1 == sock)
                         break;
 
@@ -507,9 +494,9 @@ int Server::exec(int argc, char *argv[])
                         // Let's try to create a new session
                         std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
-                            m_activeSessions.insert((new SecuredServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
+                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr))->sessionReady());
                         else
-                            m_activeSessions.insert((new ServerSession(bestLoop, nonBlocking(sock), in_addr))->sessionReady());
+                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr))->sessionReady());
                     } catch (const std::exception &e) {
                         WARNING(serverLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);

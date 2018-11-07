@@ -52,7 +52,7 @@ public:
         auto days = seconds / (60 * 60 * 24);
         seconds  -= days * (60 * 60 * 24);
         auto hours = seconds / (60 * 60);
-        seconds  -= hours * (60 * 60 * 24);
+        seconds  -= hours * (60 * 60);
         auto minutes = seconds / 60;
         seconds  -= minutes * 60;
 

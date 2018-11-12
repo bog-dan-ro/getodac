@@ -30,12 +30,41 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/utility/string_view.hpp>
 
 namespace {
 using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
 Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
 std::vector<std::pair<std::string, std::string>> s_urls;
 TaggedLogger<> logger{"staticContent"};
+
+inline std::string mimeType(boost::string_view ext)
+{
+    if (ext == ".htm")  return "text/html";
+    if (ext == ".html") return "text/html";
+    if (ext == ".php")  return "text/html";
+    if (ext == ".css")  return "text/css";
+    if (ext == ".js")   return "application/javascript";
+    if (ext == ".json") return "application/json";
+    if (ext == ".xml")  return "application/xml";
+    if (ext == ".png")  return "image/png";
+    if (ext == ".jpe")  return "image/jpeg";
+    if (ext == ".jpeg") return "image/jpeg";
+    if (ext == ".jpg")  return "image/jpeg";
+    if (ext == ".gif")  return "image/gif";
+    if (ext == ".bmp")  return "image/bmp";
+    if (ext == ".tiff") return "image/tiff";
+    if (ext == ".tif")  return "image/tiff";
+    if (ext == ".svg")  return "image/svg+xml";
+    if (ext == ".svgz") return "image/svg+xml";
+    if (ext == ".txt")  return "text/plain";
+    if (ext == ".webp")  return "image/webp";
+    if (ext == ".webm")  return "video/webmx";
+    if (ext == ".weba")  return "audio/webm";
+    if (ext == ".swf")  return "application/x-shockwave-flash";
+    if (ext == ".flv")  return "video/x-flv";
+    return "application/octet-stream";
+}
 
 class StaticContent : public Getodac::AbstractServiceSession
 {
@@ -52,6 +81,7 @@ public:
                 m_file = std::make_pair(lastWriteTime, std::make_shared<boost::iostreams::mapped_file_source>(p));
                 s_filesCache.put(p.string(), m_file);
             }
+            m_mimeType = mimeType(p.extension().string());
         } catch (const boost::filesystem::filesystem_error &e) {
             TRACE(logger) << e.what();
             throw Getodac::ResponseStatusError(404, e.what());
@@ -68,6 +98,7 @@ public:
     void requestComplete() override
     {
         m_serverSession->responseStatus(200);
+        m_serverSession->responseHeader("Content-Type", m_mimeType);
         m_serverSession->responseEndHeader(m_file.second->size());
     }
 
@@ -79,6 +110,7 @@ public:
 
 private:
     std::pair<std::time_t, FileMapPtr> m_file;
+    std::string m_mimeType;
 };
 
 } // namespace

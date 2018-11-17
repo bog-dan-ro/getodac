@@ -152,7 +152,7 @@ public:
      * \brief verifyPeer initiate the peer verification procedure
      * \param caFiles the clients ca files to verify
      */
-    virtual void verifyPeer(const std::string &caFile = std::string{}) {(void)caFile;}
+    virtual void verifyPeer(const std::string &caFile = {}) {(void)caFile;}
 
     /*!
      * \brief getPeerCertificate

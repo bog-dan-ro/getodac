@@ -154,12 +154,22 @@ protected:
 class OStreamBuffer : public std::streambuf
 {
 public:
+    static inline int hexLen(size_t nr)
+    {
+        int sz = 0;
+        do {
+            nr >>= 4;
+            ++sz;
+        } while (nr);
+        return sz;
+    }
+
     OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield, bool chuncked)
         : m_chuncked(chuncked)
         , m_serviceSession(serverSession)
         , m_yield(yield)
     {
-        m_buffer.reserve(m_serviceSession->sendBufferSize());
+        m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
     }
 
     ~OStreamBuffer() override
@@ -182,7 +192,7 @@ protected:
             else
                 m_serviceSession->serverSession()->write(m_yield, m_buffer.c_str(), m_buffer.size());
             m_buffer.clear();
-            m_buffer.reserve(m_serviceSession->sendBufferSize());
+            m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
         }
         return 0;
     }

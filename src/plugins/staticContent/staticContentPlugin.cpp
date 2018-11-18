@@ -35,7 +35,16 @@
 namespace {
 using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
 Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
+std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
+
+inline std::string fullPath(const std::string &url, const std::string &default_file)
+{
+    if (url.empty() || url.back() == '/')
+        return url + default_file;
+    return url;
+}
+
 TaggedLogger<> logger{"staticContent"};
 
 inline std::string mimeType(boost::string_view ext)
@@ -82,7 +91,7 @@ public:
                 s_filesCache.put(p.string(), m_file);
             }
             m_mimeType = mimeType(p.extension().string());
-        } catch (const boost::filesystem::filesystem_error &e) {
+        } catch (const std::exception &e) {
             TRACE(logger) << e.what();
             throw Getodac::ResponseStatusError(404, e.what());
         } catch (...) {
@@ -123,9 +132,9 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
                 auto pos = url.find('/', 1);
                 if (pos == std::string::npos)
                     break;
-                return std::make_shared<StaticContent>(serverSession, pair.second, url.substr(2, pos - 1) + "public_html" + url.substr(pos, url.size() - pos));
+                return std::make_shared<StaticContent>(serverSession, pair.second, fullPath(url.substr(2, pos - 1) + "public_html" + url.substr(pos, url.size() - pos), s_default_file));
             } else {
-                return std::make_shared<StaticContent>(serverSession, pair.second, url.c_str() + pair.first.size());
+                return std::make_shared<StaticContent>(serverSession, pair.second, fullPath(url.c_str() + pair.first.size(), s_default_file));
             }
         }
     }
@@ -143,6 +152,7 @@ PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
         DEBUG(logger) << "Mapping \"" << p.first << "\" to \"" << p.second.get_value<std::string>() << "\"";
         s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));
     }
+    s_default_file = properties.get("default_file", "");
 
     return !s_urls.empty();
 }

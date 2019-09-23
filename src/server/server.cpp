@@ -318,18 +318,16 @@ int Server::exec(int argc, char *argv[])
     bool enableServerStatus = false;
     gid_t gid = gid_t(-1);
     uid_t uid = uid_t(-1);
+    boost::log::settings loggingSettings;
     if (!confDir.empty()) {
         auto curPath = boost::filesystem::current_path();
         boost::filesystem::current_path(confDir);
         namespace pt = boost::property_tree;
         pt::ptree properties;
         pt::read_info("server.conf", properties);
-        auto loggingSettings = mergedProperties(properties.get_child("logging"));
-        boost::log::settings setts;
-        for (const auto &kv : loggingSettings)
-            setts[kv.first] = kv.second;
-        boost::log::init_from_settings(setts);
-        TRACE(serverLogger) << "Loading logging settings succeeded";
+        auto loggingProperties = mergedProperties(properties.get_child("logging"));
+        for (const auto &kv : loggingProperties)
+            loggingSettings[kv.first] = kv.second;
 
         enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
@@ -437,6 +435,9 @@ int Server::exec(int argc, char *argv[])
              throw std::runtime_error("Can't drop privileges");
         INFO(serverLogger) << "Droping privileges";
     }
+
+    boost::log::init_from_settings(loggingSettings);
+    INFO(serverLogger) << "Logging setup succeeded";
 
     auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
 

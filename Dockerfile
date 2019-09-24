@@ -1,4 +1,4 @@
-FROM debian:testing-slim
+FROM debian:buster-slim
 MAINTAINER  BogDan Vatra <bogdan@kde.org>
 
 WORKDIR /code

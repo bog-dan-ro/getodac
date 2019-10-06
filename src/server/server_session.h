@@ -49,6 +49,11 @@ class ServerSession : public AbstractServerSession
 {
     using Clock = std::chrono::high_resolution_clock;
     using TimePoint = std::chrono::time_point<Clock>;
+    enum class HttpParserStatus {
+        Url,
+        HeaderField,
+        HeaderValue
+    };
 
 public:
     ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr);
@@ -133,6 +138,7 @@ protected:
     static int headersComplete(http_parser *parser);
     static int body(http_parser *parser, const char *at, size_t length);
     static int messageComplete(http_parser *parser);
+    int httpParserStatusChanged(http_parser *parser);
     virtual inline void messageComplete() {}
     int setResponseStatusError(const ResponseStatusError &status);
 
@@ -147,6 +153,8 @@ private:
     Call m_writeResume;
     uint32_t m_statusCode = 0;
     http_parser m_parser;
+    HttpParserStatus m_parserStatus = HttpParserStatus::Url;
+    std::string m_headerField;
     std::string m_tempStr;
     std::shared_ptr<AbstractServiceSession> m_serviceSession;
     std::ostringstream m_resonseHeader;

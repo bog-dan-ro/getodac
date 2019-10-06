@@ -480,25 +480,31 @@ int ServerSession::messageBegin(http_parser *parser)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     thiz->m_tempStr.clear();
+    thiz->m_headerField.clear();
     thiz->m_contentLength = ChunckedData;
+    thiz->m_parserStatus = HttpParserStatus::Url;
     return 0;
 }
 
 int ServerSession::url(http_parser *parser, const char *at, size_t length)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
+    if (thiz->m_parserStatus != HttpParserStatus::Url) {
+        int res = thiz->httpParserStatusChanged(parser);
+        if (res)
+            return res;
+        thiz->m_parserStatus = HttpParserStatus::Url;
+        thiz->m_headerField.clear();
+        thiz->m_tempStr.clear();
+    }
     try {
         thiz->m_canWriteError = true;
-        thiz->m_serviceSession = Server::instance()->createServiceSession(thiz, std::string(at, length),
-                                                                          std::string(http_method_str(http_method(parser->method))));
+        thiz->m_tempStr.append(std::string{at, length});
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
     }
-
-    if (!thiz->m_serviceSession)
-        return (thiz->m_statusCode = 503); // Service Unavailable
 
     return 0;
 }
@@ -506,14 +512,18 @@ int ServerSession::url(http_parser *parser, const char *at, size_t length)
 int ServerSession::headerField(http_parser *parser, const char *at, size_t length)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
-    if (length > 2 && at[0] == '"' && at[length - 1] == '"') {
-        ++at;
-        length -= 2;
+    if (thiz->m_parserStatus != HttpParserStatus::HeaderField) {
+        int res = thiz->httpParserStatusChanged(parser);
+        if (res)
+            return res;
+        thiz->m_parserStatus = HttpParserStatus::HeaderField;
+        thiz->m_headerField.clear();
+        thiz->m_tempStr.clear();
     }
     try {
-        thiz->m_tempStr = std::string(at, length);
+        thiz->m_headerField.append(std::string{at, length});
     } catch (...) {
-        thiz->m_tempStr.clear();
+        thiz->m_headerField.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -522,28 +532,15 @@ int ServerSession::headerField(http_parser *parser, const char *at, size_t lengt
 int ServerSession::headerValue(http_parser *parser, const char *at, size_t length)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
-    if (length > 2 && at[0] == '"' && at[length - 1] == '"') {
-        ++at;
-        length -= 2;
-    }
-
-    try {
-        std::string value{at, length};
-        if (thiz->m_tempStr == "Content-Length") {
-            char *end;
-            thiz->m_contentLength = std::strtoul(value.c_str(), &end, 10);
-            if (end != value.c_str() + length)
-                thiz->m_contentLength = ChunckedData;
-        } else if (thiz->m_tempStr == "Expect" && length > 3 && std::memcmp(value.c_str(), "100", 3) == 0) {
-            if (thiz->m_contentLength == ChunckedData || !thiz->m_serviceSession->acceptContentLength(thiz->m_contentLength)) {
-                thiz->m_tempStr.clear();
-                return (thiz->m_statusCode = 417); // Internal Server error
-            } else {
-                thiz->sockWrite(ContinueResponse, sizeof(ContinueResponse));
-            }
-        }
-        thiz->m_serviceSession->headerFieldValue(thiz->m_tempStr, value);
+    if (thiz->m_parserStatus != HttpParserStatus::HeaderValue) {
+        int res = thiz->httpParserStatusChanged(parser);
+        if (res)
+            return res;
+        thiz->m_parserStatus = HttpParserStatus::HeaderValue;
         thiz->m_tempStr.clear();
+    }
+    try {
+        thiz->m_tempStr.append(std::string{at, length});
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (...) {
@@ -555,6 +552,13 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
 int ServerSession::headersComplete(http_parser *parser)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
+    if (thiz->m_parserStatus == HttpParserStatus::HeaderField) {
+        thiz->m_tempStr.clear();
+        thiz->m_parserStatus = HttpParserStatus::HeaderValue;
+    }
+    int res = thiz->httpParserStatusChanged(parser);
+    if (res)
+        return res;
     try {
         thiz->m_serviceSession->headersComplete();
     } catch (const ResponseStatusError &status) {
@@ -588,6 +592,46 @@ int ServerSession::messageComplete(http_parser *parser)
         return thiz->setResponseStatusError(status);
     } catch (...) {
         return (thiz->m_statusCode = 500); // Internal Server error
+    }
+    return 0;
+}
+
+int ServerSession::httpParserStatusChanged(http_parser *parser)
+{
+    try {
+        switch (m_parserStatus) {
+        case HttpParserStatus::Url:
+            m_serviceSession = Server::instance()->createServiceSession(this, m_tempStr,
+                                                                        http_method_str(http_method(parser->method)));
+            if (!m_serviceSession)
+                return (m_statusCode = 503); // Service Unavailable
+            break;
+        case HttpParserStatus::HeaderField:
+            break; // Do nothing
+        case HttpParserStatus::HeaderValue:
+            if (m_headerField == "Content-Length") {
+                char *end;
+                m_contentLength = std::strtoul(m_tempStr.c_str(), &end, 10);
+                if (end != m_tempStr.c_str() + m_tempStr.size())
+                    m_contentLength = ChunckedData;
+            } else if (m_headerField == "Expect" && m_tempStr.size() > 3 && std::memcmp(m_tempStr.c_str(), "100", 3) == 0) {
+                if (m_contentLength == ChunckedData || !m_serviceSession->acceptContentLength(m_contentLength)) {
+                    m_tempStr.clear();
+                    m_headerField.clear();
+                    return (m_statusCode = 417); // Internal Server error
+                } else {
+                    sockWrite(ContinueResponse, sizeof(ContinueResponse));
+                }
+            }
+            m_serviceSession->headerFieldValue(m_headerField, m_tempStr);
+            m_tempStr.clear();
+            m_headerField.clear();
+            break;
+        }
+    } catch (const ResponseStatusError &status) {
+        return setResponseStatusError(status);
+    } catch (...) {
+        return (m_statusCode = 500); // Internal Server error
     }
     return 0;
 }

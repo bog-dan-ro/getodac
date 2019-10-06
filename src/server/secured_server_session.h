@@ -36,6 +36,8 @@ public:
 
     ssize_t sockRead(void *buf, size_t size) override
     {
+        // make sure we start reading with no pending errors
+        ERR_clear_error();
         auto sz = SSL_read(m_SSL, buf, size);
         if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);
@@ -49,6 +51,8 @@ public:
 
     ssize_t sockWrite(const void *buf, size_t size) override
     {
+        // make sure we start writing with no pending errors
+        ERR_clear_error();
         auto sz = SSL_write(m_SSL, buf, size);
         if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);

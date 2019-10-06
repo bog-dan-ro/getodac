@@ -35,7 +35,7 @@
 namespace Getodac {
 
 enum {
-    ChunckedData = UINT64_MAX
+    ChunkedData = UINT64_MAX
 };
 
 /*!
@@ -94,7 +94,7 @@ public:
      * Ends the response headers. After this function call the ServiceSession should start to write data
      * or to call responseComplete.
      *
-     * \param contentLenght the content lenght in bytes or ChunckedData for a chuncked transfer
+     * \param contentLenght the content lenght in bytes or ChunkedData for a chunked transfer
      * \param keepAliveSeconds number of seconds to keep the connection alive
      * \param continousWrite true means we'll use edge-triggered write notifications, this means that the
      *                       service session must fill the *entire* write buffer to get another notification.

@@ -67,7 +67,7 @@ public:
         auto response = AbstractRESTfulBaseSession<BaseClass>::responseHeaders();
         if (response.status != 200)
             return response;
-        response.contentLenght = Getodac::ChunckedData;
+        response.contentLenght = Getodac::ChunkedData;
         return response;
     }
 

@@ -164,8 +164,8 @@ public:
         return sz;
     }
 
-    OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield, bool chuncked)
-        : m_chuncked(chuncked)
+    OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield, bool chunked)
+        : m_chunked(chunked)
         , m_serviceSession(serverSession)
         , m_yield(yield)
     {
@@ -175,7 +175,7 @@ public:
     ~OStreamBuffer() override
     {
         sync();
-        if (m_chuncked)
+        if (m_chunked)
             m_serviceSession->writeChunkedData(m_yield, nullptr, 0);
         m_serviceSession->serverSession()->responseComplete();
     }
@@ -187,7 +187,7 @@ protected:
     int sync() override
     {
         if (!m_buffer.empty()) {
-            if (m_chuncked)
+            if (m_chunked)
                 m_serviceSession->writeChunkedData(m_yield, m_buffer);
             else
                 m_serviceSession->serverSession()->write(m_yield, m_buffer.c_str(), m_buffer.size());
@@ -220,7 +220,7 @@ protected:
     }
 
 private:
-    bool m_chuncked;
+    bool m_chunked;
     AbstractServiceSession *m_serviceSession;
     AbstractServerSession::Yield &m_yield;
     std::string m_buffer;
@@ -291,7 +291,7 @@ public:
         HeadersData headers;
 
         /*!
-         * \brief contentLenght. The content lenght in bytes or Getodac::ChunckedData for a chuncked transfer.
+         * \brief contentLenght. The content lenght in bytes or Getodac::ChunkedData for a chunked transfer.
          */
         uint64_t contentLenght = 0;
 
@@ -355,20 +355,20 @@ protected:
         BaseClass::m_serverSession->responseStatus(rh.status);
         for (auto kv : rh.headers)
             BaseClass::m_serverSession->responseHeader(kv.first, kv.second);
-        m_chuncked = rh.contentLenght == ChunckedData;
+        m_chunked = rh.contentLenght == ChunkedData;
         BaseClass::m_serverSession->responseEndHeader(rh.contentLenght, rh.keepAliveSeconds, rh.continousWrite);
     }
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) final
     {
-        OStreamBuffer streamBuffer{this, yield, m_chuncked};
+        OStreamBuffer streamBuffer{this, yield, m_chunked};
         OStream stream(streamBuffer);
         writeResponse(stream);
     }
 
 
 protected:
-    bool m_chuncked = false;
+    bool m_chunked = false;
     HeadersData m_requestHeaders;
     RequestHeadersFilter m_requestHeadersFilter;
 };

@@ -205,10 +205,10 @@ public:
     }
 };
 
-class Test50MChuncked : public BaseTestSession
+class Test50MChunked : public BaseTestSession
 {
 public:
-    explicit Test50MChuncked(Getodac::AbstractServerSession *serverSession)
+    explicit Test50MChunked(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -216,28 +216,28 @@ public:
     void requestComplete() override
     {
         m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunckedData);
+        m_serverSession->responseEndHeader(Getodac::ChunkedData);
     }
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        uint32_t chunckSize = 1 + rand() % (1024 * 1024);
-        chunckSize = std::min<uint32_t>(chunckSize, test50mresponse.size() - pos);
-        writeChunkedData(yield, test50mresponse.c_str() + pos, chunckSize);
-        if (!chunckSize)
+        uint32_t chunkSize = 1 + rand() % (1024 * 1024);
+        chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
+        writeChunkedData(yield, test50mresponse.c_str() + pos, chunkSize);
+        if (!chunkSize)
             m_serverSession->responseComplete();
         else
-            pos += chunckSize;
+            pos += chunkSize;
     }
 
 private:
     uint32_t pos = 0;
 };
 
-class Test50MChunckedAtOnce : public BaseTestSession
+class Test50MChunkedAtOnce : public BaseTestSession
 {
 public:
-    explicit Test50MChunckedAtOnce(Getodac::AbstractServerSession *serverSession)
+    explicit Test50MChunkedAtOnce(Getodac::AbstractServerSession *serverSession)
         : BaseTestSession(serverSession)
     {}
 
@@ -245,20 +245,20 @@ public:
     void requestComplete() override
     {
         m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunckedData);
+        m_serverSession->responseEndHeader(Getodac::ChunkedData);
     }
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         while(true) {
-            uint32_t chunckSize = 1 + rand() % (1024 * 1024);
-            chunckSize = std::min<uint32_t>(chunckSize, test50mresponse.size() - pos);
-            writeChunkedData(yield, test50mresponse.c_str() + pos, chunckSize);
-            if (!chunckSize) {
+            uint32_t chunkSize = 1 + rand() % (1024 * 1024);
+            chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
+            writeChunkedData(yield, test50mresponse.c_str() + pos, chunkSize);
+            if (!chunkSize) {
                 m_serverSession->responseComplete();
                 break;
             } else {
-                pos += chunckSize;
+                pos += chunkSize;
             }
         }
     }
@@ -299,11 +299,11 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
     if (url == "/test50m")
         return std::make_shared<Test50M>(serverSession);
 
-    if (url == "/test50mChuncked")
-        return std::make_shared<Test50MChuncked>(serverSession);
+    if (url == "/test50mChunked")
+        return std::make_shared<Test50MChunked>(serverSession);
 
-    if (url == "/test50mChunckedAtOnce")
-        return std::make_shared<Test50MChunckedAtOnce>(serverSession);
+    if (url == "/test50mChunkedAtOnce")
+        return std::make_shared<Test50MChunkedAtOnce>(serverSession);
 
     if (url == "/test50ms")
         return std::make_shared<Test50MS>(serverSession);

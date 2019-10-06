@@ -87,11 +87,11 @@ TEST(Responses, test50m_iovec)
     }
 }
 
-TEST(Responses, test50mChuncked)
+TEST(Responses, test50mChunked)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChuncked"));
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChunked"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -103,11 +103,11 @@ TEST(Responses, test50mChuncked)
     }
 }
 
-TEST(Responses, test50mChunckedAtOnce)
+TEST(Responses, test50mChunkedAtOnce)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChunckedAtOnce"));
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChunkedAtOnce"));
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");

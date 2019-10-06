@@ -303,7 +303,7 @@ void ServerSession::responseHeader(const std::string &field, const std::string &
 
 void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds, bool continousWrite)
 {
-    if (contentLenght == ChunckedData)
+    if (contentLenght == ChunkedData)
         m_resonseHeader << "Transfer-Encoding: chunked\r\n";
     else
         m_resonseHeader << "Content-Length: " << contentLenght << crlf;
@@ -481,7 +481,7 @@ int ServerSession::messageBegin(http_parser *parser)
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     thiz->m_tempStr.clear();
     thiz->m_headerField.clear();
-    thiz->m_contentLength = ChunckedData;
+    thiz->m_contentLength = ChunkedData;
     thiz->m_parserStatus = HttpParserStatus::Url;
     return 0;
 }
@@ -613,9 +613,9 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
                 char *end;
                 m_contentLength = std::strtoul(m_tempStr.c_str(), &end, 10);
                 if (end != m_tempStr.c_str() + m_tempStr.size())
-                    m_contentLength = ChunckedData;
+                    m_contentLength = ChunkedData;
             } else if (m_headerField == "Expect" && m_tempStr.size() > 3 && std::memcmp(m_tempStr.c_str(), "100", 3) == 0) {
-                if (m_contentLength == ChunckedData || !m_serviceSession->acceptContentLength(m_contentLength)) {
+                if (m_contentLength == ChunkedData || !m_serviceSession->acceptContentLength(m_contentLength)) {
                     m_tempStr.clear();
                     m_headerField.clear();
                     return (m_statusCode = 417); // Internal Server error

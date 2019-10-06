@@ -24,11 +24,11 @@ function build_test {
 }
 
 # "" "-DSANITIZE_ADDRESS=ON -DSANITIZE_UNDEFINED=ON" "-DSANITIZE_THREAD=ON -DSANITIZE_UNDEFINED=ON"
-# Disable ADDRESS SANITIZE unlit we find a way to address:
+# Disable ADDRESS SANITIZE until we find a way to address:
 # - https://github.com/boostorg/coroutine2/issues/12
 # - https://github.com/google/sanitizers/issues/189#issuecomment-312914329
 
-for cp in "" "-DSANITIZE_UNDEFINED=ON"
+for cp in "" "-DSANITIZE_UNDEFINED=ON -DENABLE_STRESS_TEST=ON"
 do
     build_test "$cp"
 done

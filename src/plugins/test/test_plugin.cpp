@@ -15,9 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <getodac/abstract_restful_session.h>
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
-#include <getodac/abstract_restful_session.h>
+
 
 #include <cassert>
 #include <iostream>
@@ -289,6 +290,50 @@ public:
     }
 };
 
+class EchoTest : public Getodac::AbstractServiceSession
+{
+public:
+    explicit EchoTest(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
+    {}
+
+    // ServiceSession interface
+    // AbstractServiceSession interface
+    void headerFieldValue(const std::string &field, const std::string &value) override
+    {
+        m_headers.emplace_back(std::make_pair(field, value));
+    }
+    bool acceptContentLength(size_t length) override
+    {
+        contentLength = length;
+        return true;
+    }
+    void headersComplete() override {}
+    void body(const char *data, size_t length) override
+    {
+        m_body.append(data, length);
+    }
+    void requestComplete() override
+    {
+        m_serverSession->responseStatus(200);
+        m_serverSession->responseEndHeader(Getodac::ChunkedData);
+    }
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        Getodac::OStreamBuffer streamBuffer{this, yield, true};
+        Getodac::OStream stream(streamBuffer);
+        stream << "~~~~ ContentLength: " << contentLength << std::endl;
+        stream << "~~~~ Headers:\n";
+        for (const auto &kv : m_headers)
+            stream << kv.first << " : " << kv.second << std::endl;
+        stream << "~~~~ Body:\n" << m_body;
+    }
+private:
+    std::vector<std::pair<std::string, std::string>> m_headers;
+    size_t contentLength = 0;
+    std::string m_body;
+};
+
 } // namespace
 
 PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
@@ -310,6 +355,9 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
     if (url == "/test0")
         return std::make_shared<Test0>(serverSession);
+
+    if (url == "/echoTest")
+        return std::make_shared<EchoTest>(serverSession);
 
     if (url == "/secureOnly")
         return std::make_shared<TestSecureOnly>(serverSession);

@@ -8,6 +8,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/getodac/plugins)
 
 option(ENABLE_TRACE_LOG "Enabe tracing log" OFF)
 option(ENABLE_DEBUG_LOG "Enable debugging log" OFF)
+option(ENABLE_STRESS_TEST "Enable server stress" OFF)
 
 find_package(Sanitizers)
 
@@ -16,6 +17,10 @@ if (ENABLE_TRACE_LOG)
 endif ()
 if (ENABLE_DEBUG_LOG)
     add_definitions(-DENABLE_DEBUG_LOG)
+endif ()
+
+if (ENABLE_STRESS_TEST)
+    add_definitions(-DENABLE_STRESS_TEST)
 endif ()
 
 add_subdirectory(conf)

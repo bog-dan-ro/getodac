@@ -44,11 +44,15 @@ namespace {
 SessionsEventLoop::SessionsEventLoop()
 {
     unsigned long mem_min, mem_default, mem_max = 4194304; // 4Mb
+#ifndef ENABLE_STRESS_TEST
     FILE *f = fopen("/proc/sys/net/ipv4/tcp_rmem", "r");
     if (f) {
         fscanf(f, "%lu %lu %lu", &mem_min, &mem_default, &mem_max);
         fclose(f);
     }
+#else
+    mem_max = 8; // super small bufer needed to test the partial parsing
+#endif
 
     // This buffer is shared by all ServerSessions which are server
     // by this event loop to read the incoming data without

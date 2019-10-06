@@ -406,7 +406,9 @@ void ServerSession::readLoop(YieldType &yield)
                 tempBuffer.resize(tempLen);
                 memcpy(tempBuffer.data(), m_eventLoop->sharedReadBuffer.data() + parsedBytes, tempLen);
             }
+#ifndef ENABLE_STRESS_TEST
             yield();
+#endif
         } catch (const std::exception &e) {
             DEBUG(serverLogger) << e.what();
             m_eventLoop->deleteLater(this);

@@ -18,9 +18,10 @@
 #include <exception>
 #include <iostream>
 
+#include <getodac/logging.h>
+
 #include "server.h"
 #include "server_logger.h"
-#include <getodac/logging.h>
 
 int main(int argc, char*argv[])
 {

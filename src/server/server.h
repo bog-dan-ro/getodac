@@ -52,12 +52,12 @@ public:
     inline void sessionServed() { ++m_servedSessions; }
     uint64_t servedSessions() const { return m_servedSessions; }
     SSL_CTX *sslContext() const;
+    static void exitSignalHandler();
 
 private:
     Server();
     ~Server();
 
-    static void exitSignalHandler(int);
     enum SocketType {
         IPV4,
         IPV6

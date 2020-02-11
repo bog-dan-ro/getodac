@@ -64,8 +64,6 @@
 #include "server_service_sessions.h"
 #include "sessions_event_loop.h"
 
-#include "x86_64-signal.h"
-
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL
 # error "Only SSL 1.1+ is supported"
 #endif
@@ -102,6 +100,32 @@ namespace {
     uint32_t queuedConnections = 20000;
     uint32_t eventLoopsSize = std::max(uint32_t(2), std::thread::hardware_concurrency());
 
+    std::vector<std::pair<std::string, std::string>> mergedProperties(const boost::property_tree::ptree &node, const std::string &prevNodes = {})
+    {
+        std::vector<std::pair<std::string, std::string>> res;
+        if (node.empty()) {
+            res.emplace_back(std::pair<std::string, std::string>{prevNodes, node.data()});
+            return res;
+        }
+        for (const auto &n : node) {
+            auto pn = prevNodes;
+            if (!pn.empty())
+                pn += ".";
+            pn += n.first;
+            auto props = mergedProperties(n.second, pn);
+            res.insert(res.end(), props.begin(), props.end());
+        }
+        return res;
+    }
+
+    static void unblockSignal(int signum)
+    {
+        sigset_t sigs;
+        sigemptyset(&sigs);
+        sigaddset(&sigs, signum);
+        sigprocmask(SIG_UNBLOCK, &sigs, nullptr);
+    }
+
     std::string stackTrace(int discard = 0)
     {
         void *addresses[100];
@@ -129,31 +153,26 @@ namespace {
         return stackTtrace.str();
     }
 
-    static void unblockSignal(int signum)
+    static void signalHandler(int sig, siginfo_t *info, void *)
     {
-        sigset_t sigs;
-        sigemptyset(&sigs);
-        sigaddset(&sigs, signum);
-        sigprocmask(SIG_UNBLOCK, &sigs, nullptr);
+        /// Transform segmentation violations signals into exceptions
+        if (sig == SIGSEGV && info->si_addr == 0) {
+            unblockSignal(SIGSEGV);
+            throw Getodac::SegmentationFaultError(stackTrace(3));
+        }
+
+        /// Transform floation-point errors signals into exceptions
+        if (sig == SIGFPE && (info->si_code == FPE_INTDIV || info->si_code == FPE_FLTDIV)) {
+            unblockSignal(SIGFPE);
+            throw Getodac::FloatingPointError(stackTrace(3));
+        }
+        if (sig == SIGTERM || sig == SIGINT) {
+            Server::exitSignalHandler();
+            return;
+        }
+        throw std::runtime_error(stackTrace(3));
     }
 
-    std::vector<std::pair<std::string, std::string>> mergedProperties(const boost::property_tree::ptree &node, const std::string &prevNodes = {})
-    {
-        std::vector<std::pair<std::string, std::string>> res;
-        if (node.empty()) {
-            res.emplace_back(std::pair<std::string, std::string>{prevNodes, node.data()});
-            return res;
-        }
-        for (const auto &n : node) {
-            auto pn = prevNodes;
-            if (!pn.empty())
-                pn += ".";
-            pn += n.first;
-            auto props = mergedProperties(n.second, pn);
-            res.insert(res.end(), props.begin(), props.end());
-        }
-        return res;
-    }
 }
 
 /*!
@@ -161,25 +180,11 @@ namespace {
  *
  * Exit the server
  */
-void Server::exitSignalHandler(int)
+void Server::exitSignalHandler()
 {
     // Quit server loop
     INFO(serverLogger) << "shutting down the server";
     instance()->m_shutdown.store(true);
-}
-
-/// Transform segmentation violations signals into exceptions
-SIGNAL_HANDLER(catch_segv)
-{
-    unblockSignal(SIGSEGV);
-    throw SegmentationFaultError(stackTrace(3));
-}
-
-/// Transform floation-point errors signals into exceptions
-SIGNAL_HANDLER(catch_fpe)
-{
-    unblockSignal(SIGFPE);
-    throw FloatingPointError(stackTrace(3));
 }
 
 /// Makes socket nonblocking
@@ -302,7 +307,7 @@ int Server::exec(int argc, char *argv[])
         po::notify(vm);
         if (vm.count("help")) {
             std::cout << desc << std::endl;
-            exitSignalHandler(0);
+            exitSignalHandler();
             return 0;
         }
         printPID = vm.count("pid");
@@ -594,17 +599,29 @@ Server::Server()
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
 
     // register signal handlers
-    if (signal(SIGINT, Server::exitSignalHandler) == SIG_ERR)
+    struct sigaction sa;
+
+    sa.sa_sigaction = signalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO | SA_NODEFER;
+
+    if (sigaction(SIGABRT, &sa, nullptr) != 0)
+        throw std::runtime_error{"Can't register SIGABRT signal callback"};
+
+    if (sigaction(SIGFPE, &sa, nullptr) != 0)
+        throw std::runtime_error{"Can't register SIGFPE signal callback"};
+
+    if (sigaction(SIGILL, &sa, nullptr) != 0)
+        throw std::runtime_error{"Can't register SIGILL signal callback"};
+
+    if (sigaction(SIGINT, &sa, nullptr) != 0)
         throw std::runtime_error{"Can't register SIGINT signal callback"};
 
-    if (signal(SIGTERM, Server::exitSignalHandler) == SIG_ERR)
+    if (sigaction(SIGSEGV, &sa, nullptr) != 0)
+        throw std::runtime_error{"Can't register SIGSEGV signal callback"};
+
+    if (sigaction(SIGTERM, &sa, nullptr) != 0)
         throw std::runtime_error{"Can't register SIGTERM signal callback"};
-
-    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-        throw std::runtime_error{"Can't set SIGPIPE SIG_IGN"};
-
-    INIT_SEGV;
-    INIT_FPE;
 }
 
 /*!

@@ -37,13 +37,7 @@ using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
 Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
-
-inline std::string fullPath(const std::string &url, const std::string &default_file)
-{
-    if (url.empty() || url.back() == '/')
-        return url + default_file;
-    return url;
-}
+bool s_allow_symlinks = false;
 
 TaggedLogger<> logger{"staticContent"};
 
@@ -78,11 +72,18 @@ inline std::string mimeType(boost::string_view ext)
 class StaticContent : public Getodac::AbstractServiceSession
 {
 public:
-    StaticContent(Getodac::AbstractServerSession *serverSession, const std::string &root, const std::string &path)
+    StaticContent(Getodac::AbstractServerSession *serverSession, const boost::filesystem::path &root, const boost::filesystem::path &path)
         : Getodac::AbstractServiceSession(serverSession)
     {
         try {
-            auto p = boost::filesystem::canonical(path, root);
+            auto p = (root / path).lexically_normal();
+            if (!s_allow_symlinks)
+                p = boost::filesystem::canonical(p);
+            if (!boost::starts_with(p, root)) // make sure we don't server files outside the root
+                throw std::runtime_error{"File not found"};
+            if (boost::filesystem::is_directory(p))
+                p /= s_default_file;
+
             TRACE(logger) << "Serving " << p.string();
             m_file = s_filesCache.getValue(p.string());
             auto lastWriteTime = boost::filesystem::last_write_time(p);
@@ -131,10 +132,20 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
             if (boost::starts_with(pair.first, "/~")) {
                 auto pos = url.find('/', 1);
                 if (pos == std::string::npos)
-                    break;
-                return std::make_shared<StaticContent>(serverSession, pair.second, fullPath(url.substr(2, pos - 1) + "public_html" + url.substr(pos, url.size() - pos), s_default_file));
+                    pos = url.size();
+                boost::filesystem::path root_path{pair.second};
+                auto user = url.substr(2, pos - 2);
+                if (user == "." || user == "..")
+                    break; // avoid GET /~../../etc/passwd HTTP/1.0 requests
+
+                root_path /= user;
+                root_path /= "public_html";
+                boost::filesystem::path file_path;
+                if (url.size() - pos > 1)
+                    file_path /= url.substr(pos + 1, url.size() - pos - 1);
+                return std::make_shared<StaticContent>(serverSession, root_path.string(), file_path.lexically_normal());
             } else {
-                return std::make_shared<StaticContent>(serverSession, pair.second, fullPath(url.c_str() + pair.first.size(), s_default_file));
+                return std::make_shared<StaticContent>(serverSession, pair.second, boost::filesystem::path{url.c_str() + pair.first.size()}.lexically_normal());
             }
         }
     }
@@ -153,6 +164,7 @@ PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
         s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));
     }
     s_default_file = properties.get("default_file", "");
+    s_allow_symlinks = properties.get("allow_symlinks", false);
 
     return !s_urls.empty();
 }

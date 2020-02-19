@@ -285,7 +285,7 @@ int Server::exec(int argc, char *argv[])
 
     // Default plugins path
     std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/lib/getodac/plugins").string();
-    std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/conf").string();
+    std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/etc/GETodac").string();
     std::string dropUser;
     std::string dropGroup;
     bool printPID = false;

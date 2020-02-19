@@ -1,0 +1,15 @@
+[Unit]
+Description=GETodac service
+After=network.target
+StartLimitBurst=5
+StartLimitIntervalSec=10
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/usr/local/bin/GETodac -c /usr/local/etc/GETodac
+
+[Install]
+WantedBy=multi-user.target

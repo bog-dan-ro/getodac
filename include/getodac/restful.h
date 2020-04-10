@@ -145,10 +145,10 @@ public:
      * \param args
      * \return ReturnType
      */
-    ReturnType create(const std::string &url, const std::string &method, Args ...args) const
+    ReturnType create(const std::string_view &url, const std::string &method, Args ...args) const
     {
         if (url.size() <= d->resource.size() ||
-                std::memcmp(url.c_str(), d->resource.c_str(), d->resource.size())) {
+                std::memcmp(url.data(), d->resource.c_str(), d->resource.size())) {
             return {};
         }
 
@@ -156,20 +156,20 @@ public:
         // Search for ?
         ParsedUrl parsedUrl;
         auto &queryStrings = parsedUrl.queryStrings;
-        auto qpos = findInSubstr(url, 0, url.size(), '?');
+        auto qpos = url.find('?');
         if (qpos != std::string::npos) {
             // time to parse the queryStrings
             // the parser only supports key1=value1&key2=value2... format
             ++qpos;
-            for (const auto &kvPair : split(url, '&', qpos, url.size() - qpos)) {
-                auto kv = split(url, '=', kvPair.first, kvPair.second);
+            for (const auto &kvPair : split(url.substr(qpos), '&')) {
+                auto kv = split(kvPair, '=');
                 switch (kv.size()) {
                 case 1:
-                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(url.substr(kv[0].first, kv[0].second)), ""));
+                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(kv[0]), ""));
                     break;
                 case 2:
-                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(url.substr(kv[0].first, kv[0].second)),
-                                                                        unEscapeUrl(url.substr(kv[1].first, kv[1].second))));
+                    queryStrings.emplace_back(std::make_pair(unEscapeUrl(kv[0]),
+                                                                        unEscapeUrl(kv[1])));
                     break;
                 default:
                     throw ResponseStatusError{400, "Invalid query strings"};
@@ -183,7 +183,7 @@ public:
         auto pos = d->resource.size();
 
         for (const auto &subResource : d->subResources) {
-            if (subResource.createSubResource(ret, method, url, pos, qpos, parsedUrl, std::forward<Args>(args)...))
+            if (subResource.createSubResource(ret, method, url.substr(pos, qpos - pos), parsedUrl, std::forward<Args>(args)...))
                 return ret;
         }
         return {};
@@ -196,20 +196,19 @@ public:
 
 
 protected:
-    bool createSubResource(ReturnType &ret, const std::string &method, const std::string &url, std::string::size_type pos, std::string::size_type queryPos, ParsedUrl partialParsedUrl, Args ...args) const
+    bool createSubResource(ReturnType &ret, const std::string &method, const std::string_view &url, ParsedUrl partialParsedUrl, Args ...args) const
     {
-        if (d->resource.empty() || (url.size() >= d->resource.size() + pos
-                                   && std::memcmp(url.c_str() + pos, d->resource.c_str(), d->resource.size()) == 0)) {
+        if (d->resource.empty() || (url.size() >= d->resource.size()
+                                   && std::memcmp(url.data(), d->resource.c_str(), d->resource.size()) == 0)) {
 
-            auto nextPos = findInSubstr(url, pos, queryPos - pos, '/');
-            auto data = nextPos == std::string::npos ? url.substr(pos, queryPos - pos)
-                                                     : url.substr(pos, nextPos - pos);
+            auto nextPos = url.find('/');
+            auto data = nextPos == std::string::npos ? url : url.substr(0, nextPos);
 
             // Placeholder?
             if (d->resource.empty())
                 partialParsedUrl.resources.back().second = std::move(unEscapeUrl(data));
             else
-                partialParsedUrl.resources.push_back({std::move(data), {}});
+                partialParsedUrl.resources.push_back({std::string{data}, {}});
 
             if (nextPos == std::string::npos) {
                 auto methodIt = d->methods.find(method);
@@ -222,7 +221,7 @@ protected:
             }
 
             for (const auto &subResource : d->subResources)
-                if (subResource.createSubResource(ret, method, url, nextPos + 1, queryPos, partialParsedUrl, args...))
+                if (subResource.createSubResource(ret, method, url.substr(nextPos + 1), partialParsedUrl, args...))
                     return true;
         }
         return false;

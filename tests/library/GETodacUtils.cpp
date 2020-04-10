@@ -50,15 +50,13 @@ using namespace std;
         EXPECT_THROW(unEscapeUrl("Text%2"), std::runtime_error);
     }
 
-    TEST(Utils, findInSubstr)
+    TEST(Utils, split)
     {
-        string str = unEscapeUrl("/api/v1/parents/123/children");
-        string::size_type expectedPositions[]={0, 4, 7, 15, 19, string::npos};
-        string::size_type pos = -1;
-        for (auto ep : expectedPositions) {
-            pos = findInSubstr(str, pos + 1, str.size() - pos - 1, '/');
-            EXPECT_EQ(pos, ep);
-        }
-        EXPECT_EQ(findInSubstr(str, str.size(), string::npos, '.'), string::npos);
+        string str = unEscapeUrl("///api/v1/parents/123/children/");
+        SplitVector expected = {"api", "v1", "parents", "123", "children"};
+        auto splitted = split(str, '/');
+        EXPECT_EQ(splitted.size(), expected.size());
+        for (size_t i = 0; i < splitted.size(); ++i)
+            EXPECT_EQ(expected[i], splitted[i]);
     }
 }

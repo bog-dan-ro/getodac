@@ -126,7 +126,7 @@ namespace {
             TestRRType res{std::move(resource)};
             for (auto kv : resourcesVerbs) {
                 auto second = kv.second;
-                res.addMethodCreator(kv.first, [second](ParsedUrl parsedUrl, ParsedUrl expectedParsedUrl) -> int {
+                res.addMethodCreator(std::move(kv.first), [second](ParsedUrl parsedUrl, ParsedUrl expectedParsedUrl) -> int {
                         expectedParsedUrl.allButOPTIONSNodeMethods = "GET, POST";
                         EXPECT_EQ(parsedUrl, expectedParsedUrl);
                         return second;

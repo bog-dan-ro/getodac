@@ -30,6 +30,7 @@
 #include <list>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -63,13 +64,13 @@ private:
     std::atomic_flag m_lock = ATOMIC_FLAG_INIT;
 };
 
+
 /*!
  * \brief toHex
  *
  * \param ch
  * \return
  */
-
 inline char fromHex(char ch)
 {
     if (ch >= '0' && ch <= '9')
@@ -82,7 +83,12 @@ inline char fromHex(char ch)
     throw std::runtime_error{"Bad hex value"};
 }
 
-inline std::string unEscapeUrl(const std::string &in)
+/*!
+ * \brief unEscapeUrl
+ * \param in
+ * \return
+ */
+inline std::string unEscapeUrl(const std::string_view &in)
 {
     std::string out;
     out.reserve(in.size());
@@ -108,27 +114,6 @@ inline std::string unEscapeUrl(const std::string &in)
     return out;
 }
 
-/*!
- * \brief findInSubstr
- *
- * Find the ch in str starting from pos to nchars
- *
- * \param str string to search in
- * \param pos in str from where to search
- * \param nchars to search
- * \param ch to serch
- *
- * \return the position of the ch in str or npos if not found
- */
-inline std::string::size_type findInSubstr(const std::string &str, std::string::size_type pos, std::string::size_type nchars, char ch)
-{
-    pos = std::min(pos, str.size() - 1);
-    nchars = std::min(str.size() - pos, nchars);
-    for (; nchars; ++pos, --nchars)
-        if (str[pos] == ch)
-            return pos;
-    return std::string::npos;
-}
 
 /*!
  * \brief split
@@ -142,29 +127,24 @@ inline std::string::size_type findInSubstr(const std::string &str, std::string::
  *
  * \return a vector of pair<pos, nchars> substr chunks
  */
-using SplitVector = std::vector<std::pair<std::string::size_type, std::string::size_type>>;
-inline SplitVector split(const std::string &str, char ch, std::string::size_type pos = 0, std::string::size_type nchars = std::string::npos)
+using SplitVector = std::vector<std::string_view>;
+inline SplitVector split(const std::string_view &str, char ch)
 {
-    std::vector<std::pair<std::string::size_type, std::string::size_type>> ret;
-    if (!nchars)
-        return ret;
+    if (!str.size())
+        return {};
 
-    if (nchars == std::string::npos)
-        nchars = str.size() - pos;
-
-    for (auto nextPos = findInSubstr(str, pos, nchars, ch); nextPos != std::string::npos; nextPos = findInSubstr(str, pos, nchars, ch)) {
+    SplitVector ret;
+    std::string::size_type pos = 0;
+    for (auto nextPos = str.find(ch, pos); nextPos != std::string::npos; nextPos = str.find(ch, pos)) {
         // Ignore empty strings
         if (pos != nextPos) {
             auto sz = nextPos - pos;
-            ret.emplace_back(std::make_pair(pos, sz));
-            nchars -= sz + 1;
-        } else {
-            --nchars;
+            ret.emplace_back(str.substr(pos,sz));
         }
         pos = nextPos + 1;
     }
-    if (nchars)
-        ret.emplace_back(std::make_pair(pos, nchars));
+    if (pos < str.size())
+        ret.emplace_back(str.substr(pos));
     return ret;
 }
 

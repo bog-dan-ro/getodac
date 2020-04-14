@@ -80,8 +80,11 @@ public:
 
     bool sockShutdown() override
     {
-        if (m_SSL && SSL_shutdown(m_SSL) == 0)
-            return false;
+        if (!SSL_in_init(m_SSL)) {
+            // Don't call SSL_shutdown() if handshake wasn't completed.
+            if (SSL_shutdown(m_SSL) == 0)
+                return false;
+        }
         return ServerSession::sockShutdown();
     }
 

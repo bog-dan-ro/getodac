@@ -123,4 +123,97 @@ public:
     void writeResponse(Getodac::OStream &) override {}
 };
 
+
+using RESTfulRouterType = RESTfulRouter<std::shared_ptr<AbstractServiceSession>, AbstractServerSession*>;
+
+template <typename T>
+RESTfulRouteMethodHandler<std::shared_ptr<T>, AbstractServerSession*> sessionHandler()
+{
+    return [](ParsedRoute &&parsedRoute, AbstractServerSession* session) -> std::shared_ptr<T> {
+        return std::make_shared<T>(std::move(parsedRoute), session);
+    };
+}
+
+template <typename BaseClass = AbstractServiceSession>
+class AbstractRESTfulRouteBaseSession : public BaseClass
+{
+public:
+    explicit AbstractRESTfulRouteBaseSession(ParsedRoute &&parsedRoute, AbstractServerSession *serverSession)
+        : BaseClass(serverSession)
+        , m_parsedRoute(std::move(parsedRoute))
+    {}
+
+protected:
+    ParsedRoute m_parsedRoute;
+};
+
+template <typename BaseClass>
+class AbstractRESTfulRouteGETSession : public AbstractRESTfulRouteBaseSession<BaseClass>
+{
+public:
+    explicit AbstractRESTfulRouteGETSession(ParsedRoute &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulRouteBaseSession<BaseClass>(std::move(resources), serverSession)
+    {}
+
+    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
+    {
+        auto response = AbstractRESTfulRouteBaseSession<BaseClass>::responseHeaders();
+        if (response.status != 200)
+            return response;
+        response.contentLenght = Getodac::ChunkedData;
+        return response;
+    }
+
+    // Usually GET and Delete methods don't expect any body
+    bool acceptContentLength(size_t length) override
+    {
+        (void)length; return false;
+    }
+    void body(const char *data, size_t length) override
+    {
+        (void)data;
+        (void)length;
+        throw ResponseStatusError(400, "Unexpected body data");
+    }
+};
+
+template <typename BaseClass>
+class AbstractRESTfulRouteDELETESession : public AbstractRESTfulRouteGETSession<BaseClass>
+{
+public:
+    explicit AbstractRESTfulRouteDELETESession(ParsedRoute &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulRouteGETSession<BaseClass>(std::move(resources), serverSession)
+    {
+    }
+
+    /// Usually DELETE operations doesn't have to write any response body
+    /// override is needed
+    void writeResponse(Getodac::OStream &) override {}
+};
+
+template <typename BaseClass>
+class RESTfulRouteOPTIONSSession : public AbstractRESTfulRouteGETSession<BaseClass>
+{
+public:
+    explicit RESTfulRouteOPTIONSSession(ParsedRoute &&resources, AbstractServerSession *serverSession)
+        : AbstractRESTfulRouteGETSession<BaseClass>(std::move(resources), serverSession)
+    {
+        AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
+    }
+
+    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
+    {
+        auto response = AbstractRESTfulRouteGETSession<BaseClass>::responseHeaders();
+        if (response.status != 200)
+            return response;
+        response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulRouteGETSession<BaseClass>::m_parsedUrl.allButOPTIONSNodeMethods);
+        auto it = AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
+        if (it != AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.end())
+             response.headers.emplace("Access-Control-Allow-Headers", it->second);
+        return response;
+    }
+
+    void writeResponse(Getodac::OStream &) override {}
+};
+
 } // namespace Getodac

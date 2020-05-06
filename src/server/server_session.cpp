@@ -620,7 +620,7 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
                 if (m_contentLength == ChunkedData || !m_serviceSession->acceptContentLength(m_contentLength)) {
                     m_tempStr.clear();
                     m_headerField.clear();
-                    return (m_statusCode = 417); // Internal Server error
+                    return (m_statusCode = 417); // Expectation Failed
                 } else {
                     sockWrite(ContinueResponse, sizeof(ContinueResponse));
                 }

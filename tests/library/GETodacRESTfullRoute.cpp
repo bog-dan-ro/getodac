@@ -222,7 +222,15 @@ namespace {
         EXPECT_EQ(4, router.createHandler("/parents", "DELETE", 1));
 
         // There is no PUT method for /parents
-        EXPECT_EQ(std::nullopt, router.createHandler("/parents", "PUT", 1));
+        try {
+            router.createHandler("/parents", "PUT", 1);
+            ASSERT_TRUE(false);
+        } catch (const ResponseStatusError& e) {
+            EXPECT_EQ(e.statusCode() , 405);
+            EXPECT_EQ(e.headers().at("Allow"), "GET, DELETE, POST");
+        } catch(...) {
+            ASSERT_TRUE(false);
+        }
 
         // Replace old method
         parentsRoute->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {

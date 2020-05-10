@@ -345,9 +345,6 @@ private:
     {
         if (urlParts.size() != m_routeParts.size())
             return {};
-        auto methodIt = m_methods.find(method);
-        if (methodIt == m_methods.end())
-            return {};
         Captures captures;
         for (size_t i = 0; i < urlParts.size(); ++i) {
             const auto &part = m_routeParts[i];
@@ -357,6 +354,9 @@ private:
                 return  {};
             }
         }
+        auto methodIt = m_methods.find(method);
+        if (methodIt == m_methods.end())
+            throw ResponseStatusError{405, "Method not allowed.", {{"Allow", m_allMethods}}};
         return std::make_optional(std::make_pair(std::move(captures), methodIt->second));
     }
 };

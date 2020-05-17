@@ -31,6 +31,7 @@ EasyCurl::EasyCurl()
         throw std::runtime_error{"Can't init CUrl"};
     setOptions(CURLOPT_WRITEFUNCTION, &write_callback);
     setOptions(CURLOPT_HEADERFUNCTION, &header_callback);
+    setOptions(CURLOPT_PATH_AS_IS, 1L);
 }
 
 EasyCurl::~EasyCurl()

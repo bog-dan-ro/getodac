@@ -237,10 +237,7 @@ void ServerSession::write(Yield &yield, const void *buf, size_t size)
         if (size_t(written) == size)
             return;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpointer-arith"
-        buf += written;
-#pragma GCC diagnostic pop
+        *reinterpret_cast<const char**>(&buf) += written;
         size -= written;
         yield();
     }
@@ -272,10 +269,7 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
                 written -= vec[i].iov_len;
             } else {
                 vec = &vec[i];
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpointer-arith"
-                vec->iov_base += written;
-#pragma GCC diagnostic pop
+                *reinterpret_cast<char**>(&vec->iov_base) += written;
                 vec->iov_len -= written;
                 written = 1; // written might be 0 at this point, but we still have things to write
                 count -= i;

@@ -6,6 +6,8 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/externals/sanitizers-cmake/cmake" $
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/getodac/plugins)
 
+set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR} ${CMAKE_MODULE_PATH})
+
 option(ENABLE_TRACE_LOG "Enabe tracing log" OFF)
 option(ENABLE_DEBUG_LOG "Enable debugging log" OFF)
 option(ENABLE_STRESS_TEST "Enable server stress" OFF)

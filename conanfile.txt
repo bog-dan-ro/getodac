@@ -1,0 +1,5 @@
+[requires]
+boost/[>1.57.0]
+
+[generators]
+cmake_find_package

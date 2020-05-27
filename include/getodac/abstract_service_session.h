@@ -234,6 +234,7 @@ public:
         , m_buff(buff) {}
 
     inline AbstractServerSession::Yield &yield() const { return m_buff.yield(); }
+    inline OStreamBuffer &streamBuffer() const { return m_buff; }
 
 private:
     OStreamBuffer &m_buff;

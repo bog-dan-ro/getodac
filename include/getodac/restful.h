@@ -356,7 +356,7 @@ private:
         }
         auto methodIt = m_methods.find(method);
         if (methodIt == m_methods.end())
-            throw ResponseStatusError{405, "Method not allowed.", {{"Allow", m_allMethods}}};
+            throw ResponseStatusError{405, {}, {{"Allow", m_allMethods}}};
         return std::make_optional(std::make_pair(std::move(captures), methodIt->second));
     }
 };

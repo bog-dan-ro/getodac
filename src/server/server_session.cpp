@@ -141,8 +141,8 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
 
 ServerSession::~ServerSession()
 {
-    quitRWLoops(Action::Quit);
     try {
+        quitRWLoops(Action::Quit);
         Server::instance()->serverSessionDeleted(this);
     } catch (const std::exception &e) {
         WARNING(serverLogger) << e.what();

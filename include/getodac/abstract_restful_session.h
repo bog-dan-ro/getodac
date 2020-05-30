@@ -206,7 +206,7 @@ public:
         auto response = AbstractRESTfulRouteGETSession<BaseClass>::responseHeaders();
         if (response.status != 200)
             return response;
-        response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulRouteGETSession<BaseClass>::m_parsedUrl.allButOPTIONSNodeMethods);
+        response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulRouteGETSession<BaseClass>::m_parsedRoute.allButOPTIONSNodeMethods);
         auto it = AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
         if (it != AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.end())
              response.headers.emplace("Access-Control-Allow-Headers", it->second);

@@ -605,9 +605,6 @@ Server::Server()
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO | SA_NODEFER;
 
-    if (sigaction(SIGABRT, &sa, nullptr) != 0)
-        throw std::runtime_error{"Can't register SIGABRT signal callback"};
-
     if (sigaction(SIGFPE, &sa, nullptr) != 0)
         throw std::runtime_error{"Can't register SIGFPE signal callback"};
 
@@ -622,6 +619,9 @@ Server::Server()
 
     if (sigaction(SIGTERM, &sa, nullptr) != 0)
         throw std::runtime_error{"Can't register SIGTERM signal callback"};
+
+    // Ignore sigpipe
+    signal(SIGPIPE, SIG_IGN);
 }
 
 /*!

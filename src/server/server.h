@@ -18,6 +18,8 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include <netdb.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -75,6 +77,8 @@ private:
     std::vector<ServerPlugin> m_plugins;
     std::chrono::system_clock::time_point m_startTime;
     SSL_CTX *m_SSLContext = nullptr;
+    SpinLock m_connectionsPerIpMutex;
+    std::map<std::string, uint32_t> m_connectionsPerIp;
     int https4Sock = -1;
     int https6Sock = -1;
 };

@@ -205,16 +205,23 @@ void SessionsEventLoop::loop()
             // Some session(s) have timeout
             timeout = 1s; // maximum timeout
             std::unique_lock<std::mutex> lock{m_sessionsMutex};
-            auto it = m_sessions.begin();
-            while (it != m_sessions.end()) {
-                auto session = it++;
-                lock.unlock(); // Allow the server to insert new connections
-                auto sessionTimeout = (*session)->nextTimeout();
+            std::vector<ServerSession *> sessions;
+            sessions.reserve(m_sessions.size());
+            for (auto session : m_sessions) {
+                sessions.insert(std::upper_bound(sessions.begin(),
+                                                 sessions.end(),
+                                                 session,
+                                                 [](auto a, auto b){ return a->order() < b->order();}),
+                                session);
+            }
+            lock.unlock(); // Allow the server to insert new connections
+
+            for (auto session : sessions) {
+                auto sessionTimeout = session->nextTimeout();
                 if (sessionTimeout <= now)
-                    (*session)->timeout();
+                    session->timeout();
                 else       // round to 50ms
                     timeout = std::min(timeout, std::max(50ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
-                lock.lock();
             }
         }
 

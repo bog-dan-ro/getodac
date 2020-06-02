@@ -19,8 +19,8 @@
 #include "server.h"
 namespace Getodac {
 
-SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr)
-    : ServerSession(eventLoop, sock, sockAddr)
+SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
+    : ServerSession(eventLoop, sock, sockAddr, order)
 {
     if (!(m_SSL = SSL_new(Server::instance()->sslContext())))
         throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));

@@ -56,11 +56,12 @@ class ServerSession : public AbstractServerSession
     };
 
 public:
-    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr);
+    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order);
     ~ServerSession() override;
 
     ServerSession *sessionReady();
 
+    inline uint32_t order() const { return m_order; }
     inline int sock() const { return m_sock;}
     inline const TimePoint & nextTimeout() { return m_nextTimeout; }
 
@@ -143,6 +144,7 @@ protected:
     int setResponseStatusError(const ResponseStatusError &status);
 
 private:
+    uint32_t m_order;
     SessionsEventLoop *m_eventLoop;
     int m_sock;
     std::mutex m_sockMutex;

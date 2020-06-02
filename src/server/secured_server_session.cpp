@@ -78,7 +78,7 @@ void SecuredServerSession::messageComplete()
     int ret;
     int step = 0;
     while ( (ret = SSL_do_handshake(m_SSL)) != 1) {
-        if (ret < 0) {
+        if (ret <=  0) {
             auto err = SSL_get_error(m_SSL, ret);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 if (++step > 5) {
@@ -86,6 +86,11 @@ void SecuredServerSession::messageComplete()
                     step = 0;
                 }
                 continue;
+            } else {
+                if (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL) {
+                    m_shutdown = 0;
+                    setTimeout(1ms);
+                }
             }
         }
         return;
@@ -93,7 +98,7 @@ void SecuredServerSession::messageComplete()
 
     step = 0;
     while ( (ret = SSL_do_handshake(m_SSL)) != 1) {
-        if (ret < 0) {
+        if (ret <= 0) {
             auto err = SSL_get_error(m_SSL, ret);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 if (++step > 5) {
@@ -101,6 +106,11 @@ void SecuredServerSession::messageComplete()
                     step = 0;
                 }
                 continue;
+            } else {
+                if (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL) {
+                    m_shutdown = 0;
+                    setTimeout(1ms);
+                }
             }
         }
         break;

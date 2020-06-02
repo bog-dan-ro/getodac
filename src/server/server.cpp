@@ -501,6 +501,7 @@ int Server::exec(int argc, char *argv[])
                     if (-1 == sock)
                         break;
 
+                    uint32_t order;
                     {
                         auto addr = addrText(in_addr);
                         std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
@@ -508,7 +509,7 @@ int Server::exec(int argc, char *argv[])
                             ::close(sock);
                             continue;
                         }
-                        ++m_connectionsPerIp[addr];
+                        order = ++m_connectionsPerIp[addr];
                     }
 
                     //TODO: here we can check if sock address it's banned
@@ -525,9 +526,9 @@ int Server::exec(int argc, char *argv[])
                         // Let's try to create a new session
                         std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
-                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr))->sessionReady());
+                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr, order))->sessionReady());
                         else
-                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr))->sessionReady());
+                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr, order))->sessionReady());
                     } catch (const std::exception &e) {
                         WARNING(serverLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);

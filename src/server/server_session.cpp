@@ -120,8 +120,9 @@ namespace {
     };
 }
 
-ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr)
-    : m_eventLoop(eventLoop)
+ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
+    : m_order(order)
+    , m_eventLoop(eventLoop)
     , m_sock(sock)
     , m_readResume(std::bind(&ServerSession::readLoop, this, std::placeholders::_1))
     , m_writeResume(std::bind(&ServerSession::writeLoop, this, std::placeholders::_1))

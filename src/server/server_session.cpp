@@ -163,7 +163,7 @@ ServerSession::~ServerSession()
 
 ServerSession *ServerSession::sessionReady()
 {
-    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET);
+    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
     return this;
 }
 
@@ -317,7 +317,7 @@ void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAlive
         m_canWriteError = false;
     } else {
         // Switch to write mode
-        uint32_t events = EPOLLOUT | EPOLLRDHUP;
+        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR;
         if (continousWrite)
             events |= EPOLLET;
 
@@ -329,7 +329,7 @@ void ServerSession::responseComplete()
 {
     // switch to read mode
     m_statusCode = 0;
-    m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET);
+    m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
     if (m_keepAliveSeconds)
         setTimeout(std::chrono::seconds(m_keepAliveSeconds));
     else

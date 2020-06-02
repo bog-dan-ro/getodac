@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <malloc.h>
+#include <netdb.h>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -173,6 +174,16 @@ namespace {
         throw std::runtime_error(stackTrace(3));
     }
 
+    inline std::string addrText(const struct sockaddr_storage &addr)
+    {
+        char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+        if (getnameinfo((const struct sockaddr *)&addr, sizeof(struct sockaddr_storage),
+                        hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+            return hbuf;
+        }
+        return {};
+    }
+
 }
 
 /*!
@@ -282,6 +293,7 @@ int Server::exec(int argc, char *argv[])
     namespace fs = boost::filesystem;
     int httpPort = 8080; // Default HTTP port
     int httpsPort = 8443; // Default HTTPS port
+    uint32_t maxConnectionsPerIp = 500;
 
     // Default plugins path
     std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/lib/getodac/plugins").string();
@@ -337,6 +349,7 @@ int Server::exec(int argc, char *argv[])
         enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
         queuedConnections = properties.get("queued_connections", queuedConnections);
+        maxConnectionsPerIp = properties.get("max_connections_per_ip", maxConnectionsPerIp);
         TRACE(serverLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
             TRACE(serverLogger) << "https section found in config";
@@ -465,8 +478,10 @@ int Server::exec(int argc, char *argv[])
             if (sessions > m_peakSessions)
                 m_peakSessions = sessions;
 
-            if (sessions <= 1) // No more pending sessions?
+            if (sessions <= 1) { // No more pending sessions?
                 malloc_trim(0); // release the memory to OS
+                assert(m_connectionsPerIp.size() == sessions);
+            }
         }
 
         for (int i = 0; i < triggeredEvents; ++i)
@@ -485,6 +500,16 @@ int Server::exec(int argc, char *argv[])
                     int sock = ::accept4(fd, (struct sockaddr *)&in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
                     if (-1 == sock)
                         break;
+
+                    {
+                        auto addr = addrText(in_addr);
+                        std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
+                        if (m_connectionsPerIp[addr] > maxConnectionsPerIp) {
+                            ::close(sock);
+                            continue;
+                        }
+                        ++m_connectionsPerIp[addr];
+                    }
 
                     //TODO: here we can check if sock address it's banned
                     //and we can drop the connection
@@ -539,8 +564,18 @@ int Server::exec(int argc, char *argv[])
  */
 void Server::serverSessionDeleted(ServerSession *session)
 {
-    std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
-    m_activeSessions.erase(session);
+    {
+        std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
+        m_activeSessions.erase(session);
+    }
+
+    {
+        auto addr = addrText(session->peerAddress());
+        std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
+        auto it = m_connectionsPerIp.find(addr);
+        if (--(it->second) == 0)
+            m_connectionsPerIp.erase(it);
+    }
 }
 
 /*!

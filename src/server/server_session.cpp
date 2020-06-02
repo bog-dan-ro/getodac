@@ -210,8 +210,12 @@ void ServerSession::timeout() noexcept
         }
         terminateSession(Action::Timeout);
     } catch (const std::exception &e) {
-        DEBUG(serverLogger) << e.what();
-    } catch (...) {}
+        ERROR(serverLogger) << e.what();
+        m_eventLoop->deleteLater(this);
+    } catch (...) {
+        ERROR(serverLogger) << "Unhandled error";
+        m_eventLoop->deleteLater(this);
+    }
 }
 
 void ServerSession::write(Yield &yield, const void *buf, size_t size)

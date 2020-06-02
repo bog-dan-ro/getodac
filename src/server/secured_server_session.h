@@ -41,10 +41,13 @@ public:
         auto sz = SSL_read(m_SSL, buf, size);
         if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
+            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 return 0;
-            else
+            } else {
+                if (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL)
+                    m_shutdown = 0;
                 return -1;
+            }
         }
         return sz;
     }
@@ -56,10 +59,13 @@ public:
         auto sz = SSL_write(m_SSL, buf, size);
         if (sz == 0) {
             int err = SSL_get_error(m_SSL, sz);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
+            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 return 0;
-            else
+            } else {
+                if (err == SSL_ERROR_SYSCALL || err == SSL_ERROR_SSL)
+                    m_shutdown = 0;
                 return -1;
+            }
         }
         return sz;
     }
@@ -80,7 +86,7 @@ public:
 
     bool sockShutdown() override
     {
-        if (!SSL_in_init(m_SSL)) {
+        if (m_shutdown-- && !SSL_in_init(m_SSL)) {
             // Don't call SSL_shutdown() if handshake wasn't completed.
             if (SSL_shutdown(m_SSL) == 0)
                 return false;
@@ -97,6 +103,7 @@ private:
     SSL *m_SSL = nullptr;
     bool m_renegotiate = false;
     YieldType *m_readYield = nullptr;
+    uint8_t m_shutdown = 5;
 };
 
 } // namespace Getodac

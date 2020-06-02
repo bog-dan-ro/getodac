@@ -218,8 +218,8 @@ void SessionsEventLoop::loop()
                     auto sessionTimeout = (*session)->nextTimeout();
                     if (sessionTimeout <= now)
                         (*session)->timeout();
-                    else       // round to 100ms
-                        timeout = std::min(timeout, std::max(100ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
+                    else       // round to 50ms
+                        timeout = std::min(timeout, std::max(50ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
                     lock.lock();
                 }
             } while (m_sessionsRehashed);

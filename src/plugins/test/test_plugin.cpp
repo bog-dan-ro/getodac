@@ -29,7 +29,7 @@ namespace {
 const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"};
 std::string test50mresponse;
 
-Getodac::RESTfulResourceType s_testRootRestful("/test/rest/v1/");
+Getodac::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
 
 class BaseTestSession : public Getodac::AbstractServiceSession
 {
@@ -269,22 +269,22 @@ private:
 };
 
 
-class TestRESTGET : public Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession<>>
+class TestRESTGET : public Getodac::AbstractRESTfulRouteGETSession<Getodac::AbstractSimplifiedServiceSession<>>
 {
 public:
-    explicit TestRESTGET(Getodac::ParsedUrl &&resources, Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractRESTfulGETSession<Getodac::AbstractSimplifiedServiceSession<>>(std::move(resources), serverSession)
+    explicit TestRESTGET(Getodac::ParsedRoute &&resources, Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractRESTfulRouteGETSession<Getodac::AbstractSimplifiedServiceSession<>>(std::move(resources), serverSession)
     {}
 
     void writeResponse(Getodac::OStream &stream) override
     {
-        stream << "Got " << m_parsedUrl.resources.size() << " resources\n";
-        stream << "and " << m_parsedUrl.queryStrings.size() << " queries\n";
-        stream << "All methods but OPTIONS " << m_parsedUrl.allButOPTIONSNodeMethods << " \n";
-        for (const auto &resource : m_parsedUrl.resources) {
+        stream << "Got " << m_parsedRoute.capturedResources.size() << " captured resources\n";
+        stream << "and " << m_parsedRoute.queryStrings.size() << " queries\n";
+        stream << "All methods but OPTIONS " << m_parsedRoute.allButOPTIONSNodeMethods << " \n";
+        for (const auto &resource : m_parsedRoute.capturedResources) {
             stream << "Resource name: " << resource.first << "  value: " << resource.second << std::endl;
         }
-        for (const auto &query : m_parsedUrl.queryStrings) {
+        for (const auto &query : m_parsedRoute.queryStrings) {
             stream << "Query name: " << query.first << "  value: " << query.second << std::endl;
         }
     }
@@ -371,7 +371,7 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
     if (url == "/testThowFromBody")
         return std::make_shared<TestThowFromBody>(serverSession);
 
-    return s_testRootRestful.create(url, method, serverSession);
+    return s_testRootRestful.createHandler(url, method, serverSession);
 }
 
 PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
@@ -379,9 +379,14 @@ PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         test50mresponse += char(33 + (i % 93));
 
-    Getodac::RESTfulResourceType customersResource{"customers"};
-    customersResource.addMethodCreator("GET", Getodac::sessionCreator<TestRESTGET>());
-    s_testRootRestful.addSubResource(customersResource);
+    s_testRootRestful.createRoute("customers")
+            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
+    s_testRootRestful.createRoute("customers/{customerId}")
+            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
+    s_testRootRestful.createRoute("customers/{customerId}/licenses")
+            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
+    s_testRootRestful.createRoute("customers/{customerId}/licenses/{licenseId}")
+            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
     return true;
 }
 

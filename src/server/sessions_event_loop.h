@@ -53,12 +53,14 @@ public:
     inline void shutdown() noexcept { m_quit.store(true); }
 
     std::vector<char> sharedReadBuffer;
+    void setWorkloadBalancing(bool on);
 
 private:
     void loop();
 
 private:
     int m_epollHandler;
+    bool m_workloadBalancing = false;
     std::atomic_uint m_activeSessions{0};
     std::atomic_bool m_quit{false};
     std::thread m_loopThread;

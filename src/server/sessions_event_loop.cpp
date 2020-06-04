@@ -166,6 +166,11 @@ void SessionsEventLoop::deleteLater(ServerSession *session) noexcept
     } catch (...) {}
 }
 
+void SessionsEventLoop::setWorkloadBalancing(bool on)
+{
+    m_workloadBalancing = on;
+}
+
 /*!
  * \brief SessionsEventLoop::sharedReadBuffer
  *
@@ -189,15 +194,33 @@ void SessionsEventLoop::deleteLater(ServerSession *session) noexcept
 void SessionsEventLoop::loop()
 {
     using Ms = std::chrono::milliseconds;
+    using clock = std::chrono::high_resolution_clock;
     auto events = std::make_unique<epoll_event[]>(EventsSize);
     Ms timeout(1s); // Initial timeout
     while (!m_quit) {
-        auto before = std::chrono::high_resolution_clock::now();
+        auto before = clock::now();
         int triggeredEvents = epoll_wait(m_epollHandler, events.get(), EventsSize, timeout.count());
-        for (int i = 0 ; i < triggeredEvents; ++i)
-            reinterpret_cast<ServerSession *>(events[i].data.ptr)->processEvents(events[i].events);
+        if (!m_workloadBalancing) {
+            for (int i = 0 ; i < triggeredEvents; ++i)
+                reinterpret_cast<ServerSession *>(events[i].data.ptr)->processEvents(events[i].events);
+        } else {
+            std::vector<std::pair<ServerSession *, uint32_t>> sessionEvents;
+            sessionEvents.reserve(triggeredEvents);
+            for (int i = 0 ; i < triggeredEvents; ++i) {
+                auto ptr = reinterpret_cast<ServerSession *>(events[i].data.ptr);
+                auto evs = events[i].events;
+                std::pair<ServerSession *, uint32_t> event{ptr, evs};
+                sessionEvents.insert(std::upper_bound(sessionEvents.begin(), sessionEvents.end(), event,
+                                                      [](auto a, auto b) {
+                    return a.first->order() < b.first->order();
+                }),
+                                     event);
+            }
+            for (auto event : sessionEvents)
+                event.first->processEvents(event.second);
+        }
 
-        auto now = std::chrono::high_resolution_clock::now();
+        auto now = clock::now();
         auto duration = std::chrono::duration_cast<Ms>(now - before);
         if ( duration < timeout) {
             timeout -= duration;
@@ -207,20 +230,16 @@ void SessionsEventLoop::loop()
             std::unique_lock<std::mutex> lock{m_sessionsMutex};
             std::vector<ServerSession *> sessions;
             sessions.reserve(m_sessions.size());
-            for (auto session : m_sessions) {
-                sessions.insert(std::upper_bound(sessions.begin(),
-                                                 sessions.end(),
-                                                 session,
-                                                 [](auto a, auto b){ return a->order() < b->order();}),
-                                session);
-            }
+            for (auto session : m_sessions)
+                sessions.push_back(session);
             lock.unlock(); // Allow the server to insert new connections
 
+            auto now = clock::now();
             for (auto session : sessions) {
                 auto sessionTimeout = session->nextTimeout();
                 if (sessionTimeout <= now)
                     session->timeout();
-                else       // round to 50ms
+                else // round to 50ms
                     timeout = std::min(timeout, std::max(50ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
             }
         }

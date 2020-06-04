@@ -294,6 +294,7 @@ int Server::exec(int argc, char *argv[])
     int httpPort = 8080; // Default HTTP port
     int httpsPort = 8443; // Default HTTPS port
     uint32_t maxConnectionsPerIp = 500;
+    bool workloadBalancing = true;
 
     // Default plugins path
     std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/lib/getodac/plugins").string();
@@ -350,6 +351,7 @@ int Server::exec(int argc, char *argv[])
         httpPort = properties.get("http_port", -1);
         queuedConnections = properties.get("queued_connections", queuedConnections);
         maxConnectionsPerIp = properties.get("max_connections_per_ip", maxConnectionsPerIp);
+        workloadBalancing = properties.get("workload_balancing", workloadBalancing);
         TRACE(serverLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
             TRACE(serverLogger) << "https section found in config";
@@ -458,6 +460,8 @@ int Server::exec(int argc, char *argv[])
     INFO(serverLogger) << "Logging setup succeeded";
 
     auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
+    for (uint32_t i = 0; i < eventLoopsSize; ++i)
+        eventLoops[i].setWorkloadBalancing(workloadBalancing);
 
     INFO(serverLogger) << "using " << eventLoopsSize << " worker threads";
 

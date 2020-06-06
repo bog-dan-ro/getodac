@@ -200,6 +200,8 @@ void SessionsEventLoop::loop()
     while (!m_quit) {
         auto before = clock::now();
         int triggeredEvents = epoll_wait(m_epollHandler, events.get(), EventsSize, timeout.count());
+        if (triggeredEvents < 0)
+            continue;
         if (!m_workloadBalancing) {
             for (int i = 0 ; i < triggeredEvents; ++i)
                 reinterpret_cast<ServerSession *>(events[i].data.ptr)->processEvents(events[i].events);

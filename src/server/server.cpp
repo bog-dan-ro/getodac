@@ -491,7 +491,7 @@ int Server::exec(int argc, char *argv[])
         for (int i = 0; i < triggeredEvents; ++i)
         {
             auto events = epollList[i].events;
-            if (events & (EPOLLERR |EPOLLHUP | EPOLLRDHUP))
+            if (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))
                 throw std::runtime_error{"listen socket error"};
 
             if (events & (EPOLLIN | EPOLLPRI)) {

@@ -55,12 +55,14 @@ public:
     std::vector<char> sharedReadBuffer;
     void setWorkloadBalancing(bool on);
 
+    inline int eventFd() const { return m_eventFd; }
 private:
     void loop();
 
 private:
     int m_epollHandler;
     bool m_workloadBalancing = false;
+    int m_eventFd;
     std::atomic_uint m_activeSessions{0};
     std::atomic_bool m_quit{false};
     std::thread m_loopThread;

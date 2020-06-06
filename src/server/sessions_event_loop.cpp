@@ -63,6 +63,14 @@ SessionsEventLoop::SessionsEventLoop()
     if (m_epollHandler == -1)
         throw std::runtime_error{"Can't create epool handler"};
 
+    m_eventFd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    epoll_event event;
+    event.data.ptr = nullptr;
+    event.data.fd = m_eventFd;
+    event.events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET;
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, m_eventFd, &event))
+        throw std::runtime_error{"Can't register the event handler"};
+
     m_loopThread = std::thread([this]{loop();});
 
 //    // set insane priority ?
@@ -89,6 +97,7 @@ SessionsEventLoop::~SessionsEventLoop()
             lock.lock();
         }
     } catch (...) {}
+    close(m_eventFd);
     TRACE(serverLogger) << "SessionsEventLoop::~SessionsEventLoop " << this;
 }
 
@@ -199,24 +208,34 @@ void SessionsEventLoop::loop()
     Ms timeout(1s); // Initial timeout
     while (!m_quit) {
         auto before = clock::now();
+        bool wokeup = false;
         int triggeredEvents = epoll_wait(m_epollHandler, events.get(), EventsSize, timeout.count());
         if (triggeredEvents < 0)
             continue;
         if (!m_workloadBalancing) {
-            for (int i = 0 ; i < triggeredEvents; ++i)
-                reinterpret_cast<ServerSession *>(events[i].data.ptr)->processEvents(events[i].events);
+            for (int i = 0 ; i < triggeredEvents; ++i) {
+                auto &event = events[i];
+                if (event.data.fd != m_eventFd)
+                    reinterpret_cast<ServerSession *>(event.data.ptr)->processEvents(event.events);
+                wokeup = true;
+            }
         } else {
             std::vector<std::pair<ServerSession *, uint32_t>> sessionEvents;
             sessionEvents.reserve(triggeredEvents);
             for (int i = 0 ; i < triggeredEvents; ++i) {
-                auto ptr = reinterpret_cast<ServerSession *>(events[i].data.ptr);
-                auto evs = events[i].events;
-                std::pair<ServerSession *, uint32_t> event{ptr, evs};
-                sessionEvents.insert(std::upper_bound(sessionEvents.begin(), sessionEvents.end(), event,
-                                                      [](auto a, auto b) {
-                    return a.first->order() < b.first->order();
-                }),
-                                     event);
+                auto &event = events[i];
+                if (event.data.fd != m_eventFd) {
+                    auto ptr = reinterpret_cast<ServerSession *>(event.data.ptr);
+                    auto evs = event.events;
+                    std::pair<ServerSession *, uint32_t> event{ptr, evs};
+                    sessionEvents.insert(std::upper_bound(sessionEvents.begin(), sessionEvents.end(), event,
+                                                          [](auto a, auto b) {
+                        return a.first->order() < b.first->order();
+                    }),
+                                         event);
+                } else {
+                    wokeup = true;
+                }
             }
             for (auto event : sessionEvents)
                 event.first->processEvents(event.second);
@@ -224,9 +243,15 @@ void SessionsEventLoop::loop()
 
         auto now = clock::now();
         auto duration = std::chrono::duration_cast<Ms>(now - before);
-        if ( duration < timeout) {
+        if ( duration < timeout && !wokeup) {
             timeout -= duration;
         } else {
+            std::unordered_set<ServerSession *> wokeupsessions;
+            if (wokeup) {
+                uint64_t data;
+                while(eventfd_read(m_eventFd, &data) == 0)
+                    wokeupsessions.insert(reinterpret_cast<ServerSession *>(data));
+            }
             // Some session(s) have timeout
             timeout = 1s; // maximum timeout
             std::unique_lock<std::mutex> lock{m_sessionsMutex};
@@ -238,6 +263,8 @@ void SessionsEventLoop::loop()
 
             auto now = clock::now();
             for (auto session : sessions) {
+                if (wokeup && wokeupsessions.find(session) != wokeupsessions.end())
+                    session->wakeUp();
                 auto sessionTimeout = session->nextTimeout();
                 if (sessionTimeout <= now)
                     session->timeout();

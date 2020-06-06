@@ -18,11 +18,13 @@
 #include <getodac/abstract_restful_session.h>
 #include <getodac/abstract_server_session.h>
 #include <getodac/abstract_service_session.h>
-
+#include <getodac/thread_worker.h>
 
 #include <cassert>
 #include <iostream>
 #include <mutex>
+
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -30,6 +32,7 @@ const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 std::string test50mresponse;
 
 Getodac::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
+Getodac::ThreadWorker s_threadWorker{10};
 
 class BaseTestSession : public Getodac::AbstractServiceSession
 {
@@ -268,6 +271,51 @@ private:
     uint32_t pos = 0;
 };
 
+class TestWorker : public BaseTestSession
+{
+public:
+    explicit TestWorker(Getodac::AbstractServerSession *serverSession)
+        : BaseTestSession(serverSession)
+    {}
+
+    // ServiceSession interface
+    void requestComplete() override
+    {
+        m_serverSession->responseStatus(200);
+        m_serverSession->responseEndHeader(Getodac::ChunkedData, 10, true);
+    }
+
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        auto wakeupper = m_serverSession->wakeuppper();
+        auto wait = std::make_shared<std::atomic_bool>();
+        auto buffer = std::make_shared<std::string>();
+        uint32_t size = 0;
+        do {
+            wait->store(true);
+            s_threadWorker.insertTask([=]{
+                // simulate some heavy work
+                std::this_thread::sleep_for(15ms);
+                uint32_t chunkSize = 1000 + (rand() % 4) * 1000;
+                buffer->resize(chunkSize);
+                for (uint32_t i = 0; i < chunkSize; ++i)
+                    (*buffer)[i] = '0' + i % 10;
+                wait->store(false);
+                wakeupper.wakeUp();
+            });
+            do {
+                yield();
+                if (yield.get() != Getodac::AbstractServerSession::Action::Continue)
+                    return;
+            } while (wait->load());
+            writeChunkedData(yield, buffer->c_str(), buffer->size());
+            size += buffer->size();
+        } while (size < 100000);
+        writeChunkedData(yield, {});
+        m_serverSession->responseComplete();
+    }
+};
+
 
 class TestRESTGET : public Getodac::AbstractRESTfulRouteGETSession<Getodac::AbstractSimplifiedServiceSession<>>
 {
@@ -349,6 +397,9 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
     if (url == "/test50mChunkedAtOnce")
         return std::make_shared<Test50MChunkedAtOnce>(serverSession);
+
+    if (url == "/testWorker")
+        return std::make_shared<TestWorker>(serverSession);
 
     if (url == "/test50ms")
         return std::make_shared<Test50MS>(serverSession);

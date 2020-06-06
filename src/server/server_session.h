@@ -67,6 +67,7 @@ public:
 
     void processEvents(uint32_t events) noexcept;
     void timeout() noexcept;
+    void wakeUp() noexcept;
 
     virtual ssize_t sockRead(void  *buf, size_t size)
     {
@@ -107,6 +108,8 @@ public:
     }
 
     // AbstractServerSession interface
+    Wakeupper wakeuppper() const override;
+
     inline const struct sockaddr_storage& peerAddress() const override { return m_peerAddr; }
     void write(Yield &yield, const void *buf, size_t size) override;
     void writev(Yield &yield, iovec *vec, size_t count) override;

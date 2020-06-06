@@ -119,5 +119,22 @@ TEST(Responses, test50mChunkedAtOnce)
     }
 }
 
+TEST(Responses, testWorker)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testWorker"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(reply.headers["Connection"], "keep-alive");
+        EXPECT_EQ(reply.headers["Transfer-Encoding"], "chunked");
+        EXPECT_EQ(reply.headers["Keep-Alive"], "timeout=10");
+        EXPECT_EQ(reply.body.size() > 100000, true);
+        for (int i = 0 ; i < 100000; ++i)
+            EXPECT_EQ(reply.body[i],  '0' + i % 10);
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
 
 } // namespace {

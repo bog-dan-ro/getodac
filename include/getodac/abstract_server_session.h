@@ -27,16 +27,45 @@
 #pragma once
 
 #include <openssl/ssl.h>
-#include <stdexcept>
 #include <stdint.h>
-#include <string>
 #include <sys/eventfd.h>
 #include <sys/uio.h>
+
+#include <chrono>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
 
 namespace Getodac {
 
 enum {
     ChunkedData = UINT64_MAX
+};
+
+using HeadersData = std::unordered_map<std::string, std::string>;
+
+struct ResponseHeaders
+{
+    /*!
+     * \brief status. The HTTP response status code.
+     * Check https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for the complete list
+     */
+    uint32_t status = 200;
+
+    /*!
+     * \brief headers. The HTTP response headers.
+     */
+    HeadersData headers;
+
+    /*!
+     * \brief contentLenght. The content lenght in bytes or Getodac::ChunkedData for a chunked transfer.
+     */
+    uint64_t contentLength = 0;
+
+    /*!
+     * \brief keepAlive. The number of seconds to keep the connection alive if it was requested.
+     */
+    std::chrono::seconds keepAlive{10};
 };
 
 /*!
@@ -91,39 +120,24 @@ public:
     virtual Wakeupper wakeuppper() const = 0;
 
     /*!
-     * \brief responseStatus
-     *
-     * This is the first function that a ServiceSession must call
-     *
-     * \param code the HTTP response status code. Check https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for the complete list
+     * \brief write
+     * Writes the only the headers data
      */
-    virtual void responseStatus(uint32_t code) = 0;
+    virtual void write(Yield &yield, const ResponseHeaders &response) = 0;
 
     /*!
-     * \brief responseHeader
-     *
-     * Appends a response header
-     *
-     * \param field string
-     * \param value string
+     * \brief write
+     * Writes the headers and the data in one go.
+     * This function tries to minimize the syscalls
+     * by using writev to write the headers and the data.
      */
-    virtual void responseHeader(const std::string &field, const std::string &value) = 0;
+    virtual void write(Yield &yield, const ResponseHeaders &response, std::string_view data) = 0;
 
     /*!
-     * \brief responseEndHeader
-     *
-     * Ends the response headers. After this function call the ServiceSession should start to write data
-     * or to call responseComplete.
-     *
-     * \param contentLenght the content lenght in bytes or ChunkedData for a chunked transfer
-     * \param keepAliveSeconds number of seconds to keep the connection alive
-     * \param continousWrite true means we'll use edge-triggered write notifications, this means that the
-     *                       service session must fill the *entire* write buffer to get another notification.
-     *                       false means that it will be called every time when the kernel consumes the written buffer.
-     *                       In other word use *continousWrite = false* when you dont have all the data for response
-     *                       otherwise use *continousWrite = true*
+     * \brief writev
+     * Same as above, but instead of one data, it accepts a vector of datas
      */
-    virtual void responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds = 10, bool continousWrite = false) = 0;
+    virtual void writev(Yield &yield, const ResponseHeaders &response, iovec *vec, size_t count) = 0;
 
     /*!
      * \brief write
@@ -135,7 +149,7 @@ public:
      * \param buffer to write
      * \param size in byte of the buffer
      */
-    virtual void write(Yield &yield, const void *buffer, size_t size) = 0;
+    virtual void write(Yield &yield, std::string_view data) = 0;
 
     /*!
      * \brief writev
@@ -148,14 +162,6 @@ public:
      * \param count the number of vector elements
      */
     virtual void writev(Yield &yield, iovec *vec, size_t count) = 0;
-
-    /*!
-     * \brief responseComplete
-     *
-     * End the response transimission.
-     * After this function is called, AbstractServiceSession should be ready to be destroyed immediately.
-     */
-    virtual void responseComplete() = 0;
 
     /*!
      * \brief peerAddress

@@ -31,6 +31,18 @@
 
 namespace Getodac {
 
+class SoketTimeout : public std::runtime_error
+{
+public:
+    SoketTimeout() : std::runtime_error({}){}
+};
+
+class SoketQuit : public std::runtime_error
+{
+public:
+    SoketQuit() : std::runtime_error({}){}
+};
+
 /*!
  * \brief The response_error class
  */

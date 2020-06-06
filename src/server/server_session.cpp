@@ -240,22 +240,60 @@ AbstractServerSession::Wakeupper ServerSession::wakeuppper() const
     return {m_eventLoop->eventFd(), uint64_t(this)};
 }
 
-void ServerSession::write(Yield &yield, const void *buf, size_t size)
+std::string ServerSession::responseHeadersString(const ResponseHeaders &hdrs)
 {
-    if (!m_resonseHeader.str().empty()) {
-        std::string headers = m_resonseHeader.str();
-        m_resonseHeader.str({});
-        iovec vec[2];
-        vec[0].iov_base = (void *)headers.c_str();
-        vec[0].iov_len = headers.size();
-        vec[1].iov_base = (void *)buf;
-        vec[1].iov_len = size;
-        writev(yield, (iovec *)&vec, 2);
-        m_canWriteError = false;
-        return;
+    std::ostringstream res;
+    res << "HTTP/1.1 " << statusCode(hdrs.status);
+    m_statusCode = hdrs.status;
+    for (const auto &kv : hdrs.headers)
+        res << kv.first << ": " << kv.second << crlf;
+
+    if (hdrs.contentLength == ChunkedData)
+        res << "Transfer-Encoding: chunked\r\n";
+    else
+        res << "Content-Length: " << hdrs.contentLength << crlf;
+    if (http_should_keep_alive(&m_parser) && (m_keepAliveSeconds = hdrs.keepAlive).count()) {
+        res << "Keep-Alive: timeout=" << m_keepAliveSeconds.count() << crlf;
+        res << "Connection: keep-alive\r\n";
+    } else {
+        res << "Connection: close\r\n";
     }
+    res << crlf;
+    return res.str();
+}
+
+void ServerSession::write(AbstractServerSession::Yield &yield, const ResponseHeaders &response)
+{
+    write(yield, responseHeadersString(response));
+}
+
+void ServerSession::write(AbstractServerSession::Yield &yield, const ResponseHeaders &response, std::string_view data)
+{
+    auto headers = responseHeadersString(response);
+    iovec vec[2];
+    vec[0].iov_base = (void *)headers.c_str();
+    vec[0].iov_len = headers.size();
+    vec[1].iov_base = (void *)data.data();
+    vec[1].iov_len = data.size();
+    writev(yield, (iovec *)&vec, 2);
+}
+
+void ServerSession::writev(AbstractServerSession::Yield &yield, const ResponseHeaders &response, iovec *vec, size_t count)
+{
+    auto _vec = std::make_unique<iovec[]>(count + 1);
+    auto headers = responseHeadersString(response);
+    _vec[0].iov_base = (void *)headers.c_str();
+    _vec[0].iov_len = headers.size();
+    memcpy(&_vec[1], vec, sizeof(iovec) * count);
+    writev(yield, _vec.get(), count + 1);
+}
+
+void ServerSession::write(Yield &yield, std::string_view data)
+{
+    m_canWriteError = false;
+    auto size = data.size();
     while (yield.get() == Action::Continue) {
-        auto written = sockWrite(buf, size);
+        auto written = sockWrite(data.data(), size);
         if (written < 0) {
             yield();
             continue;
@@ -263,26 +301,26 @@ void ServerSession::write(Yield &yield, const void *buf, size_t size)
         if (size_t(written) == size)
             return;
 
-        *reinterpret_cast<const char**>(&buf) += written;
+        *reinterpret_cast<const char**>(&data) += written;
         size -= written;
         yield();
+    }
+
+    switch (yield.get()) {
+    case Action::Timeout:
+        throw SoketTimeout{};
+        break;
+    case Action::Quit:
+        throw SoketQuit{};
+        break;
+    default:
+        break;
     }
 }
 
 void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size_t count)
 {
-    std::unique_ptr<iovec[]> _vec;
-    std::string headers = m_resonseHeader.str();
-    if (!headers.empty()) {
-        m_resonseHeader.str({});
-        _vec = std::make_unique<iovec[]>(count + 1);
-        _vec[0].iov_base = (void *)headers.c_str();
-        _vec[0].iov_len = headers.size();
-        memcpy(&_vec[1], vec, sizeof(iovec) * count);
-        vec = _vec.get();
-        ++count;
-    }
-
+    m_canWriteError = false;
     while (yield.get() == Action::Continue) {
         auto written = sockWritev(vec, count);
         if (written < 0) {
@@ -308,59 +346,17 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
 
         yield();
     }
-}
 
-void ServerSession::responseStatus(uint32_t code)
-{
-    m_resonseHeader.str({});
-    m_resonseHeader << "HTTP/1.1 " << statusCode(m_statusCode = code);
-}
-
-void ServerSession::responseHeader(const std::string &field, const std::string &value)
-{
-    m_resonseHeader << field << ": " << value << crlf;
-}
-
-void ServerSession::responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds, bool continousWrite)
-{
-    if (contentLenght == ChunkedData)
-        m_resonseHeader << "Transfer-Encoding: chunked\r\n";
-    else
-        m_resonseHeader << "Content-Length: " << contentLenght << crlf;
-
-    if (http_should_keep_alive(&m_parser) && keepAliveSeconds) {
-        m_keepAliveSeconds = keepAliveSeconds;
-        m_resonseHeader << "Keep-Alive: timeout=" << keepAliveSeconds << crlf;
-        m_resonseHeader << "Connection: keep-alive\r\n";
-    } else {
-        m_resonseHeader << "Connection: close\r\n";
+    switch (yield.get()) {
+    case Action::Timeout:
+        throw SoketTimeout{};
+        break;
+    case Action::Quit:
+        throw SoketQuit{};
+        break;
+    default:
+        break;
     }
-    m_resonseHeader << crlf;
-
-    if (!contentLenght) {
-        std::string headers = m_resonseHeader.str();
-        sockWrite(headers.c_str(), headers.size());
-        m_canWriteError = false;
-    } else {
-        // Switch to write mode
-        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR;
-        if (continousWrite)
-            events |= EPOLLET;
-
-        m_eventLoop->updateSession(this, events);
-    }
-}
-
-void ServerSession::responseComplete()
-{
-    // switch to read mode
-    m_statusCode = 0;
-    m_eventLoop->updateSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
-    if (m_keepAliveSeconds)
-        setTimeout(std::chrono::seconds(m_keepAliveSeconds));
-    else
-        terminateSession(Action::Quit);
-    Server::instance()->sessionServed();
 }
 
 int ServerSession::sendBufferSize() const
@@ -441,20 +437,35 @@ void ServerSession::readLoop(YieldType &yield)
 void ServerSession::writeLoop(YieldType &yield)
 {
     YieldImpl yi{yield};
-    while (yield.get() == Action::Continue) {
-        try {
-            if (m_serviceSession)
+    try {
+        while (yield.get() == Action::Continue) {
+            if (m_serviceSession) {
                 m_serviceSession->writeResponse(yi);
-            setTimeout();
+                Server::instance()->sessionServed();
+
+                // switch to read mode
+                m_statusCode = 0;
+                uint32_t events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR;
+                m_eventLoop->updateSession(this, events);
+                if (m_keepAliveSeconds.count()) {
+                    setTimeout(m_keepAliveSeconds);
+                } else {
+                    m_eventLoop->deleteLater(this);
+                    return;
+                }
+            } else {
+                m_eventLoop->deleteLater(this);
+                return;
+            }
             yield();
-        } catch (const std::exception &e) {
-            DEBUG(serverLogger) << e.what();
-            m_serviceSession.reset();
-            m_eventLoop->deleteLater(this);
-        } catch (...) {
-            m_serviceSession.reset();
-            m_eventLoop->deleteLater(this);
-        }
+        };
+    } catch (const std::exception &e) {
+        DEBUG(serverLogger) << e.what();
+        m_serviceSession.reset();
+        m_eventLoop->deleteLater(this);
+    } catch (...) {
+        m_serviceSession.reset();
+        m_eventLoop->deleteLater(this);
     }
 }
 
@@ -463,20 +474,15 @@ void ServerSession::terminateSession(Action action)
     quitRWLoops(action);
     if (m_canWriteError && m_statusCode && m_statusCode != 200) {
         try {
-            responseStatus(m_statusCode);
-            for (const auto &kv : m_responseStatusErrorHeaders)
-                responseHeader(kv.first, kv.second);
             auto contentLength = m_tempStr.size();
-            responseEndHeader(contentLength, 0);
-            if (contentLength) {
-                // responseEndHeader doesn't write the headers immediately
-                // if there is some data to send
-                m_resonseHeader << m_tempStr;
-                auto str = m_resonseHeader.str();
-                sockWrite(str.c_str(), str.size());
-            }
+            auto headers = responseHeadersString({.status = m_statusCode,
+                                                  .headers = std::move(m_responseStatusErrorHeaders),
+                                                  .contentLength = contentLength,
+                                                  .keepAlive = 0s});
+            sockWrite(headers.data(), headers.size());
+            if (contentLength)
+                sockWrite(m_tempStr.c_str(), contentLength);
             m_statusCode = 0;
-            m_resonseHeader.str({});
             m_tempStr.clear();
             m_canWriteError = false;
         } catch (const std::exception &e) {
@@ -503,8 +509,9 @@ int ServerSession::messageBegin(http_parser *parser)
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     thiz->m_tempStr.clear();
     thiz->m_headerField.clear();
-    thiz->m_contentLength = ChunkedData;
     thiz->m_parserStatus = HttpParserStatus::Url;
+    thiz->m_keepAliveSeconds = 10s;
+    thiz->m_canWriteError = true;
     return 0;
 }
 
@@ -610,6 +617,9 @@ int ServerSession::messageComplete(http_parser *parser)
     try {
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();
+        // Switch to write mode
+        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | EPOLLET;
+        thiz->m_eventLoop->updateSession(thiz, events);
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (...) {

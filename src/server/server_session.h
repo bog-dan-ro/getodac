@@ -109,14 +109,16 @@ public:
 
     // AbstractServerSession interface
     Wakeupper wakeuppper() const override;
+    std::string responseHeadersString(const ResponseHeaders &hdrs);
 
     inline const struct sockaddr_storage& peerAddress() const override { return m_peerAddr; }
-    void write(Yield &yield, const void *buf, size_t size) override;
+    void write(Yield &yield, const ResponseHeaders &response) override;
+    void write(Yield &yield, const ResponseHeaders &response, std::string_view data) override;
+    void writev(Yield &yield, const ResponseHeaders &response, iovec *vec, size_t count) override;
+
+
+    void write(Yield &yield, std::string_view data) override;
     void writev(Yield &yield, iovec *vec, size_t count) override;
-    void responseStatus(uint32_t code) override;
-    void responseHeader(const std::string &field, const std::string &value) override;
-    void responseEndHeader(uint64_t contentLenght, uint32_t keepAliveSeconds = 10, bool continousWrite = false) override;
-    void responseComplete() override;
     int sendBufferSize() const override;
     bool setSendBufferSize(int size) override;
     int receiveBufferSize() const override;
@@ -162,12 +164,11 @@ private:
     std::string m_headerField;
     std::string m_tempStr;
     std::shared_ptr<AbstractServiceSession> m_serviceSession;
-    std::ostringstream m_resonseHeader;
-    uint32_t m_keepAliveSeconds = 10;
+    std::chrono::seconds m_keepAliveSeconds{10};
     struct sockaddr_storage m_peerAddr;
     bool m_canWriteError = true;
     bool m_wasShutdown = false;
-    std::unordered_map<std::string, std::string> m_responseStatusErrorHeaders;
+    HeadersData m_responseStatusErrorHeaders;
     size_t m_contentLength = ChunkedData;
 };
 

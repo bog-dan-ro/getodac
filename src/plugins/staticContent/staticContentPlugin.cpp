@@ -105,17 +105,10 @@ public:
     bool acceptContentLength(size_t) override {return false;}
     void headersComplete() override {}
     void body(const char *, size_t) override {}
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseHeader("Content-Type", m_mimeType);
-        m_serverSession->responseEndHeader(m_file.second->size());
-    }
-
+    void requestComplete() override {}
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, m_file.second->data(), m_file.second->size());
-        m_serverSession->responseComplete();
+    {        
+        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"Content-Type", m_mimeType}}, .contentLength = m_file.second->size()}, std::string_view{m_file.second->data(), m_file.second->size()});
     }
 
 private:

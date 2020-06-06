@@ -37,51 +37,42 @@ public:
     bool acceptContentLength(size_t) override {return false;}
     void headersComplete() override {}
     void body(const char *, size_t) override {}
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        std::ostringstream response;
-
-        auto server = Getodac::Server::instance();
-        auto activeSessions = server->activeSessions();
-
-        // the peakSessions is updated slowly
-        auto peak = std::max(server->peakSessions(), activeSessions);
-
-        auto seconds = server->uptime().count();
-        auto days = seconds / (60 * 60 * 24);
-        seconds  -= days * (60 * 60 * 24);
-        auto hours = seconds / (60 * 60);
-        seconds  -= hours * (60 * 60);
-        auto minutes = seconds / 60;
-        seconds  -= minutes * 60;
-
-        auto servedSessions = server->servedSessions();
-
-        response << "Active sessions: " << activeSessions << std::endl
-                 << "Sessions peak: " << peak << std::endl
-                 << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl
-                 << "Serverd sessions: " << servedSessions << std::endl;
-
-        m_response = std::move(response.str());
-
-        m_serverSession->responseHeader("Refresh", "5");
-        m_serverSession->responseEndHeader(m_response.size());
-    }
+    void requestComplete() override {};
 
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
-            m_serverSession->write(yield, m_response.c_str(), m_response.size());
+            Getodac::ResponseHeaders responseHeaders;
+            responseHeaders.headers["Refresh"] = "5";
+            std::ostringstream response;
+
+            auto server = Getodac::Server::instance();
+            auto activeSessions = server->activeSessions();
+
+            // the peakSessions is updated slowly
+            auto peak = std::max(server->peakSessions(), activeSessions);
+
+            auto seconds = server->uptime().count();
+            auto days = seconds / (60 * 60 * 24);
+            seconds  -= days * (60 * 60 * 24);
+            auto hours = seconds / (60 * 60);
+            seconds  -= hours * (60 * 60);
+            auto minutes = seconds / 60;
+            seconds  -= minutes * 60;
+
+            auto servedSessions = server->servedSessions();
+
+            response << "Active sessions: " << activeSessions << std::endl
+                     << "Sessions peak: " << peak << std::endl
+                     << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl
+                     << "Serverd sessions: " << servedSessions << std::endl;
+            auto str = response.str();
+            responseHeaders.contentLength = str.size();
+            m_serverSession->write(yield, responseHeaders, str);
         } catch (const std::exception &e) {
             WARNING(Getodac::serverLogger) << e.what();
-        } catch (...) {
-        }
-        m_serverSession->responseComplete();
+        } catch (...) {}
     }
-
-private:
-    std::string m_response;
 };
 
 std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &/*method*/)

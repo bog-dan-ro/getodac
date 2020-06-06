@@ -60,15 +60,8 @@ class AbstractRESTfulRouteGETSession : public AbstractRESTfulRouteBaseSession<Ba
 public:
     explicit AbstractRESTfulRouteGETSession(ParsedRoute &&resources, AbstractServerSession *serverSession)
         : AbstractRESTfulRouteBaseSession<BaseClass>(std::move(resources), serverSession)
-    {}
-
-    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
     {
-        auto response = AbstractRESTfulRouteBaseSession<BaseClass>::responseHeaders();
-        if (response.status != 200)
-            return response;
-        response.contentLenght = Getodac::ChunkedData;
-        return response;
+        AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders.contentLength = Getodac::ChunkedData;
     }
 
     // Usually GET and Delete methods don't expect any body
@@ -93,9 +86,9 @@ public:
     {
     }
 
-    /// Usually DELETE operations doesn't have to write any response body
-    /// override is needed
-    void writeResponse(Getodac::OStream &) override {}
+    void writeResponse(Getodac::OStream &stream) override {
+        stream << AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
+    }
 };
 
 template <typename BaseClass>
@@ -108,19 +101,20 @@ public:
         AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
     }
 
-    AbstractSimplifiedServiceSession<>::ResponseHeaders responseHeaders() override
+    void requestComplete() override
     {
-        auto response = AbstractRESTfulRouteGETSession<BaseClass>::responseHeaders();
-        if (response.status != 200)
-            return response;
+        AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders.contentLength = Getodac::ChunkedData;
+
+        auto &response = AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
         response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulRouteGETSession<BaseClass>::m_parsedRoute.allButOPTIONSNodeMethods);
         auto it = AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
         if (it != AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.end())
              response.headers.emplace("Access-Control-Allow-Headers", it->second);
-        return response;
     }
 
-    void writeResponse(Getodac::OStream &) override {}
+    void writeResponse(Getodac::OStream &stream) override {
+        stream << AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
+    }
 };
 
 } // namespace Getodac

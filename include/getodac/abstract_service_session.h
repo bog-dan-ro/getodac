@@ -122,7 +122,7 @@ public:
     void writeChunkedData(AbstractServerSession::Yield &yield, const void *buf, size_t length)
     {
         if (!length) {
-            m_serverSession->write(yield, "0\r\n\r\n", 5);
+            m_serverSession->write(yield, "0\r\n\r\n");
             return;
         }
         iovec chunkData[3];
@@ -177,11 +177,10 @@ public:
         sync();
         if (m_chunked)
             m_serviceSession->writeChunkedData(m_yield, nullptr, 0);
-        m_serviceSession->serverSession()->responseComplete();
     }
 
     inline AbstractServerSession::Yield &yield() const { return m_yield; }
-
+    inline AbstractServiceSession *serviceSession() const { return m_serviceSession; };
     // basic_streambuf interface
 protected:
     int sync() override
@@ -190,7 +189,7 @@ protected:
             if (m_chunked)
                 m_serviceSession->writeChunkedData(m_yield, m_buffer);
             else
-                m_serviceSession->serverSession()->write(m_yield, m_buffer.c_str(), m_buffer.size());
+                m_serviceSession->serverSession()->write(m_yield, m_buffer);
             m_buffer.clear();
             m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
         }
@@ -240,6 +239,12 @@ private:
     OStreamBuffer &m_buff;
 };
 
+inline OStream & operator << (OStream &stream, const ResponseHeaders &headers)
+{
+    stream.streamBuffer().serviceSession()->serverSession()->write(stream.yield(), headers);
+    return stream;
+}
+
 template <typename BaseClass = Getodac::AbstractServiceSession>
 class AbstractSimplifiedServiceSession : public BaseClass
 {
@@ -276,54 +281,10 @@ public:
         size_t maxKeyLength = 512;
     };
 
-    using HeadersData = std::unordered_map<std::string, std::string>;
-
-    struct ResponseHeaders
-    {
-        /*!
-         * \brief status. The HTTP response status code.
-         * Check https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html for the complete list
-         */
-        uint32_t status = 200;
-
-        /*!
-         * \brief headers. The HTTP response headers.
-         */
-        HeadersData headers;
-
-        /*!
-         * \brief contentLenght. The content lenght in bytes or Getodac::ChunkedData for a chunked transfer.
-         */
-        uint64_t contentLenght = 0;
-
-        /*!
-         * \brief keepAliveSeconds. The number of seconds to keep the connection alive.
-         */
-        uint32_t keepAliveSeconds = 10;
-
-        /*!
-         * \brief continousWrite. true means it will use edge-triggered write notifications, this means that the
-         *                       service session must fill the *entire* socket buffer to get another notification.
-         *                       false means that it will be called every time when the kernel consumes the written buffer.
-         *                       In other word use *continousWrite = false* when you dont have all the data for response
-         *                       otherwise use *continousWrite = true*.
-         * \sa AbstractServerSession::sendBufferSize
-         */
-        bool continousWrite = false;
-    };
-
 public:
     explicit AbstractSimplifiedServiceSession(AbstractServerSession *serverSession)
         : AbstractServiceSession(serverSession)
     {}
-
-    /*!
-     * \brief responseHeaders
-     *  This method is called after the request is completed. Here the session must return a ResponseHeaders
-     *
-     * \return ResponseHeaders
-     */
-    virtual ResponseHeaders responseHeaders() { return {} ;}
 
     /*!
      * \brief writeResponse
@@ -350,26 +311,16 @@ protected:
 
     }
     void headersComplete() override {}
-    void requestComplete() final
-    {
-        auto rh = responseHeaders();
-        BaseClass::m_serverSession->responseStatus(rh.status);
-        for (auto kv : rh.headers)
-            BaseClass::m_serverSession->responseHeader(kv.first, kv.second);
-        m_chunked = rh.contentLenght == ChunkedData;
-        BaseClass::m_serverSession->responseEndHeader(rh.contentLenght, rh.keepAliveSeconds, rh.continousWrite);
-    }
-
+    void requestComplete() override {}
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) final
     {
-        OStreamBuffer streamBuffer{this, yield, m_chunked};
+        OStreamBuffer streamBuffer{this, yield, m_responseHeaders.contentLength == Getodac::ChunkedData};
         OStream stream(streamBuffer);
         writeResponse(stream);
     }
 
-
 protected:
-    bool m_chunked = false;
+    Getodac::ResponseHeaders m_responseHeaders;
     HeadersData m_requestHeaders;
     RequestHeadersFilter m_requestHeadersFilter;
 };

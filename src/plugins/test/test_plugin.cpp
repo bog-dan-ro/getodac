@@ -49,13 +49,11 @@ public:
     void body(const char *, size_t ) override
     {}
     void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(0);
-        m_serverSession->responseComplete();
-    }
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {}
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        m_serverSession->write(yield, {.status = 200});
+    }
 };
 
 class TestSecureOnly : public BaseTestSession
@@ -68,16 +66,9 @@ public:
             throw Getodac::ResponseStatusError{400, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
     }
     // AbstractServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseHeader("OkKey1", "value1");
-        m_serverSession->responseHeader("OkKey2", "value2");
-        m_serverSession->responseEndHeader(2);
-    }
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        m_serverSession->write(yield, "OK", 2);
-        m_serverSession->responseComplete();
+        m_serverSession->write(yield, {.headers = {{"OkKey1", "value1"}, {"OkKey2", "value2"}}, .contentLength = 2}, "OK");
     }
 };
 
@@ -98,7 +89,6 @@ struct TestThowFromHeadersComplete : public BaseTestSession
     {
         throw Getodac::ResponseStatusError{401, "What are you doing here?", {{"WWW-Authenticate","Basic realm=\"Restricted Area\""}, {"ErrorKey2","Value2"}}};
     }
-
 };
 
 struct TestThowFromBody : public BaseTestSession
@@ -120,9 +110,9 @@ public:
     {}
 
     // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        assert(false);
+        m_serverSession->write(yield, Getodac::ResponseHeaders{});
     }
 };
 
@@ -135,20 +125,14 @@ public:
     {}
 
     // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(test100response.size());
-    }
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
-            m_serverSession->write(yield, test100response.c_str(), test100response.size());
+            m_serverSession->write(yield, {.contentLength = test100response.size()},  test100response);
         } catch (const std::exception &e) {
             std::cerr << e.what() << std::endl;
         } catch (...) {
         }
-        m_serverSession->responseComplete();
     }
 };
 
@@ -160,21 +144,14 @@ public:
     {}
 
     // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(test50mresponse.size());
-    }
-
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
-            m_serverSession->write(yield, test50mresponse.c_str(), test50mresponse.size());
+            m_serverSession->write(yield, {.contentLength = test50mresponse.size()}, test50mresponse);
         } catch (const std::exception &e) {
             std::cerr << e.what() << std::endl;
         } catch (...) {
         }
-        m_serverSession->responseComplete();
     }
 };
 
@@ -186,12 +163,6 @@ public:
     {}
 
     // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(test50mresponse.size());
-    }
-
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         try {
@@ -200,12 +171,10 @@ public:
                 vec[i].iov_base = (void*)(test50mresponse.c_str() + 1024 * 1024 * i);
                 vec[i].iov_len = 1024 * 1024;
             }
-            m_serverSession->writev(yield, vec, 50);
+            m_serverSession->writev(yield, {.contentLength = test50mresponse.size()}, vec, 50);
         } catch (const std::exception &e) {
             std::cerr << e.what() << std::endl;
-        } catch (...) {
-        }
-        m_serverSession->responseComplete();
+        } catch (...) {}
     }
 };
 
@@ -217,58 +186,17 @@ public:
     {}
 
     // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunkedData);
-    }
-
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
+        m_serverSession->write(yield, {.contentLength = Getodac::ChunkedData});
+        uint32_t pos = 0;
         uint32_t chunkSize = 1 + rand() % (1024 * 1024);
-        chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
-        writeChunkedData(yield, test50mresponse.c_str() + pos, chunkSize);
-        if (!chunkSize)
-            m_serverSession->responseComplete();
-        else
-            pos += chunkSize;
-    }
-
-private:
-    uint32_t pos = 0;
-};
-
-class Test50MChunkedAtOnce : public BaseTestSession
-{
-public:
-    explicit Test50MChunkedAtOnce(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunkedData);
-    }
-
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        while(true) {
-            uint32_t chunkSize = 1 + rand() % (1024 * 1024);
+        do {
             chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
             writeChunkedData(yield, test50mresponse.c_str() + pos, chunkSize);
-            if (!chunkSize) {
-                m_serverSession->responseComplete();
-                break;
-            } else {
-                pos += chunkSize;
-            }
-        }
+            pos += chunkSize;
+        } while (chunkSize);
     }
-
-private:
-    uint32_t pos = 0;
 };
 
 class TestWorker : public BaseTestSession
@@ -279,14 +207,9 @@ public:
     {}
 
     // ServiceSession interface
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunkedData, 10, true);
-    }
-
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
+        m_serverSession->write(yield, {.contentLength = Getodac::ChunkedData});
         auto wakeupper = m_serverSession->wakeuppper();
         auto wait = std::make_shared<std::atomic_bool>();
         auto buffer = std::make_shared<std::string>();
@@ -312,7 +235,6 @@ public:
             size += buffer->size();
         } while (size < 100000);
         writeChunkedData(yield, {});
-        m_serverSession->responseComplete();
     }
 };
 
@@ -361,15 +283,12 @@ public:
     {
         m_body.append(data, length);
     }
-    void requestComplete() override
-    {
-        m_serverSession->responseStatus(200);
-        m_serverSession->responseEndHeader(Getodac::ChunkedData);
-    }
+    void requestComplete() override {};
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
         Getodac::OStreamBuffer streamBuffer{this, yield, true};
         Getodac::OStream stream(streamBuffer);
+        stream << Getodac::ResponseHeaders{.contentLength = Getodac::ChunkedData};
         stream << "~~~~ ContentLength: " << contentLength << std::endl;
         stream << "~~~~ Headers:\n";
         for (const auto &kv : m_headers)
@@ -394,9 +313,6 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
     if (url == "/test50mChunked")
         return std::make_shared<Test50MChunked>(serverSession);
-
-    if (url == "/test50mChunkedAtOnce")
-        return std::make_shared<Test50MChunkedAtOnce>(serverSession);
 
     if (url == "/testWorker")
         return std::make_shared<TestWorker>(serverSession);

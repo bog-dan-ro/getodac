@@ -56,11 +56,10 @@ public:
         for (uint32_t i = 0; i < workers; ++i)
             m_workers.emplace_back([this]{
                 while (!m_quit) {
-                    auto task = nextTask();
-                    if (task)
-                        task();
-                    else
-                        break;
+                    try {
+                        if (auto task = nextTask())
+                            task();
+                    } catch (...) {}
                 }
             });
     }
@@ -69,8 +68,10 @@ public:
     {
         m_quit.store(true);
         m_waitCondition.notify_all();
-        for (auto & m_worker : m_workers)
-            m_worker.join();
+        for (auto & m_worker : m_workers) {
+            if (m_worker.joinable())
+                m_worker.join();
+        }
     }
 
     /*!
@@ -82,10 +83,8 @@ public:
      */
     void insertTask(const std::function<void()> &task)
     {
-        {
-            std::unique_lock<std::mutex> lock(m_lock);
-            m_pendingTasks.push(task);
-        }
+        std::unique_lock<std::mutex> lock(m_lock);
+        m_pendingTasks.push(task);
         m_waitCondition.notify_one();
     }
 
@@ -102,8 +101,8 @@ private:
         std::unique_lock<std::mutex> lock(m_lock);
         m_waitCondition.wait(lock, [this]{return m_quit || !m_pendingTasks.empty();});
         if (m_quit)
-            return std::function<void()>();
-        std::function<void()> ret = m_pendingTasks.top();
+            return {};
+        auto ret = m_pendingTasks.top();
         m_pendingTasks.pop();
         return ret;
     }

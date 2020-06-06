@@ -26,11 +26,12 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <sys/uio.h>
-#include <string>
-#include <stdexcept>
 #include <openssl/ssl.h>
+#include <stdexcept>
+#include <stdint.h>
+#include <string>
+#include <sys/eventfd.h>
+#include <sys/uio.h>
 
 namespace Getodac {
 
@@ -65,9 +66,29 @@ public:
         virtual Action get() = 0;
     };
 
+    class Wakeupper {
+    public:
+        inline bool wakeUp() const {return eventfd_write(m_fd, m_value) == 0;}
+        ~Wakeupper() = default;
+
+    private:
+        friend class ServerSession;
+        Wakeupper(int fd, uint64_t value)
+            : m_fd(fd)
+            , m_value(value)
+        {}
+        int m_fd;
+        uint64_t m_value;
+    };
 
 public:
     virtual ~AbstractServerSession() = default;
+
+    /*!
+     * \brief wakeuppper
+     * \return Wakeupper object
+     */
+    virtual Wakeupper wakeuppper() const = 0;
 
     /*!
      * \brief responseStatus

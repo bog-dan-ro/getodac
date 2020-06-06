@@ -219,6 +219,27 @@ void ServerSession::timeout() noexcept
     }
 }
 
+void ServerSession::wakeUp() noexcept
+{
+    try {
+        if (m_writeResume)
+            m_writeResume(Action::Continue);
+        else
+            terminateSession(Action::Quit);
+    } catch (const std::exception &e) {
+        ERROR(serverLogger) << e.what();
+        m_eventLoop->deleteLater(this);
+    } catch (...) {
+        ERROR(serverLogger) << "Unhandled error";
+        m_eventLoop->deleteLater(this);
+    }
+}
+
+AbstractServerSession::Wakeupper ServerSession::wakeuppper() const
+{
+    return {m_eventLoop->eventFd(), uint64_t(this)};
+}
+
 void ServerSession::write(Yield &yield, const void *buf, size_t size)
 {
     if (!m_resonseHeader.str().empty()) {

@@ -28,7 +28,7 @@ TEST(ResponseStatusError, constructor)
         Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/secureOnly"));
         auto reply = curl.get();
-        EXPECT_EQ(reply.status, "400");
+        EXPECT_EQ(reply.status, "403");
         EXPECT_EQ(reply.headers["ErrorKey1"], "Value1");
         EXPECT_EQ(reply.headers["ErrorKey2"], "Value2");
         EXPECT_EQ(reply.body, "Only secured connections allowed");
@@ -67,14 +67,81 @@ TEST(ResponseStatusError, fromHeadersComplete)
     }
 }
 
+TEST(ResponseStatusError, fromRequestComplete)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromRequestComplete"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "412");
+        EXPECT_EQ(reply.body.size(), 0);
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
+TEST(ResponseStatusError, expectation)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testExpectation"));
+        auto reply = curl.post("some data");
+        EXPECT_EQ(reply.status, "417");
+        EXPECT_EQ(reply.body.size(), 0);
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
 TEST(ResponseStatusError, fromBody)
 {
     try {
         Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromBody"));
         auto reply = curl.post("some data");
-        EXPECT_EQ(reply.status, "417");
-        EXPECT_EQ(reply.body.size(), 0);
+        EXPECT_EQ(reply.status, "400");
+        EXPECT_EQ(reply.headers["BodyKey1"], "Value1");
+        EXPECT_EQ(reply.headers["BodyKey2"], "Value2");
+        EXPECT_EQ(reply.body, "Body too big, lose some weight");
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
+TEST(ResponseStatusError, fromWriteResponse)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponse"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "409");
+        EXPECT_EQ(reply.headers["WriteRes1"], "Value1");
+        EXPECT_EQ(reply.headers["WriteRes2"], "Value2");
+        EXPECT_EQ(reply.body, "Throw from WriteResponse");
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
+TEST(ResponseStatusError, fromWriteResponseStd)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseStd"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "500");
+        EXPECT_EQ(reply.body, "Throw from WriteResponseStd");
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
+TEST(ResponseStatusError, fromWriteResponseAfterWrite)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseAfterWrite"));
+        EXPECT_THROW(curl.get(), std::runtime_error);
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }

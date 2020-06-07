@@ -188,10 +188,13 @@ void ServerSession::processEvents(uint32_t events) noexcept
         }
 
         if (events & EPOLLOUT) {
-            if (m_writeResume)
+            if (m_writeResume) {
                 m_writeResume(Action::Continue);
-            else
+                if (m_statusCode && m_statusCode != 200)
+                    terminateSession(Action::Quit);
+            } else {
                 terminateSession(Action::Quit);
+            }
         }
     } catch (const std::exception &e) {
         DEBUG(serverLogger) << e.what();
@@ -450,6 +453,7 @@ void ServerSession::writeLoop(YieldType &yield)
             if (m_serviceSession) {
                 m_serviceSession->writeResponse(yi);
                 Server::instance()->sessionServed();
+                m_serviceSession.reset();
 
                 // switch to read mode
                 m_statusCode = 0;
@@ -467,13 +471,24 @@ void ServerSession::writeLoop(YieldType &yield)
             }
             yield();
         };
+    } catch (const ResponseStatusError &e) {
+        DEBUG(serverLogger) << e.what();
+        setResponseStatusError(e);
+        m_serviceSession.reset();
     } catch (const std::exception &e) {
         DEBUG(serverLogger) << e.what();
+        m_statusCode = 500;
+        m_responseStatusErrorHeaders.clear();
+        m_tempStr = e.what();
         m_serviceSession.reset();
-        m_eventLoop->deleteLater(this);
+    } catch (int status) {
+        DEBUG(serverLogger) << "writeResponse status " << status;
+        m_statusCode = status;
+        m_serviceSession.reset();
     } catch (...) {
+        DEBUG(serverLogger) << "writeResponse unknown exception";
+        m_statusCode = 500;
         m_serviceSession.reset();
-        m_eventLoop->deleteLater(this);
     }
 }
 
@@ -492,6 +507,7 @@ void ServerSession::terminateSession(Action action)
                 sockWrite(m_tempStr.c_str(), contentLength);
             m_statusCode = 0;
             m_tempStr.clear();
+            m_responseStatusErrorHeaders.clear();
             m_canWriteError = false;
         } catch (const std::exception &e) {
             DEBUG(serverLogger) << e.what();
@@ -539,7 +555,14 @@ int ServerSession::url(http_parser *parser, const char *at, size_t length)
         thiz->m_tempStr.append(std::string{at, length});
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        thiz->m_tempStr = e.what();
+        return (thiz->m_statusCode = 500);
+    } catch (int status) {
+        thiz->m_tempStr.clear();
+        return (thiz->m_statusCode = status);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
 
@@ -580,7 +603,14 @@ int ServerSession::headerValue(http_parser *parser, const char *at, size_t lengt
         thiz->m_tempStr.append(std::string{at, length});
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        thiz->m_tempStr = e.what();
+        return (thiz->m_statusCode = 500);
+    } catch (int status) {
+        thiz->m_tempStr.clear();
+        return (thiz->m_statusCode = status);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -600,7 +630,14 @@ int ServerSession::headersComplete(http_parser *parser)
         thiz->m_serviceSession->headersComplete();
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        thiz->m_tempStr = e.what();
+        return (thiz->m_statusCode = 500);
+    } catch (int status) {
+        thiz->m_tempStr.clear();
+        return (thiz->m_statusCode = status);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -613,7 +650,14 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
         thiz->m_serviceSession->body(at, length);
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        thiz->m_tempStr = e.what();
+        return (thiz->m_statusCode = 500);
+    } catch (int status) {
+        thiz->m_tempStr.clear();
+        return (thiz->m_statusCode = status);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -630,7 +674,14 @@ int ServerSession::messageComplete(http_parser *parser)
         thiz->m_eventLoop->updateSession(thiz, events);
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        thiz->m_tempStr = e.what();
+        return (thiz->m_statusCode = 500);
+    } catch (int status) {
+        thiz->m_tempStr.clear();
+        return (thiz->m_statusCode = status);
     } catch (...) {
+        thiz->m_tempStr.clear();
         return (thiz->m_statusCode = 500); // Internal Server error
     }
     return 0;
@@ -670,7 +721,14 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
         }
     } catch (const ResponseStatusError &status) {
         return setResponseStatusError(status);
+    } catch (const std::exception &e) {
+        m_tempStr = e.what();
+        return (m_statusCode = 500);
+    } catch (int status) {
+        m_tempStr.clear();
+        return (m_statusCode = status);
     } catch (...) {
+        m_tempStr.clear();
         return (m_statusCode = 500); // Internal Server error
     }
     return 0;

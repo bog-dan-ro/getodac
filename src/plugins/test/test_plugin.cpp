@@ -63,12 +63,12 @@ public:
         : BaseTestSession(serverSession)
     {
         if (!serverSession->isSecuredConnection())
-            throw Getodac::ResponseStatusError{400, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
+            throw Getodac::ResponseStatusError{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
     }
     // AbstractServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
     {
-        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"OkKey1", "value1"}, {"OkKey2", "value2"}}, .contentLength = 2}, "OK");
+        assert(false);
     }
 };
 
@@ -91,16 +91,74 @@ struct TestThowFromHeadersComplete : public BaseTestSession
     }
 };
 
+struct TestThowFromRequestComplete : public BaseTestSession
+{
+    explicit TestThowFromRequestComplete(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+
+    void requestComplete() override
+    {
+        throw 412;
+    }
+};
+
+struct TestExpectation : public BaseTestSession
+{
+    explicit TestExpectation(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+    bool acceptContentLength(size_t) override
+    {
+        return false;
+    }
+    void body(const char *, size_t ) override
+    {
+        assert(false);
+    }
+};
+
+
 struct TestThowFromBody : public BaseTestSession
 {
     explicit TestThowFromBody(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-
+    bool acceptContentLength(size_t) override
+    {
+        return true;
+    }
     void body(const char *, size_t ) override
     {
         throw Getodac::ResponseStatusError{400, "Body too big, lose some weight", {{"BodyKey1","Value1"}, {"BodyKey2","Value2"}}};
     }
 
 };
+
+struct TestThowFromWriteResponse : public BaseTestSession
+{
+    explicit TestThowFromWriteResponse(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+
+    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
+    {
+        throw Getodac::ResponseStatusError{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
+    }
+};
+
+struct TestThowFromWriteResponseStd : public BaseTestSession
+{
+    explicit TestThowFromWriteResponseStd(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
+    {
+        throw std::runtime_error{"Throw from WriteResponseStd"};
+    }
+};
+
+struct TestThowFromWriteResponseAfterWrite : public BaseTestSession
+{
+    explicit TestThowFromWriteResponseAfterWrite(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
+
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        m_serverSession->write(yield, Getodac::ResponseHeaders{.contentLength = Getodac::ChunkedData});
+        throw std::runtime_error{"Unexpected error"};
+    }
+};
+
 
 class Test0 : public BaseTestSession
 {
@@ -340,8 +398,23 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
     if (url == "/testThowFromHeadersComplete")
         return std::make_shared<TestThowFromHeadersComplete>(serverSession);
 
+    if (url == "/testThowFromRequestComplete")
+        return std::make_shared<TestThowFromRequestComplete>(serverSession);
+
+    if (url == "/testExpectation")
+        return std::make_shared<TestExpectation>(serverSession);
+
     if (url == "/testThowFromBody")
         return std::make_shared<TestThowFromBody>(serverSession);
+
+    if (url == "/testThowFromWriteResponse")
+        return std::make_shared<TestThowFromWriteResponse>(serverSession);
+
+    if (url == "/testThowFromWriteResponseStd")
+        return std::make_shared<TestThowFromWriteResponseStd>(serverSession);
+
+    if (url == "/testThowFromWriteResponseAfterWrite")
+        return std::make_shared<TestThowFromWriteResponseAfterWrite>(serverSession);
 
     return s_testRootRestful.createHandler(url, method, serverSession);
 }

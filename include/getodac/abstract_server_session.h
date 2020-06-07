@@ -226,6 +226,15 @@ public:
      * \return true on success
      */
     virtual bool setReceiveBufferSize(int size) = 0;
+
+    /*!
+     * \brief setTimeout
+     *
+     * Set's a new session timeout
+     *
+     * \param ms 0 means it will never timeout
+     */
+    virtual void setTimeout(const std::chrono::milliseconds &ms) = 0;
 };
 
 } // namespace Getodac

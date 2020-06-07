@@ -204,6 +204,7 @@ void SessionsEventLoop::loop()
 {
     using Ms = std::chrono::milliseconds;
     using clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<clock>;
     auto events = std::make_unique<epoll_event[]>(EventsSize);
     Ms timeout(1s); // Initial timeout
     while (!m_quit) {
@@ -266,7 +267,7 @@ void SessionsEventLoop::loop()
                 if (wokeup && wokeupsessions.find(session) != wokeupsessions.end())
                     session->wakeUp();
                 auto sessionTimeout = session->nextTimeout();
-                if (sessionTimeout <= now)
+                if (sessionTimeout != TimePoint{} && sessionTimeout <= now)
                     session->timeout();
                 else // round to 50ms
                     timeout = std::min(timeout, std::max(50ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));

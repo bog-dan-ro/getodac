@@ -676,6 +676,8 @@ int ServerSession::messageComplete(http_parser *parser)
         // Switch to write mode
         uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | EPOLLET;
         thiz->m_eventLoop->updateSession(thiz, events);
+        thiz->setTimeout();
+
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (const std::exception &e) {

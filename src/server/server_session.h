@@ -135,7 +135,7 @@ protected:
             m_writeResume(action);
     }
     void terminateSession(Action action);
-    void setTimeout(const std::chrono::milliseconds &ms = 5s);
+    void setTimeout(const std::chrono::milliseconds &ms = 5s) override;
 
     static int messageBegin(http_parser *parser);
     static int url(http_parser *parser, const char *at, size_t length);

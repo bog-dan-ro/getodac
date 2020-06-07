@@ -96,8 +96,8 @@ SessionsEventLoop::~SessionsEventLoop()
             delete (*session);
             lock.lock();
         }
+        close(m_eventFd);
     } catch (...) {}
-    close(m_eventFd);
     TRACE(serverLogger) << "SessionsEventLoop::~SessionsEventLoop " << this;
 }
 

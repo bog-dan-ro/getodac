@@ -159,7 +159,7 @@ ServerSession::~ServerSession()
             ::close(m_sock);
         } catch (...) {}
     }
-    TRACE(Getodac::serverLogger) << "ServerSession::~ServerSession " << this;
+    TRACE(serverLogger) << "ServerSession::~ServerSession " << this;
 }
 
 ServerSession *ServerSession::sessionReady()
@@ -466,6 +466,7 @@ void ServerSession::writeLoop(YieldType &yield)
                     return;
                 }
             } else {
+                Server::instance()->sessionServed();
                 m_eventLoop->deleteLater(this);
                 return;
             }
@@ -491,10 +492,12 @@ void ServerSession::writeLoop(YieldType &yield)
         m_serviceSession.reset();
     }
     wakeuppper().wakeUp();
+    Server::instance()->sessionServed();
 }
 
 void ServerSession::terminateSession(Action action)
 {
+    TRACE(serverLogger) << "ServerSession::terminateSession " << this << " action:" << int(action);
     quitRWLoops(action);
     if (m_canWriteError && m_statusCode && m_statusCode != 200) {
         try {

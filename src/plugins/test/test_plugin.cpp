@@ -68,7 +68,7 @@ public:
     // AbstractServiceSession interface
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        m_serverSession->write(yield, {.headers = {{"OkKey1", "value1"}, {"OkKey2", "value2"}}, .contentLength = 2}, "OK");
+        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"OkKey1", "value1"}, {"OkKey2", "value2"}}, .contentLength = 2}, "OK");
     }
 };
 
@@ -193,9 +193,10 @@ public:
         uint32_t chunkSize = 1 + rand() % (1024 * 1024);
         do {
             chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
-            writeChunkedData(yield, test50mresponse.c_str() + pos, chunkSize);
+            writeChunkedData(yield, {test50mresponse.c_str() + pos, chunkSize});
             pos += chunkSize;
         } while (chunkSize);
+        writeChunkedData(yield);
     }
 };
 
@@ -231,10 +232,10 @@ public:
                 if (yield.get() != Getodac::AbstractServerSession::Action::Continue)
                     return;
             } while (wait->load());
-            writeChunkedData(yield, buffer->c_str(), buffer->size());
+            writeChunkedData(yield, *buffer);
             size += buffer->size();
         } while (size < 100000);
-        writeChunkedData(yield, {});
+        writeChunkedData(yield);
     }
 };
 
@@ -283,10 +284,14 @@ public:
     {
         m_body.append(data, length);
     }
-    void requestComplete() override {};
+    void requestComplete() override
+    {
+        if (contentLength != m_body.size())
+            throw Getodac::ResponseStatusError{400, "Invaid body size"};
+    }
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        Getodac::OStreamBuffer streamBuffer{this, yield, true};
+        Getodac::OStreamBuffer streamBuffer{this, yield};
         Getodac::OStream stream(streamBuffer);
         stream << Getodac::ResponseHeaders{.contentLength = Getodac::ChunkedData};
         stream << "~~~~ ContentLength: " << contentLength << std::endl;

@@ -60,9 +60,7 @@ class AbstractRESTfulRouteGETSession : public AbstractRESTfulRouteBaseSession<Ba
 public:
     explicit AbstractRESTfulRouteGETSession(ParsedRoute &&resources, AbstractServerSession *serverSession)
         : AbstractRESTfulRouteBaseSession<BaseClass>(std::move(resources), serverSession)
-    {
-        AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders.contentLength = Getodac::ChunkedData;
-    }
+    {}
 
     // Usually GET and Delete methods don't expect any body
     bool acceptContentLength(size_t length) override

@@ -81,12 +81,7 @@ class AbstractRESTfulRouteDELETESession : public AbstractRESTfulRouteGETSession<
 public:
     explicit AbstractRESTfulRouteDELETESession(ParsedRoute &&resources, AbstractServerSession *serverSession)
         : AbstractRESTfulRouteGETSession<BaseClass>(std::move(resources), serverSession)
-    {
-    }
-
-    void writeResponse(Getodac::OStream &stream) override {
-        stream << AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
-    }
+    {}
 };
 
 template <typename BaseClass>
@@ -99,19 +94,14 @@ public:
         AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeadersFilter.acceptedHeades.emplace("Access-Control-Request-Headers");
     }
 
-    void requestComplete() override
+    void writeResponse(Getodac::OStream &stream) final
     {
-        AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders.contentLength = Getodac::ChunkedData;
-
-        auto &response = AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
+        Getodac::ResponseHeaders response;
         response.headers.emplace("Access-Control-Allow-Methods", AbstractRESTfulRouteGETSession<BaseClass>::m_parsedRoute.allButOPTIONSNodeMethods);
         auto it = AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.find("Access-Control-Request-Headers");
         if (it != AbstractRESTfulRouteGETSession<BaseClass>::m_requestHeaders.end())
              response.headers.emplace("Access-Control-Allow-Headers", it->second);
-    }
-
-    void writeResponse(Getodac::OStream &stream) override {
-        stream << AbstractRESTfulRouteGETSession<BaseClass>::m_responseHeaders;
+        stream << response;
     }
 };
 

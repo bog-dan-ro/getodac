@@ -15,6 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <chrono>
 #include <gtest/gtest.h>
 #include <EasyCurl.h>
 
@@ -25,13 +26,24 @@ using namespace std;
 TEST(ResponseStatusError, constructor)
 {
     try {
+        using clock = std::chrono::high_resolution_clock;
+        auto start = clock::now();
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/secureOnly"));
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
         auto reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/secureOnly"));
+        reply = curl.get();
         EXPECT_EQ(reply.status, "403");
         EXPECT_EQ(reply.headers["ErrorKey1"], "Value1");
         EXPECT_EQ(reply.headers["ErrorKey2"], "Value2");
         EXPECT_EQ(reply.body, "Only secured connections allowed");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
@@ -127,10 +139,21 @@ TEST(ResponseStatusError, fromWriteResponseStd)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseStd"));
+        using clock = std::chrono::high_resolution_clock;
+        auto start = clock::now();
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
         auto reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseStd"));
+        reply = curl.get();
         EXPECT_EQ(reply.status, "500");
         EXPECT_EQ(reply.body, "Throw from WriteResponseStd");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
@@ -140,11 +163,46 @@ TEST(ResponseStatusError, fromWriteResponseAfterWrite)
 {
     try {
         Getodac::Test::EasyCurl curl;
+        using clock = std::chrono::high_resolution_clock;
+        auto start = clock::now();
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+
         EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseAfterWrite"));
         EXPECT_THROW(curl.get(), std::runtime_error);
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
+
+TEST(ResponseStatusError, afterWakeup)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        using clock = std::chrono::high_resolution_clock;
+        auto start = clock::now();
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        auto reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThrowAfterWakeup"));
+        reply = curl.get();
+        EXPECT_EQ(reply.status, "404");
+
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        reply = curl.get();
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 150, true);
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
 
 } // namespace {

@@ -490,6 +490,7 @@ void ServerSession::writeLoop(YieldType &yield)
         m_statusCode = 500;
         m_serviceSession.reset();
     }
+    wakeuppper().wakeUp();
 }
 
 void ServerSession::terminateSession(Action action)

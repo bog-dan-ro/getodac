@@ -159,6 +159,35 @@ struct TestThowFromWriteResponseAfterWrite : public BaseTestSession
     }
 };
 
+class TestThrowAfterWakeup : public BaseTestSession
+{
+public:
+    explicit TestThrowAfterWakeup(Getodac::AbstractServerSession *serverSession)
+        : BaseTestSession(serverSession)
+    {}
+
+    // ServiceSession interface
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        auto wakeupper = m_serverSession->wakeuppper();
+        auto wait = std::make_shared<std::atomic_bool>();
+        wait->store(true);
+        s_threadWorker.insertTask([=]{
+            // simulate some heavy work
+            std::this_thread::sleep_for(100ms);
+            wait->store(false);
+            wakeupper.wakeUp();
+        });
+        do {
+            yield();
+            if (yield.get() != Getodac::AbstractServerSession::Action::Continue)
+                return;
+        } while (wait->load());
+        throw 404;
+    }
+};
+
+
 
 class Test0 : public BaseTestSession
 {
@@ -415,6 +444,9 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
     if (url == "/testThowFromWriteResponseAfterWrite")
         return std::make_shared<TestThowFromWriteResponseAfterWrite>(serverSession);
+
+    if (url == "/testThrowAfterWakeup")
+        return std::make_shared<TestThrowAfterWakeup>(serverSession);
 
     return s_testRootRestful.createHandler(url, method, serverSession);
 }

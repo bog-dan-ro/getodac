@@ -95,6 +95,11 @@ public:
         virtual Action get() = 0;
     };
 
+    /*!
+     * \brief The Wakeupper class
+     *
+     * This class it's useful to wake up the session, from a worker thread, to write the processed buffer
+     */
     class Wakeupper {
     public:
         inline bool wakeUp() const {return eventfd_write(m_fd, m_value) == 0;}
@@ -142,12 +147,13 @@ public:
     /*!
      * \brief write
      *
-     * Writes size bytes from buffer to the response and waits until all the data is written.
-     * On errors it will throw an exception
+     * Writes the buffer to the response and waits until all the data is written.
+     * On errors it will throw an exception.
+     *
+     * If the response headers were not written before, it throws an error immediately.
      *
      * \param yield object used to yield the execution until all the data is written
-     * \param buffer to write
-     * \param size in byte of the buffer
+     * \param data the buffer to write
      */
     virtual void write(Yield &yield, std::string_view data) = 0;
 
@@ -156,6 +162,8 @@ public:
      *
      * Writes count vec to the response and waits until all the data is written.
      * On errors it will throw an exception
+     *
+     * If the response headers were not written before, it throws an error immediately.
      *
      * \param yield object used to yield the execution until all the data is written
      * \param vec the vector to write

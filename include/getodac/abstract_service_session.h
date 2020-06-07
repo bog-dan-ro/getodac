@@ -115,33 +115,27 @@ public:
      *
      * Helper function needed by a service session to write chunked encoded data
      *
-     * \param yield object passed to writeResponse, this function will use it to wait until all the data is written
-     * \param buf the buffer you want to write
-     * \param length the length of the buffer, length = 0 means end of chunked transfer
+     * \param yield object passed to writeResponse, this function will use it to wait until all the data is written.
+     * \param data the buffer you want to write. If the data size is 0, it means end of chunked transfer.
      */
-    void writeChunkedData(AbstractServerSession::Yield &yield, const void *buf, size_t length)
+    void writeChunkedData(AbstractServerSession::Yield &yield, std::string_view data = {})
     {
-        if (!length) {
+        if (data.empty()) {
             m_serverSession->write(yield, "0\r\n\r\n");
             return;
         }
         iovec chunkData[3];
         std::ostringstream chunkHeaderBuf;
-        chunkHeaderBuf << std::hex << length << crlf;
+        chunkHeaderBuf << std::hex << data.size() << crlf;
         auto chunkHeader = chunkHeaderBuf.str();
         chunkHeaderBuf.str({});
         chunkData[0].iov_base = (void*)chunkHeader.c_str();
         chunkData[0].iov_len = chunkHeader.length();
-        chunkData[1].iov_base = (void*)buf;
-        chunkData[1].iov_len = length;
+        chunkData[1].iov_base = (void*)data.data();
+        chunkData[1].iov_len = data.size();
         chunkData[2].iov_base = (void*)crlf;
         chunkData[2].iov_len = 2;
         m_serverSession->writev(yield, chunkData, 3);
-    }
-
-    inline void writeChunkedData(AbstractServerSession::Yield &yield, const std::string &data)
-    {
-        writeChunkedData(yield, data.c_str(), data.size());
     }
 
     inline size_t sendBufferSize() const { return m_serverSession->sendBufferSize(); }
@@ -153,6 +147,12 @@ protected:
 
 class OStreamBuffer : public std::streambuf
 {
+    enum class Status {
+        Invalid,
+        Valid,
+        Chuncked
+    };
+
 public:
     static inline int hexLen(size_t nr)
     {
@@ -164,34 +164,52 @@ public:
         return sz;
     }
 
-    OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield, bool chunked)
-        : m_chunked(chunked)
-        , m_serviceSession(serverSession)
+    OStreamBuffer(AbstractServiceSession *serverSession, AbstractServerSession::Yield &yield)
+        : m_serviceSession(serverSession)
         , m_yield(yield)
-    {
-        m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
-    }
+    {}
 
     ~OStreamBuffer() override
     {
-        sync();
-        if (m_chunked)
-            m_serviceSession->writeChunkedData(m_yield, nullptr, 0);
+        try {
+            sync();
+            if (m_status == Status::Chuncked)
+                m_serviceSession->writeChunkedData(m_yield);
+        } catch (...) {}
     }
 
     inline AbstractServerSession::Yield &yield() const { return m_yield; }
     inline AbstractServiceSession *serviceSession() const { return m_serviceSession; };
+    void writeHeaders(const ResponseHeaders &headers)
+    {
+        if (m_status != Status::Invalid)
+            throw std::runtime_error{"ResponseHeaders already written"};
+        m_status = headers.contentLength == Getodac::ChunkedData ? Status::Chuncked : Status::Valid;
+        m_serviceSession->serverSession()->write(m_yield, headers);
+        reserveBuffer();
+    }
+
     // basic_streambuf interface
 protected:
+    void reserveBuffer()
+    {
+        if (m_status == Status::Chuncked)
+            m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
+        else
+            m_buffer.reserve(m_serviceSession->sendBufferSize());
+    }
+
     int sync() override
     {
+        if (m_status == Status::Invalid)
+            throw std::runtime_error{"No ResponseHeaders where written"};
         if (!m_buffer.empty()) {
-            if (m_chunked)
+            if (m_status == Status::Chuncked)
                 m_serviceSession->writeChunkedData(m_yield, m_buffer);
             else
                 m_serviceSession->serverSession()->write(m_yield, m_buffer);
             m_buffer.clear();
-            m_buffer.reserve(m_serviceSession->sendBufferSize() - hexLen(m_serviceSession->sendBufferSize()) - 4);
+            reserveBuffer();
         }
         return 0;
     }
@@ -218,8 +236,9 @@ protected:
         return __n;
     }
 
+
 private:
-    bool m_chunked;
+    Status m_status = Status::Invalid;
     AbstractServiceSession *m_serviceSession;
     AbstractServerSession::Yield &m_yield;
     std::string m_buffer;
@@ -241,7 +260,7 @@ private:
 
 inline OStream & operator << (OStream &stream, const ResponseHeaders &headers)
 {
-    stream.streamBuffer().serviceSession()->serverSession()->write(stream.yield(), headers);
+    stream.streamBuffer().writeHeaders(headers);
     return stream;
 }
 
@@ -314,13 +333,12 @@ protected:
     void requestComplete() override {}
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) final
     {
-        OStreamBuffer streamBuffer{this, yield, m_responseHeaders.contentLength == Getodac::ChunkedData};
+        OStreamBuffer streamBuffer{this, yield};
         OStream stream(streamBuffer);
         writeResponse(stream);
     }
 
 protected:
-    Getodac::ResponseHeaders m_responseHeaders;
     HeadersData m_requestHeaders;
     RequestHeadersFilter m_requestHeadersFilter;
 };

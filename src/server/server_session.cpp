@@ -245,6 +245,10 @@ std::string ServerSession::responseHeadersString(const ResponseHeaders &hdrs)
     std::ostringstream res;
     res << "HTTP/1.1 " << statusCode(hdrs.status);
     m_statusCode = hdrs.status;
+    if (!m_statusCode) {
+        m_statusCode = 500;
+        throw std::runtime_error{"Invalid HTTP status code"};
+    }
     for (const auto &kv : hdrs.headers)
         res << kv.first << ": " << kv.second << crlf;
 
@@ -290,6 +294,8 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, const ResponseHe
 
 void ServerSession::write(Yield &yield, std::string_view data)
 {
+    if (!m_statusCode)
+        throw std::runtime_error{"No ResponseHeaders where written"};
     m_canWriteError = false;
     auto size = data.size();
     while (yield.get() == Action::Continue) {
@@ -320,6 +326,8 @@ void ServerSession::write(Yield &yield, std::string_view data)
 
 void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size_t count)
 {
+    if (!m_statusCode)
+        throw std::runtime_error{"No ResponseHeaders where written"};
     m_canWriteError = false;
     while (yield.get() == Action::Continue) {
         auto written = sockWritev(vec, count);

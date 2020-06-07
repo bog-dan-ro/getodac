@@ -88,7 +88,7 @@ inline char fromHex(char ch)
  * \param in
  * \return
  */
-inline std::string unEscapeUrl(const std::string_view &in)
+inline std::string unEscapeUrl(std::string_view in)
 {
     std::string out;
     out.reserve(in.size());
@@ -128,7 +128,7 @@ inline std::string unEscapeUrl(const std::string_view &in)
  * \return a vector of pair<pos, nchars> substr chunks
  */
 using SplitVector = std::vector<std::string_view>;
-inline SplitVector split(const std::string_view &str, char ch)
+inline SplitVector split(std::string_view str, char ch)
 {
     if (!str.size())
         return {};

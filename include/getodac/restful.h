@@ -97,7 +97,7 @@ public:
         return *this;
     }
 
-    bool operator == (const std::string_view &route) {
+    bool operator == (std::string_view route) {
         auto other = routeParts(route);
         if (other.size() != m_routeParts.size())
             return false;
@@ -119,7 +119,7 @@ private:
     template <typename T, typename ...A>
     friend class RESTfulRouter;
 
-    RouteParts routeParts(const std::string_view &route) const
+    RouteParts routeParts(std::string_view route) const
     {
         RouteParts res;
         auto routeParts = split(route, '/');
@@ -140,7 +140,7 @@ private:
      * \param route the route to match, the capture resources must be inside {}
      *               e.g /api/v1/parents/{parent}/children/{child}
      */
-    RESTfulRoute(const std::string_view &route)
+    RESTfulRoute(std::string_view route)
         : m_routeParts(std::move(routeParts(route)))
     {}
 
@@ -185,7 +185,7 @@ public:
      * \param route
      * \return
      */
-    RESTfulRoutePtr createRoute(const std::string_view &route)
+    RESTfulRoutePtr createRoute(std::string_view route)
     {
         for (auto rt : m_routes)
             if (*rt == route)
@@ -197,7 +197,7 @@ public:
      * \brief createHandle parse the given \a url and \a method and if they match
      * with a route, it creates and returns a handler. Otherwise it returns {}
      */
-    ReturnType createHandler(const std::string_view &url, const std::string &method, Args ...args) const
+    ReturnType createHandler(std::string_view url, const std::string &method, Args ...args) const
     {
         auto qpos = url.find('?');
         auto resources = split(url.substr(0, qpos), '/');

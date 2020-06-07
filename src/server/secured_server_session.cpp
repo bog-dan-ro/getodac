@@ -33,7 +33,9 @@ SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int soc
 
 SecuredServerSession::~SecuredServerSession()
 {
-    SSL_free(m_SSL);
+    try {
+        SSL_free(m_SSL);
+    } catch (...) {}
 }
 
 void SecuredServerSession::verifyPeer(const std::string &caFile)

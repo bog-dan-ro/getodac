@@ -671,10 +671,12 @@ Server::Server()
  */
 Server::~Server()
 {
-    if (m_SSLContext)
-        SSL_CTX_free(m_SSLContext);
-    CRYPTO_set_locking_callback(nullptr);
-    CRYPTO_set_id_callback(nullptr);
+    try {
+        if (m_SSLContext)
+            SSL_CTX_free(m_SSLContext);
+        CRYPTO_set_locking_callback(nullptr);
+        CRYPTO_set_id_callback(nullptr);
+    } catch (...) {}
 }
 
 } // namespace Getodac

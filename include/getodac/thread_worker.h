@@ -66,12 +66,14 @@ public:
 
     ~ThreadWorker()
     {
-        m_quit.store(true);
-        m_waitCondition.notify_all();
-        for (auto & m_worker : m_workers) {
-            if (m_worker.joinable())
-                m_worker.join();
-        }
+        try {
+            m_quit.store(true);
+            m_waitCondition.notify_all();
+            for (auto & m_worker : m_workers) {
+                if (m_worker.joinable())
+                    m_worker.join();
+            }
+        } catch (...) {}
     }
 
     /*!

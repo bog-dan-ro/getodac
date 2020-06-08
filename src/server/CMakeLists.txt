@@ -1,4 +1,4 @@
-find_package(Boost 1.57 REQUIRED COMPONENTS coroutine filesystem log program_options system)
+find_package(Boost 1.57 REQUIRED COMPONENTS coroutine filesystem log log_setup program_options system)
 find_package(OpenSSL 1.1 REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/include http-parser ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})

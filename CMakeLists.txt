@@ -12,6 +12,8 @@ option(ENABLE_TRACE_LOG "Enabe tracing log" OFF)
 option(ENABLE_DEBUG_LOG "Enable debugging log" OFF)
 option(ENABLE_STRESS_TEST "Enable server stress" OFF)
 
+set(Boost_USE_MULTITHREADED ON)
+
 find_package(Sanitizers)
 
 if (ENABLE_TRACE_LOG)

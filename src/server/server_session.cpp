@@ -425,8 +425,10 @@ void ServerSession::readLoop(YieldType &yield)
                 memcpy(m_eventLoop->sharedReadBuffer.data(), tempBuffer.data(), tempSize);
 
             auto parsedBytes = http_parser_execute(&m_parser, &settings, m_eventLoop->sharedReadBuffer.data(), tempSize + sz);
-            if (m_parser.http_errno)
+            if (m_parser.http_errno) {
+                wakeuppper().wakeUp();
                 return;
+            }
             tempBuffer.clear();
             if (size_t(sz) > parsedBytes) {
                 auto tempLen = sz - parsedBytes;
@@ -677,7 +679,6 @@ int ServerSession::messageComplete(http_parser *parser)
         uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | EPOLLET;
         thiz->m_eventLoop->updateSession(thiz, events);
         thiz->setTimeout();
-
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (const std::exception &e) {
@@ -717,7 +718,7 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
                     m_headerField.clear();
                     return (m_statusCode = 417); // Expectation Failed
                 } else {
-                    sockWrite(ContinueResponse, sizeof(ContinueResponse));
+                    sockWrite(ContinueResponse, sizeof(ContinueResponse) - 1);
                 }
             }
             m_serviceSession->headerFieldValue(m_headerField, m_tempStr);

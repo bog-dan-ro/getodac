@@ -393,6 +393,46 @@ private:
     std::string m_body;
 };
 
+// PPP stands for post, put, patch
+class TestPPP : public Getodac::AbstractServiceSession
+{
+public:
+    explicit TestPPP(Getodac::AbstractServerSession *serverSession)
+        : Getodac::AbstractServiceSession(serverSession)
+    {}
+
+    // ServiceSession interface
+    // AbstractServiceSession interface
+    void headerFieldValue(const std::string &, const std::string &) override
+    {}
+    bool acceptContentLength(size_t length) override
+    {
+        contentLength = length;
+        return true;
+    }
+    void headersComplete() override {}
+    void body(const char *data, size_t length) override
+    {
+        m_body.append(data, length);
+    }
+    void requestComplete() override
+    {
+        if (contentLength != m_body.size())
+            throw Getodac::ResponseStatusError{400, "Invaid body size"};
+    }
+    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
+    {
+        if (m_body == "throw")
+            throw 400;
+        Getodac::OStreamBuffer streamBuffer{this, yield};
+        Getodac::OStream stream(streamBuffer);
+        stream << Getodac::ResponseHeaders{}; // 200 OK
+    }
+private:
+    size_t contentLength = 0;
+    std::string m_body;
+};
+
 } // namespace
 
 PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
@@ -447,6 +487,9 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
     if (url == "/testThrowAfterWakeup")
         return std::make_shared<TestThrowAfterWakeup>(serverSession);
+
+    if (url == "/testPPP")
+        return std::make_shared<TestPPP>(serverSession);
 
     return s_testRootRestful.createHandler(url, method, serverSession);
 }

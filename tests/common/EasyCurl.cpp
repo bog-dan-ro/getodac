@@ -81,6 +81,14 @@ EasyCurl::Response EasyCurl::request(const std::string &method, std::string uplo
     return res;
 }
 
+std::string EasyCurl::escape(std::string_view str)
+{
+    auto allocatedStr = curl_escape(str.data(), str.length());
+    std::string ss{allocatedStr};
+    curl_free(allocatedStr);
+    return ss;
+}
+
 size_t EasyCurl::read_callback(char *buffer, size_t size, size_t nitems, std::string *upload)
 {
     size_t sz = std::min(size * nitems, upload->size());

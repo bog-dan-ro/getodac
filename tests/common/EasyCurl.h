@@ -59,6 +59,7 @@ public:
         if (curl_easy_setopt(m_curl, option, args...) != CURLE_OK)
             throw std::runtime_error{"Can't curl_easy_setopt"};
     }
+    static std::string escape(std::string_view str);
 
 private:
     static size_t read_callback(char *buffer, size_t size, size_t nitems, std::string *upload);

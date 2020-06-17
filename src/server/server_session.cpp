@@ -300,9 +300,10 @@ void ServerSession::write(Yield &yield, std::string_view data)
     if (!m_statusCode)
         throw std::runtime_error{"No ResponseHeaders where written"};
     m_canWriteError = false;
+    auto ptr = data.data();
     auto size = data.size();
     while (yield.get() == Action::Continue) {
-        auto written = sockWrite(data.data(), size);
+        auto written = sockWrite(ptr, size);
         if (written < 0) {
             yield();
             continue;
@@ -310,7 +311,7 @@ void ServerSession::write(Yield &yield, std::string_view data)
         if (size_t(written) == size)
             return;
 
-        *reinterpret_cast<const char**>(&data) += written;
+        ptr += written;
         size -= written;
         yield();
     }

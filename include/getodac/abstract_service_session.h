@@ -224,8 +224,27 @@ protected:
 
     std::streamsize xsputn(const char_type *__s, std::streamsize __n) override
     {
-        std::streamsize sz = __n;
+        if (__n < 0)
+            return __n;
+        auto sz = size_t(__n);
         while (sz) {
+            if (sz > m_buffer.capacity()) {
+                if (m_status == Status::Invalid)
+                    throw std::runtime_error{"No ResponseHeaders where written"};
+                if (m_buffer.size()) {
+                    iovec vec[2];
+                    vec[0].iov_base = const_cast<char*>(m_buffer.c_str());
+                    vec[0].iov_len = m_buffer.size();
+                    vec[1].iov_base = const_cast<char*>(__s);
+                    vec[1].iov_len = sz;
+                    m_serviceSession->serverSession()->writev(m_yield, vec, 2);
+                } else {
+                    m_serviceSession->serverSession()->write(m_yield, std::string_view{__s, sz});
+                }
+                m_buffer.clear();
+                reserveBuffer();
+                return sz;
+            }
             if (m_buffer.size() >= m_buffer.capacity())
                 sync();
             size_t len = std::min(size_t(sz), m_buffer.capacity() - m_buffer.size());

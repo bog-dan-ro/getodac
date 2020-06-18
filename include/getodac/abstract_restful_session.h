@@ -67,7 +67,7 @@ public:
     {
         (void)length; return false;
     }
-    void body(const char *data, size_t length) override
+    void appendBody(const char *data, size_t length) override
     {
         (void)data;
         (void)length;

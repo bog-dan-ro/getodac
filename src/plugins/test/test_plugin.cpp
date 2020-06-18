@@ -41,12 +41,12 @@ public:
         : Getodac::AbstractServiceSession(serverSession)
     {}
     // AbstractServiceSession interface
-    void headerFieldValue(const std::string &, const std::string &) override
+    void appendHeaderField(const std::string &, const std::string &) override
     {}
     bool acceptContentLength(size_t) override {return false;}
     void headersComplete() override
     {}
-    void body(const char *, size_t ) override
+    void appendBody(const char *, size_t ) override
     {}
     void requestComplete() override
     {}
@@ -75,7 +75,7 @@ public:
 struct TestThowFromHeaderFieldValue : public BaseTestSession
 {
     explicit TestThowFromHeaderFieldValue(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-    void headerFieldValue(const std::string &, const std::string &) override
+    void appendHeaderField(const std::string &, const std::string &) override
     {
         throw Getodac::ResponseStatusError{400, "Too many headers", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
     }
@@ -108,7 +108,7 @@ struct TestExpectation : public BaseTestSession
     {
         return false;
     }
-    void body(const char *, size_t ) override
+    void appendBody(const char *, size_t ) override
     {
         assert(false);
     }
@@ -122,7 +122,7 @@ struct TestThowFromBody : public BaseTestSession
     {
         return true;
     }
-    void body(const char *, size_t ) override
+    void appendBody(const char *, size_t ) override
     {
         throw Getodac::ResponseStatusError{400, "Body too big, lose some weight", {{"BodyKey1","Value1"}, {"BodyKey2","Value2"}}};
     }
@@ -357,7 +357,7 @@ public:
 
     // ServiceSession interface
     // AbstractServiceSession interface
-    void headerFieldValue(const std::string &field, const std::string &value) override
+    void appendHeaderField(const std::string &field, const std::string &value) override
     {
         m_headers.emplace_back(std::make_pair(field, value));
     }
@@ -367,7 +367,7 @@ public:
         return true;
     }
     void headersComplete() override {}
-    void body(const char *data, size_t length) override
+    void appendBody(const char *data, size_t length) override
     {
         m_body.append(data, length);
     }
@@ -403,7 +403,7 @@ public:
 
     // ServiceSession interface
     // AbstractServiceSession interface
-    void headerFieldValue(const std::string &, const std::string &) override
+    void appendHeaderField(const std::string &, const std::string &) override
     {}
     bool acceptContentLength(size_t length) override
     {
@@ -411,7 +411,7 @@ public:
         return true;
     }
     void headersComplete() override {}
-    void body(const char *data, size_t length) override
+    void appendBody(const char *data, size_t length) override
     {
         m_body.append(data, length);
     }

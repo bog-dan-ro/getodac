@@ -654,7 +654,7 @@ int ServerSession::body(http_parser *parser, const char *at, size_t length)
 {
     auto thiz = reinterpret_cast<ServerSession *>(parser->data);
     try {
-        thiz->m_serviceSession->body(at, length);
+        thiz->m_serviceSession->appendBody(at, length);
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (const std::exception &e) {
@@ -722,7 +722,7 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
                     sockWrite(ContinueResponse, sizeof(ContinueResponse) - 1);
                 }
             }
-            m_serviceSession->headerFieldValue(m_headerField, m_tempStr);
+            m_serviceSession->appendHeaderField(m_headerField, m_tempStr);
             m_tempStr.clear();
             m_headerField.clear();
             break;

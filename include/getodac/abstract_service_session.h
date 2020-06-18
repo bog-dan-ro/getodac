@@ -53,14 +53,14 @@ public:
     virtual ~AbstractServiceSession() = default;
 
     /*!
-     * \brief headerFieldValue
+     * \brief appendHeaderField
      *
      * AbstractServerSession calls this function when it has decoded a header filed value pair
      *
      * \param field the decoded field
      * \param value the decoded value
      */
-    virtual void headerFieldValue(const std::string &field, const std::string &value) = 0;
+    virtual void appendHeaderField(const std::string &field, const std::string &value) = 0;
 
     /*!
      * \brief acceptContentLength
@@ -81,14 +81,14 @@ public:
     virtual void headersComplete() = 0;
 
     /*!
-     * \brief body
+     * \brief appendBody
      *
      * AbstractServerSession calls this function (multiple times) when it decodes more body data
      *
      * \param data body data
      * \param length body length
      */
-    virtual void body(const char *data, size_t length) = 0;
+    virtual void appendBody(const char *data, size_t length) = 0;
 
     /*!
      * \brief requestComplete
@@ -121,7 +121,7 @@ public:
     void writeChunkedData(AbstractServerSession::Yield &yield, std::string_view data = {})
     {
         if (data.empty()) {
-            m_serverSession->write(yield, "0\r\n\r\n");
+            write(yield, "0\r\n\r\n");
             return;
         }
         iovec chunkData[3];
@@ -135,9 +135,31 @@ public:
         chunkData[1].iov_len = data.size();
         chunkData[2].iov_base = (void*)crlf;
         chunkData[2].iov_len = 2;
-        m_serverSession->writev(yield, chunkData, 3);
+        writev(yield, chunkData, 3);
     }
 
+    /*!
+     * \brief endChunckedData
+     *
+     * Sugar syntax method for ending the chunked transmission.
+     * It the same with writeChunkedData(AbstractServerSession::Yield &yield, {});
+     *
+     * \param yield
+     */
+    void endChunkedData(AbstractServerSession::Yield &yield)
+    {
+        write(yield, "0\r\n\r\n");
+    }
+
+    inline void write(AbstractServerSession::Yield &yield, std::string_view data)
+    {
+        m_serverSession->write(yield, data);
+    }
+
+    inline void writev(AbstractServerSession::Yield &yield, iovec *vec, size_t count)
+    {
+        m_serverSession->writev(yield, vec, count);
+    }
     inline size_t sendBufferSize() const { return m_serverSession->sendBufferSize(); }
     inline AbstractServerSession * serverSession() const { return m_serverSession; }
 protected:
@@ -174,7 +196,7 @@ public:
         try {
             sync();
             if (m_status == Status::Chuncked)
-                m_serviceSession->writeChunkedData(m_yield);
+                m_serviceSession->endChunkedData(m_yield);
         } catch (...) {}
     }
 
@@ -338,7 +360,7 @@ public:
 
     // AbstractServiceSession interface
 protected:
-    void headerFieldValue(const std::string &field, const std::string &value) override
+    void appendHeaderField(const std::string &field, const std::string &value) override
     {
         if (!--m_requestHeadersFilter.maxHeaders ||
                 field.size() > m_requestHeadersFilter.maxKeyLength ||

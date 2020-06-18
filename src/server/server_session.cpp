@@ -413,11 +413,11 @@ void ServerSession::readLoop(YieldType &yield)
     std::vector<char> tempBuffer;
     while (yield.get() == Action::Continue) {
         try {
-            setTimeout();
             auto tempSize = tempBuffer.size();
             auto sz = sockRead(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
 
             if (sz <= 0) {
+                setTimeout();
                 yield();
                 continue;
             }
@@ -437,6 +437,7 @@ void ServerSession::readLoop(YieldType &yield)
                 memcpy(tempBuffer.data(), m_eventLoop->sharedReadBuffer.data() + parsedBytes, tempLen);
             }
 #ifndef ENABLE_STRESS_TEST
+            setTimeout();
             yield();
 #endif
         } catch (const std::exception &e) {

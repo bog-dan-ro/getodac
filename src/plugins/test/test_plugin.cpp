@@ -426,7 +426,8 @@ public:
             throw 400;
         Getodac::OStreamBuffer streamBuffer{this, yield};
         Getodac::OStream stream(streamBuffer);
-        stream << Getodac::ResponseHeaders{}; // 200 OK
+        stream << Getodac::ResponseHeaders{.contentLength = test50mresponse.length()}; // 200 OK
+        stream.write(test50mresponse.c_str(), test50mresponse.length());
     }
 private:
     size_t contentLength = 0;

@@ -127,6 +127,9 @@ void testPostPPP(const std::string &data, const std::string &status)
     EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testPPP"));
     auto reply = curl.request("PATCH", data);
     EXPECT_EQ(reply.status, status);
+    for (uint32_t i = 0 ; i < reply.body.size(); ++i) {
+        EXPECT_EQ(hugeData[i], reply.body[i]);
+    }
 }
 
 TEST(Responses, testPPP)

@@ -235,6 +235,13 @@ public:
      * \param ms 0 means it will never timeout
      */
     virtual void setTimeout(const std::chrono::milliseconds &ms) = 0;
+
+    /*!
+     * \brief responseHeadersString
+     *
+     * Returns a string with formated headers ready for seding to socket
+     */
+    virtual std::string responseHeadersString(const ResponseHeaders &hdrs) = 0;
 };
 
 } // namespace Getodac

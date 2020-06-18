@@ -109,7 +109,7 @@ public:
 
     // AbstractServerSession interface
     Wakeupper wakeuppper() const override;
-    std::string responseHeadersString(const ResponseHeaders &hdrs);
+    std::string responseHeadersString(const ResponseHeaders &hdrs) override;
 
     inline const struct sockaddr_storage& peerAddress() const override { return m_peerAddr; }
     void write(Yield &yield, const ResponseHeaders &response) override;

@@ -185,8 +185,12 @@ public:
         if (m_status != Status::Invalid)
             throw std::runtime_error{"ResponseHeaders already written"};
         m_status = headers.contentLength == Getodac::ChunkedData ? Status::Chuncked : Status::Valid;
-        m_serviceSession->serverSession()->write(m_yield, headers);
         reserveBuffer();
+        auto serverSession = m_serviceSession->serverSession();
+        if (m_status == Status::Chuncked)
+            serverSession->write(m_yield, headers);
+        else
+            m_buffer.append(serverSession->responseHeadersString(headers));
     }
 
     // basic_streambuf interface

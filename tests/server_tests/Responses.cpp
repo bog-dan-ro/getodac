@@ -135,19 +135,7 @@ void testPostPPP(const std::string &data, const std::string &status)
 TEST(Responses, testPPP)
 {
     try {
-        testPostPPP("throw", "400");
-        {
-            Getodac::Test::EasyCurl curl;
-            EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
-            auto reply = curl.get();
-            EXPECT_EQ(reply.status, "200");
-            EXPECT_EQ(reply.headers["Connection"], "keep-alive");
-            EXPECT_EQ(reply.headers["Content-Length"], "100");
-            EXPECT_EQ(reply.headers["Keep-Alive"], "timeout=10");
-            EXPECT_EQ(reply.body, "100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-        }
-        testPostPPP("don't throw", "200");
-        testPostPPP("don't throw", "200");
+        testPostPPP(hugeData, "200");
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }

@@ -419,11 +419,13 @@ public:
     {
         if (contentLength != m_body.size())
             throw Getodac::ResponseStatusError{400, "Invaid body size"};
+        if (m_body != test50mresponse)
+            throw Getodac::ResponseStatusError{400, "Invalid body"};
     }
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        if (m_body == "throw")
-            throw 400;
+        m_serverSession->setTimeout(1s);
+        std::this_thread::sleep_for(1s);
         Getodac::OStreamBuffer streamBuffer{this, yield};
         Getodac::OStream stream(streamBuffer);
         stream << Getodac::ResponseHeaders{.contentLength = test50mresponse.length()}; // 200 OK

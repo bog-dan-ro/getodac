@@ -305,6 +305,7 @@ void ServerSession::write(Yield &yield, std::string_view data)
     while (yield.get() == Action::Continue) {
         auto written = sockWrite(ptr, size);
         if (written < 0) {
+            setTimeout();
             yield();
             continue;
         }
@@ -313,6 +314,7 @@ void ServerSession::write(Yield &yield, std::string_view data)
 
         ptr += written;
         size -= written;
+        setTimeout();
         yield();
     }
 
@@ -336,6 +338,7 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
     while (yield.get() == Action::Continue) {
         auto written = sockWritev(vec, count);
         if (written < 0) {
+            setTimeout();
             yield();
             continue;
         }
@@ -356,6 +359,7 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
         if (!written)
             break;
 
+        setTimeout();
         yield();
     }
 

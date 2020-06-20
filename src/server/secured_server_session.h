@@ -26,7 +26,7 @@ namespace Getodac {
 class SecuredServerSession : public ServerSession
 {
 public:
-    SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order);
+    SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order, uint32_t epollet);
     ~SecuredServerSession() override;
 
     // ServerSession interface

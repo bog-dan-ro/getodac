@@ -120,10 +120,12 @@ namespace {
     };
 }
 
-ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
+ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr,
+                             uint32_t order, uint32_t epollet)
     : m_order(order)
     , m_eventLoop(eventLoop)
     , m_sock(sock)
+    , m_epollet(epollet)
     , m_readResume(std::bind(&ServerSession::readLoop, this, std::placeholders::_1))
     , m_writeResume(std::bind(&ServerSession::writeLoop, this, std::placeholders::_1))
     , m_peerAddr(sockAddr)
@@ -164,7 +166,7 @@ ServerSession::~ServerSession()
 
 ServerSession *ServerSession::sessionReady()
 {
-    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
+    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
     return this;
 }
 
@@ -465,7 +467,7 @@ void ServerSession::writeLoop(YieldType &yield)
 
                 // switch to read mode
                 m_statusCode = 0;
-                uint32_t events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR;
+                uint32_t events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR;
                 m_eventLoop->updateSession(this, events);
                 if (m_keepAliveSeconds.count()) {
                     setTimeout(m_keepAliveSeconds);
@@ -682,7 +684,7 @@ int ServerSession::messageComplete(http_parser *parser)
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();
         // Switch to write mode
-        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | EPOLLET;
+        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | thiz->m_epollet;
         thiz->m_eventLoop->updateSession(thiz, events);
         thiz->setTimeout();
     } catch (const ResponseStatusError &status) {

@@ -337,6 +337,7 @@ int Server::exec(int argc, char *argv[])
     gid_t gid = gid_t(-1);
     uid_t uid = uid_t(-1);
     boost::log::settings loggingSettings;
+    uint32_t epollet = 0;
     if (!confDir.empty()) {
         auto curPath = boost::filesystem::current_path();
         boost::filesystem::current_path(confDir);
@@ -352,6 +353,7 @@ int Server::exec(int argc, char *argv[])
         queuedConnections = properties.get("queued_connections", queuedConnections);
         maxConnectionsPerIp = properties.get("max_connections_per_ip", maxConnectionsPerIp);
         workloadBalancing = properties.get("workload_balancing", workloadBalancing);
+        epollet = properties.get("use_epoll_edge_trigger", false) ? EPOLLET : 0;
         TRACE(serverLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
             TRACE(serverLogger) << "https section found in config";
@@ -530,9 +532,9 @@ int Server::exec(int argc, char *argv[])
                         // Let's try to create a new session
                         std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
-                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr, order))->sessionReady());
+                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr, order, epollet))->sessionReady());
                         else
-                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr, order))->sessionReady());
+                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr, order, epollet))->sessionReady());
                     } catch (const std::exception &e) {
                         WARNING(serverLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);

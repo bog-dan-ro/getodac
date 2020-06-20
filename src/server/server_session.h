@@ -56,7 +56,7 @@ class ServerSession : public AbstractServerSession
     };
 
 public:
-    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order);
+    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order, uint32_t epollet);
     ~ServerSession() override;
 
     ServerSession *sessionReady();
@@ -154,6 +154,7 @@ private:
     int m_sock;
     std::mutex m_sockMutex;
     TimePoint m_nextTimeout;
+    uint32_t m_epollet;
 
     using Call = boost::coroutines2::coroutine<Action>::push_type;
     Call m_readResume;

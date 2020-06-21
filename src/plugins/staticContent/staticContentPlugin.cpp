@@ -33,8 +33,21 @@
 #include <boost/utility/string_view.hpp>
 
 namespace {
-using FileMapPtr = std::shared_ptr<boost::iostreams::mapped_file_source>;
-Getodac::LRUCache<std::string, std::pair<std::time_t, FileMapPtr>> s_filesCache(100);
+class FileMap : public boost::iostreams::mapped_file_source
+{
+public:
+    FileMap(const boost::filesystem::path &path, std::time_t lastWriteTime)
+        : boost::iostreams::mapped_file_source(path)
+        , m_lastWriteTime(lastWriteTime)
+    {}
+    ~FileMap() { close(); }
+    inline std::time_t lastWriteTime() const { return m_lastWriteTime; }
+private:
+    std::time_t m_lastWriteTime;
+};
+using FileMapPtr = std::shared_ptr<FileMap>;
+
+Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{50};
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
@@ -87,8 +100,8 @@ public:
             TRACE(logger) << "Serving " << p.string();
             m_file = s_filesCache.getValue(p.string());
             auto lastWriteTime = boost::filesystem::last_write_time(p);
-            if (!m_file.second || m_file.first != lastWriteTime) {
-                m_file = std::make_pair(lastWriteTime, std::make_shared<boost::iostreams::mapped_file_source>(p));
+            if (!m_file || m_file->lastWriteTime() != lastWriteTime) {
+                m_file = std::make_shared<FileMap>(p, lastWriteTime);
                 s_filesCache.put(p.string(), m_file);
             }
             m_mimeType = mimeType(p.extension().string());
@@ -107,12 +120,12 @@ public:
     void appendBody(const char *, size_t) override {}
     void requestComplete() override {}
     void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {        
-        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"Content-Type", m_mimeType}}, .contentLength = m_file.second->size()}, std::string_view{m_file.second->data(), m_file.second->size()});
+    {
+        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"Content-Type", m_mimeType}}, .contentLength = m_file->size()}, std::string_view{m_file->data(), m_file->size()});
     }
 
 private:
-    std::pair<std::time_t, FileMapPtr> m_file;
+    FileMapPtr m_file;
     std::string m_mimeType;
 };
 

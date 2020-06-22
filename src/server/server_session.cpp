@@ -709,8 +709,10 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
         case HttpParserStatus::Url:
             m_serviceSession = Server::instance()->createServiceSession(this, m_tempStr,
                                                                         http_method_str(http_method(parser->method)));
-            if (!m_serviceSession)
+            if (!m_serviceSession) {
+                WARNING(serverLogger) << " 503 : " << addrText(peerAddress()) << " : " << http_method_str(http_method(parser->method)) << " : " << m_tempStr;
                 return (m_statusCode = 503); // Service Unavailable
+            }
             break;
         case HttpParserStatus::HeaderField:
             break; // Do nothing

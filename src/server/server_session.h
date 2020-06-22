@@ -111,7 +111,7 @@ public:
     Wakeupper wakeuppper() const override;
     std::string responseHeadersString(const ResponseHeaders &hdrs) override;
 
-    inline const struct sockaddr_storage& peerAddress() const override { return m_peerAddr; }
+    inline const sockaddr_storage& peerAddress() const override { return m_peerAddr; }
     void write(Yield &yield, const ResponseHeaders &response) override;
     void write(Yield &yield, const ResponseHeaders &response, std::string_view data) override;
     void writev(Yield &yield, const ResponseHeaders &response, iovec *vec, size_t count) override;

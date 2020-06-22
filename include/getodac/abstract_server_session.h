@@ -29,6 +29,7 @@
 #include <openssl/ssl.h>
 #include <stdint.h>
 #include <sys/eventfd.h>
+#include <sys/socket.h>
 #include <sys/uio.h>
 
 #include <chrono>
@@ -175,7 +176,7 @@ public:
      * \brief peerAddress
      * \return the peer address structure
      */
-    virtual const struct sockaddr_storage& peerAddress() const = 0;
+    virtual const sockaddr_storage& peerAddress() const = 0;
 
     /*!
      * \brief isSecuredConnection

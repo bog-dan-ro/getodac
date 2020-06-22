@@ -29,7 +29,6 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <malloc.h>
-#include <netdb.h>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -173,17 +172,6 @@ namespace {
         }
         throw std::runtime_error(stackTrace(3));
     }
-
-    inline std::string addrText(const struct sockaddr_storage &addr)
-    {
-        char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
-        if (getnameinfo((const struct sockaddr *)&addr, sizeof(struct sockaddr_storage),
-                        hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
-            return hbuf;
-        }
-        return {};
-    }
-
 }
 
 /*!
@@ -595,7 +583,7 @@ std::shared_ptr<AbstractServiceSession> Server::createServiceSession(ServerSessi
         if (auto service = plugin.createSession(serverSession, url, method))
             return service;
     }
-    return std::shared_ptr<AbstractServiceSession>();
+    return {};
 }
 
 /*!

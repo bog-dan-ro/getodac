@@ -131,8 +131,11 @@ private:
 
 } // namespace
 
-PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &/*method*/)
+PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
 {
+    if (method != "GET")
+        return {};
+
     for (const auto &pair : s_urls) {
         if (boost::starts_with(url, pair.first)) {
             if (boost::starts_with(pair.first, "/~")) {

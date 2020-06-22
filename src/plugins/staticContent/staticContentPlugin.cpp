@@ -96,7 +96,6 @@ public:
                 throw std::runtime_error{"File not found"};
             if (boost::filesystem::is_directory(p))
                 p /= s_default_file;
-
             TRACE(logger) << "Serving " << p.string();
             m_file = s_filesCache.getValue(p.string());
             auto lastWriteTime = boost::filesystem::last_write_time(p);
@@ -106,8 +105,8 @@ public:
             }
             m_mimeType = mimeType(p.extension().string());
         } catch (const std::exception &e) {
-            TRACE(logger) << e.what();
-            throw Getodac::ResponseStatusError(404, e.what());
+            INFO(logger) << " 404 : " << Getodac::addrText(serverSession->peerAddress()) << " : " << e.what();
+            throw 404;
         } catch (...) {
             throw Getodac::ResponseStatusError(404, "Unhandled error");
         }

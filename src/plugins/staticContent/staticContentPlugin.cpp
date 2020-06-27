@@ -48,6 +48,7 @@ private:
 using FileMapPtr = std::shared_ptr<FileMap>;
 
 Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{50};
+std::mutex s_filesCacheMutex;
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
@@ -97,13 +98,14 @@ public:
             if (boost::filesystem::is_directory(p))
                 p /= s_default_file;
             TRACE(logger) << "Serving " << p.string();
+            m_mimeType = mimeType(p.extension().string());
+            std::unique_lock lock{s_filesCacheMutex};
             m_file = s_filesCache.getValue(p.string());
             auto lastWriteTime = boost::filesystem::last_write_time(p);
             if (!m_file || m_file->lastWriteTime() != lastWriteTime) {
                 m_file = std::make_shared<FileMap>(p, lastWriteTime);
                 s_filesCache.put(p.string(), m_file);
             }
-            m_mimeType = mimeType(p.extension().string());
         } catch (const std::exception &e) {
             INFO(logger) << " 404 : " << Getodac::addrText(serverSession->peerAddress()) << " : " << e.what();
             throw 404;

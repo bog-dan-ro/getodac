@@ -29,9 +29,9 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include <algorithm>
 #include <atomic>
 #include <list>
-#include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -151,7 +151,7 @@ inline SplitVector split(std::string_view str, char ch)
     return ret;
 }
 
-template <typename K, typename V, typename Lock = SpinLock>
+template <typename K, typename V>
 class LRUCache
 {
 public:
@@ -160,52 +160,53 @@ public:
 
     inline void put(const K &key, const V &value)
     {
-        {
-            std::unique_lock<Lock> lock{m_lock};
-            m_cacheItems.emplace_front(key, value);
-            m_cacheHash[key] = m_cacheItems.begin();
-        }
+        auto it = m_cacheHash.find(key);
+        if (it != m_cacheHash.end())
+            m_cacheItems.erase(it->second);
+        m_cacheItems.emplace_front(key, value);
+        m_cacheHash[key] = m_cacheItems.begin();
         cleanCache();
     }
 
     inline V &getReference(const K &key)
     {
-        std::unique_lock<Lock> lock{m_lock};
         auto it = m_cacheHash.find(key);
         if (it == m_cacheHash.end())
             throw std::range_error{"Invalid key"};
+        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
         return it->second->second;
     }
 
     inline V getValue(const K &key)
     {
-        std::unique_lock<Lock> lock{m_lock};
         auto it = m_cacheHash.find(key);
         if (it == m_cacheHash.end())
             return V{};
+        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
         return it->second->second;
     }
 
     inline bool exists(const K &key)
     {
-        std::unique_lock<Lock> lock{m_lock};
         return m_cacheHash.find(key) != m_cacheHash.end();
     }
 
     void setCacheSize(size_t size)
     {
-        {
-            std::unique_lock<Lock> lock{m_lock};
-            m_cacheSize = size;
-        }
+        m_cacheSize = size;
         cleanCache();
+    }
+
+    void clear()
+    {
+        m_cacheItems.clear();
+        m_cacheHash.clear();
     }
 
 private:
     inline void cleanCache()
     {
-        std::unique_lock<Lock> lock{m_lock};
-        while (m_cacheHash.size() >= m_cacheSize) {
+        while (m_cacheHash.size() > m_cacheSize) {
             auto it = m_cacheItems.rbegin();
             m_cacheHash.erase(it->first);
             m_cacheItems.pop_back();
@@ -218,7 +219,6 @@ private:
     using CacheIterator = typename std::list<KeyValue>::iterator;
     std::unordered_map<K, CacheIterator> m_cacheHash;
     size_t m_cacheSize;
-    Lock m_lock;
 };
 
 /*!

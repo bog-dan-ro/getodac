@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <getodac/utils.h>
+#include <memory>
 
 namespace {
 using namespace Getodac;
@@ -58,5 +59,47 @@ using namespace std;
         EXPECT_EQ(splitted.size(), expected.size());
         for (size_t i = 0; i < splitted.size(); ++i)
             EXPECT_EQ(expected[i], splitted[i]);
+    }
+
+    TEST(Utils, LRUCache)
+    {
+        using ptr = std::shared_ptr<int>;
+        Getodac::LRUCache<int, ptr> cache{2};
+        std::vector<ptr> all{10};
+        for (auto & p : all)
+            p = std::make_shared<int>();
+        cache.put(2, all[2]);
+        EXPECT_EQ(cache.getReference(2).use_count(), 2);
+        EXPECT_EQ(cache.getReference(2).get(), all[2].get());
+
+        cache.put(1, all[1]);
+        EXPECT_EQ(cache.getReference(1).use_count(), 2);
+        EXPECT_EQ(cache.getReference(1).get(), all[1].get());
+
+        // Move 2 to the top
+        EXPECT_EQ(cache.getReference(2).get(), all[2].get());
+
+        cache.put(0, all[0]);
+        EXPECT_EQ(cache.getReference(0).use_count(), 2);
+        EXPECT_EQ(cache.getReference(0).get(), all[0].get());
+
+        // 1 should be out from cache
+        EXPECT_EQ(all[1].use_count(), 1);
+
+        cache.put(0, all[3]);
+        EXPECT_EQ(cache.getReference(0).use_count(), 2);
+        EXPECT_EQ(cache.getReference(0).get(), all[3].get());
+        EXPECT_EQ(all[0].use_count(), 1);
+
+        cache.clear();
+        for (size_t i = 0; i <all.size(); ++i) {
+            EXPECT_EQ(all[i].use_count(), 1);
+            cache.put(i % 2, all[i]);
+        }
+
+        EXPECT_EQ(cache.getReference(0).use_count(), 2);
+        EXPECT_EQ(cache.getReference(0).get(), all[8].get());
+        EXPECT_EQ(cache.getReference(1).use_count(), 2);
+        EXPECT_EQ(cache.getReference(1).get(), all[9].get());
     }
 }

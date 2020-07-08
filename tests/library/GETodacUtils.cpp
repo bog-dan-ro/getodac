@@ -101,5 +101,10 @@ using namespace std;
         EXPECT_EQ(cache.getReference(0).get(), all[8].get());
         EXPECT_EQ(cache.getReference(1).use_count(), 2);
         EXPECT_EQ(cache.getReference(1).get(), all[9].get());
+
+        for (auto it = cache.begin(); it != cache.end();)
+            it = cache.erase(it);
+
+        EXPECT_EQ(cache.size(), 0);
     }
 }

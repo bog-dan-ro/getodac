@@ -154,6 +154,10 @@ inline SplitVector split(std::string_view str, char ch)
 template <typename K, typename V>
 class LRUCache
 {
+    using KeyValue = std::pair<K, V>;
+    using List = std::list<KeyValue>;
+    using Iterator = typename List::iterator;
+
 public:
     explicit LRUCache(size_t cacheSize)
         : m_cacheSize(cacheSize) {}
@@ -203,6 +207,37 @@ public:
         m_cacheHash.clear();
     }
 
+    Iterator begin()
+    {
+        return m_cacheItems.begin();
+    }
+
+    Iterator end()
+    {
+        return m_cacheItems.end();
+    }
+
+    Iterator begin() const
+    {
+        return m_cacheItems.begin();
+    }
+
+    Iterator end() const
+    {
+        return m_cacheItems.end();
+    }
+
+    Iterator erase(Iterator it)
+    {
+        m_cacheHash.erase(it->first);
+        return m_cacheItems.erase(it);
+    }
+
+    size_t size() const
+    {
+        assert(m_cacheItems.size() == m_cacheHash.size());
+        return m_cacheHash.size();
+    }
 private:
     inline void cleanCache()
     {
@@ -214,10 +249,8 @@ private:
     }
 
 private:
-    using KeyValue = std::pair<K, V>;
-    std::list<KeyValue> m_cacheItems;
-    using CacheIterator = typename std::list<KeyValue>::iterator;
-    std::unordered_map<K, CacheIterator> m_cacheHash;
+    List m_cacheItems;
+    std::unordered_map<K, Iterator> m_cacheHash;
     size_t m_cacheSize;
 };
 

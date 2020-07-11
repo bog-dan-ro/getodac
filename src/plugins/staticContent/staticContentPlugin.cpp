@@ -47,13 +47,13 @@ private:
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
 
-Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{50};
+Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{100};
 std::mutex s_filesCacheMutex;
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
-
 TaggedLogger<> logger{"staticContent"};
+std::unique_ptr<Getodac::SimpleTimer> g_timer;
 
 inline std::string mimeType(boost::string_view ext)
 {
@@ -165,6 +165,7 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
 
 PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
 {
+    using namespace std::chrono_literals;
     INFO(logger) << "Initializing plugin";
     namespace pt = boost::property_tree;
     pt::ptree properties;
@@ -175,7 +176,15 @@ PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
     }
     s_default_file = properties.get("default_file", "");
     s_allow_symlinks = properties.get("allow_symlinks", false);
-
+    g_timer = std::make_unique<Getodac::SimpleTimer>([]{
+        std::unique_lock lock(s_filesCacheMutex);
+        for (auto it = s_filesCache.begin(); it != s_filesCache.end();) {
+            if (it->second.use_count() == 1)
+                it = s_filesCache.erase(it);
+            else
+                ++it;
+        }
+    }, 60s);
     return !s_urls.empty();
 }
 
@@ -186,4 +195,5 @@ PLUGIN_EXPORT uint32_t pluginOrder()
 
 PLUGIN_EXPORT void destoryPlugin()
 {
+    g_timer.reset();
 }

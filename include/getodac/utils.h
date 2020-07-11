@@ -31,9 +31,11 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <list>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -268,5 +270,37 @@ inline std::string addrText(const sockaddr_storage &addr)
     }
     return {};
 }
+
+/*!
+ * \brief The SimpleTimer class
+ */
+class SimpleTimer
+{
+public:
+    template<typename T>
+    SimpleTimer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
+        : m_thread([=]{
+        std::unique_lock<std::mutex> lock(m_lock);
+        while (!m_waitCondition.wait_for(lock, timeout, [this]{return m_quit.load();})) {
+            callback();
+            if (__builtin_expect(singleShot, 0))
+                m_quit.store(true);
+        };
+    })
+    {};
+
+    ~SimpleTimer()
+    {
+        m_quit.store(true);
+        m_waitCondition.notify_one();
+        if (m_thread.joinable())
+            m_thread.join();
+    }
+private:
+    std::condition_variable m_waitCondition;
+    std::mutex m_lock;
+    std::atomic_bool m_quit{false};
+    std::thread m_thread;
+};
 
 } // namespace Getodac

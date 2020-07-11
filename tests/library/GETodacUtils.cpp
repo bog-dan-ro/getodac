@@ -107,4 +107,30 @@ using namespace std;
 
         EXPECT_EQ(cache.size(), 0);
     }
+
+    TEST(Utils, SimpleTimer)
+    {
+        using namespace std::chrono_literals;
+        auto start = std::chrono::system_clock::now();
+        std::condition_variable timeOutWait;
+        std::mutex mutex;
+        SimpleTimer st{[&]{timeOutWait.notify_one();}, 50ms};
+        std::unique_lock lock(mutex);
+        timeOutWait.wait(lock);
+        timeOutWait.wait(lock);
+        EXPECT_GE(std::chrono::system_clock::now(), (start + 100ms));
+    }
+
+    TEST(Utils, SimpleTimer_singleShot)
+    {
+        using namespace std::chrono_literals;
+        auto start = std::chrono::system_clock::now();
+        std::condition_variable timeOutWait;
+        std::mutex mutex;
+        SimpleTimer st{[&]{timeOutWait.notify_one();}, 50ms, true};
+        std::unique_lock lock(mutex);
+        timeOutWait.wait(lock);
+        EXPECT_GE(std::chrono::system_clock::now(), (start + 50ms));
+        EXPECT_EQ(timeOutWait.wait_for(lock, 100ms), std::cv_status::timeout);
+    }
 }

@@ -199,10 +199,10 @@ void ServerSession::processEvents(uint32_t events) noexcept
             }
         }
     } catch (const std::exception &e) {
-        DEBUG(serverLogger) << e.what();
+        DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
         m_eventLoop->deleteLater(this);
     } catch (...) {
-        DEBUG(serverLogger) << "Unkown exception, terminating the session";
+        DEBUG(serverLogger) << addrText(peerAddress()) << "Unkown exception, terminating the session";
         m_eventLoop->deleteLater(this);
     }
 }
@@ -447,7 +447,7 @@ void ServerSession::readLoop(YieldType &yield)
             yield();
 #endif
         } catch (const std::exception &e) {
-            DEBUG(serverLogger) << e.what();
+            DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
             m_eventLoop->deleteLater(this);
         } catch (...) {
             m_eventLoop->deleteLater(this);
@@ -483,21 +483,21 @@ void ServerSession::writeLoop(YieldType &yield)
             yield();
         };
     } catch (const ResponseStatusError &e) {
-        DEBUG(serverLogger) << e.what();
+        DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
         setResponseStatusError(e);
         m_serviceSession.reset();
     } catch (const std::exception &e) {
-        DEBUG(serverLogger) << e.what();
+        DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
         m_statusCode = 500;
         m_responseStatusErrorHeaders.clear();
         m_tempStr = e.what();
         m_serviceSession.reset();
     } catch (int status) {
-        DEBUG(serverLogger) << "writeResponse status " << status;
+        DEBUG(serverLogger) << addrText(peerAddress()) << "writeResponse status " << status;
         m_statusCode = status;
         m_serviceSession.reset();
     } catch (...) {
-        DEBUG(serverLogger) << "writeResponse unknown exception";
+        DEBUG(serverLogger) << addrText(peerAddress()) << "writeResponse unknown exception";
         m_statusCode = 500;
         m_serviceSession.reset();
     }
@@ -524,7 +524,7 @@ void ServerSession::terminateSession(Action action)
             m_responseStatusErrorHeaders.clear();
             m_canWriteError = false;
         } catch (const std::exception &e) {
-            DEBUG(serverLogger) << e.what();
+            DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
         } catch (...) { }
     }
 
@@ -707,6 +707,7 @@ int ServerSession::httpParserStatusChanged(http_parser *parser)
     try {
         switch (m_parserStatus) {
         case HttpParserStatus::Url:
+            DEBUG(serverLogger) << addrText(peerAddress()) << " : " << http_method_str(http_method(parser->method)) << " : " << m_tempStr;
             m_serviceSession = Server::instance()->createServiceSession(this, m_tempStr,
                                                                         http_method_str(http_method(parser->method)));
             if (!m_serviceSession) {

@@ -93,8 +93,11 @@ public:
             auto p = (root / path).lexically_normal();
             if (!s_allow_symlinks)
                 p = boost::filesystem::canonical(p);
-            if (!boost::starts_with(p, root)) // make sure we don't server files outside the root
-                throw std::runtime_error{"File not found"};
+            if (!boost::starts_with(p, root)) { // make sure we don't server files outside the root
+                std::stringstream str;
+                str << "path \"" << p << "\" is outside the root \"" << root << "\"";
+                throw std::runtime_error{str.str()};
+            }
             if (boost::filesystem::is_directory(p))
                 p /= s_default_file;
             TRACE(logger) << "Serving " << p.string();
@@ -107,7 +110,7 @@ public:
                 s_filesCache.put(p.string(), m_file);
             }
         } catch (const std::exception &e) {
-            INFO(logger) << " 404 : " << Getodac::addrText(serverSession->peerAddress()) << " : " << e.what();
+            WARNING(logger) << " 404 : " << Getodac::addrText(serverSession->peerAddress()) << " : " << e.what();
             throw 404;
         } catch (...) {
             throw Getodac::ResponseStatusError(404, "Unhandled error");

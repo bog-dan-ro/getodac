@@ -493,11 +493,11 @@ void ServerSession::writeLoop(YieldType &yield)
         m_tempStr = e.what();
         m_serviceSession.reset();
     } catch (int status) {
-        DEBUG(serverLogger) << addrText(peerAddress()) << "writeResponse status " << status;
+        DEBUG(serverLogger) << addrText(peerAddress()) << " write response status " << status;
         m_statusCode = status;
         m_serviceSession.reset();
     } catch (...) {
-        DEBUG(serverLogger) << addrText(peerAddress()) << "writeResponse unknown exception";
+        DEBUG(serverLogger) << addrText(peerAddress()) << " write response unknown exception";
         m_statusCode = 500;
         m_serviceSession.reset();
     }

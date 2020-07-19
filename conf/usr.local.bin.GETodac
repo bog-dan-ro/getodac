@@ -1,0 +1,42 @@
+# vim:syntax=apparmor
+# AppArmor policy for GETodac
+# Copyright (C) 2020, BogDan Vatra <bogdan@kde.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+
+#include <tunables/global>
+
+# No template variables specified
+
+"/usr/local/bin/GETodac" {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+  #include <abstractions/ssl_keys>
+
+  capability dac_read_search,
+  capability setgid,
+  capability setuid,
+  capability sys_nice,
+
+  /proc/sys/net/ipv4/tcp_rmem r,
+
+  /usr/local/etc/GETodac/* r,
+  /usr/local/lib/getodac/plugins/ r,
+  /usr/local/lib/getodac/plugins/* mr,
+
+  /var/www/ r,
+  /var/www/** r,
+
+  @{HOME}/public_html/ r,
+  @{HOME}/public_html/** r,
+
+  owner /var/log/GETodac/ rw,
+  owner /var/log/GETodac/* rw,
+
+# Add here plugin specific settings
+
+}

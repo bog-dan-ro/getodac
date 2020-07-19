@@ -147,7 +147,7 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
                 if (pos == std::string::npos)
                     pos = url.size();
                 boost::filesystem::path root_path{pair.second};
-                auto user = url.substr(2, pos - 2);
+                auto user = Getodac::unEscapeUrl(url.substr(2, pos - 2));
                 if (user == "." || user == "..")
                     break; // avoid GET /~../../etc/passwd HTTP/1.0 requests
 
@@ -155,14 +155,13 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
                 root_path /= "public_html";
                 boost::filesystem::path file_path;
                 if (url.size() - pos > 1)
-                    file_path /= url.substr(pos + 1, url.size() - pos - 1);
+                    file_path /= Getodac::unEscapeUrl(url.substr(pos + 1, url.size() - pos - 1));
                 return std::make_shared<StaticContent>(serverSession, root_path.string(), file_path.lexically_normal());
             } else {
-                return std::make_shared<StaticContent>(serverSession, pair.second, boost::filesystem::path{url.c_str() + pair.first.size()}.lexically_normal());
+                return std::make_shared<StaticContent>(serverSession, pair.second, boost::filesystem::path{Getodac::unEscapeUrl(url.c_str() + pair.first.size())}.lexically_normal());
             }
         }
     }
-
     return std::shared_ptr<Getodac::AbstractServiceSession>();
 }
 

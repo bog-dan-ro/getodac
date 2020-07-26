@@ -307,7 +307,6 @@ void ServerSession::write(Yield &yield, std::string_view data)
     while (yield.get() == Action::Continue) {
         auto written = sockWrite(ptr, size);
         if (written < 0) {
-            setTimeout();
             yield();
             continue;
         }
@@ -340,7 +339,6 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
     while (yield.get() == Action::Continue) {
         auto written = sockWritev(vec, count);
         if (written < 0) {
-            setTimeout();
             yield();
             continue;
         }
@@ -423,7 +421,6 @@ void ServerSession::readLoop(YieldType &yield)
             auto sz = sockRead(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
 
             if (sz <= 0) {
-                setTimeout();
                 yield();
                 continue;
             }
@@ -442,8 +439,8 @@ void ServerSession::readLoop(YieldType &yield)
                 tempBuffer.resize(tempLen);
                 memcpy(tempBuffer.data(), m_eventLoop->sharedReadBuffer.data() + parsedBytes, tempLen);
             }
-#ifndef ENABLE_STRESS_TEST
             setTimeout();
+#ifndef ENABLE_STRESS_TEST
             yield();
 #endif
         } catch (const std::exception &e) {

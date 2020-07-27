@@ -40,7 +40,7 @@
 namespace Getodac {
 
 enum {
-    ChunkedData = UINT64_MAX
+    ChunkedData = std::numeric_limits<size_t>::max()
 };
 
 using HeadersData = std::unordered_map<std::string, std::string>;

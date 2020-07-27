@@ -472,10 +472,8 @@ int Server::exec(int argc, char *argv[])
             if (sessions > m_peakSessions)
                 m_peakSessions = sessions;
 
-            if (sessions <= 1) { // No more pending sessions?
+            if (sessions <= 1)  // No more pending sessions?
                 malloc_trim(0); // release the memory to OS
-                assert(m_connectionsPerIp.size() == sessions);
-            }
         }
 
         for (int i = 0; i < triggeredEvents; ++i)
@@ -568,6 +566,7 @@ void Server::serverSessionDeleted(ServerSession *session)
         auto addr = addrText(session->peerAddress());
         std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
         auto it = m_connectionsPerIp.find(addr);
+        assert(it != m_connectionsPerIp.end());
         if (--(it->second) == 0)
             m_connectionsPerIp.erase(it);
     }

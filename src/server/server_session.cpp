@@ -380,7 +380,7 @@ int ServerSession::sendBufferSize() const
     int optval = 0;
     socklen_t optlen = sizeof(optval);
     getsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &optval, &optlen);
-    return optval;
+    return optval / 2;
 }
 
 bool ServerSession::setSendBufferSize(int size)
@@ -393,7 +393,7 @@ int ServerSession::receiveBufferSize() const
     int optval = 0;
     socklen_t optlen = sizeof(optval);
     getsockopt(m_sock, SOL_SOCKET, SO_RCVBUF, &optval, &optlen);
-    return optval;
+    return optval / 2;
 }
 
 bool ServerSession::setReceiveBufferSize(int size)

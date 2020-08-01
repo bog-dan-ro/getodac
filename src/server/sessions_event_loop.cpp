@@ -43,11 +43,11 @@ namespace {
  */
 SessionsEventLoop::SessionsEventLoop()
 {
-    unsigned long mem_min, mem_default, mem_max = 4194304; // 4Mb
+    unsigned long mem_max = 4 * 1024 * 1024; // 4Mb
 #ifndef ENABLE_STRESS_TEST
-    FILE *f = fopen("/proc/sys/net/ipv4/tcp_rmem", "r");
+    FILE *f = fopen("/proc/sys/net/core/rmem_max", "r");
     if (f) {
-        fscanf(f, "%lu %lu %lu", &mem_min, &mem_default, &mem_max);
+        fscanf(f, "%lu", &mem_max);
         fclose(f);
     }
 #else
@@ -77,7 +77,7 @@ SessionsEventLoop::SessionsEventLoop()
 //    sched_param sch;
 //    sch.sched_priority = sched_get_priority_max(SCHED_RR);
 //    pthread_setschedparam(m_loopThread.native_handle(), SCHED_RR, &sch);
-    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " tcp_rmax_mem: " << mem_max << " activeSessions = " << activeSessions();
+    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " shared buffer mem_max: " << mem_max << " activeSessions = " << activeSessions();
 }
 
 SessionsEventLoop::~SessionsEventLoop()

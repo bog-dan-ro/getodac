@@ -375,6 +375,8 @@ int Server::exec(int argc, char *argv[])
                 if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_SSLContext) != 1)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
+                SSL_CTX_set_read_ahead(m_SSLContext, 1);
+                SSL_CTX_set_mode(m_SSLContext, SSL_MODE_RELEASE_BUFFERS);
             } else {
                 httpsPort = -1;
             }

@@ -60,6 +60,10 @@ public:
         if (curl_easy_setopt(m_curl, option, args...) != CURLE_OK)
             throw std::runtime_error{"Can't curl_easy_setopt"};
     }
+    void ingnoreInvalidSslCertificate() {
+        setOptions(CURLOPT_SSL_VERIFYPEER, 0L);
+        setOptions(CURLOPT_SSL_VERIFYHOST, 0L);
+    }
     static std::string escape(std::string_view str);
 
 private:

@@ -126,8 +126,7 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
     , m_eventLoop(eventLoop)
     , m_sock(sock)
     , m_epollet(epollet)
-    , m_readResume(std::bind(&ServerSession::readLoop, this, std::placeholders::_1))
-    , m_writeResume(std::bind(&ServerSession::writeLoop, this, std::placeholders::_1))
+    , m_ioResume(std::bind(&ServerSession::ioLoop, this, std::placeholders::_1))
     , m_peerAddr(sockAddr)
 {
     TRACE(Getodac::serverLogger) << "ServerSession::ServerSession " << (void*)this
@@ -140,34 +139,27 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
     m_parser.data = this;
     http_parser_init(&m_parser, HTTP_REQUEST);
     setTimeout();
+    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
 }
 
 ServerSession::~ServerSession()
 {
     try {
-        quitRWLoops(Action::Quit);
+        quitIoLoop(Action::Quit);
         Server::instance()->serverSessionDeleted(this);
     } catch (const std::exception &e) {
         WARNING(serverLogger) << e.what();
     } catch (...) {}
 
-    if (m_sock != -1) {
-        try {
-            m_eventLoop->unregisterSession(this);
-        } catch (const std::exception &e) {
-            WARNING(serverLogger) << e.what();
-        }
-        try {
-            ::close(m_sock);
-        } catch (...) {}
+    try {
+        m_eventLoop->unregisterSession(this);
+    } catch (const std::exception &e) {
+        WARNING(serverLogger) << e.what();
     }
+    try {
+        ::close(m_sock);
+    } catch (...) {}
     TRACE(serverLogger) << "ServerSession::~ServerSession " << this;
-}
-
-ServerSession *ServerSession::sessionReady()
-{
-    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
-    return this;
 }
 
 void ServerSession::processEvents(uint32_t events) noexcept
@@ -175,28 +167,17 @@ void ServerSession::processEvents(uint32_t events) noexcept
     try {
         if (events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
             terminateSession(Action::Quit);
-            return;
-        }
-
-        if (events & (EPOLLIN | EPOLLPRI)) {
-            if (m_readResume) {
-                m_readResume(Action::Continue);
+        } else if (events & (EPOLLIN | EPOLLPRI | EPOLLOUT)) {
+            if (m_ioResume) {
+                m_ioResume(Action::Continue);
                 if (m_statusCode && m_statusCode != 200)
                     terminateSession(Action::Quit);
             } else {
                 terminateSession(Action::Quit);
             }
             return;
-        }
-
-        if (events & EPOLLOUT) {
-            if (m_writeResume) {
-                m_writeResume(Action::Continue);
-                if (m_statusCode && m_statusCode != 200)
-                    terminateSession(Action::Quit);
-            } else {
-                terminateSession(Action::Quit);
-            }
+        } else {
+            DEBUG(serverLogger) << "Unhandled events" << events;
         }
     } catch (const std::exception &e) {
         DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
@@ -227,8 +208,8 @@ void ServerSession::timeout() noexcept
 void ServerSession::wakeUp() noexcept
 {
     try {
-        if (m_writeResume)
-            m_writeResume(Action::Continue);
+        if (m_ioResume)
+            m_ioResume(Action::Continue);
         else
             terminateSession(Action::Quit);
     } catch (const std::exception &e) {
@@ -338,7 +319,7 @@ void ServerSession::writev(AbstractServerSession::Yield &yield, iovec *vec, size
     m_canWriteError = false;
     while (yield.get() == Action::Continue) {
         auto written = sockWritev(vec, count);
-        if (written < 0) {
+        if (written <= 0) {
             yield();
             continue;
         }
@@ -401,7 +382,19 @@ bool ServerSession::setReceiveBufferSize(int size)
     return 0 == setsockopt(m_sock, SOL_SOCKET, SO_RCVBUF, &size, sizeof(int));
 }
 
-void ServerSession::readLoop(YieldType &yield)
+void ServerSession::ioLoop(YieldType &yield)
+{
+    if (initSocket(yield) != Action::Continue)
+        return;
+    while(yield.get() == Action::Continue) {
+        if (processRequest(yield) != Action::Continue)
+            break;
+        if (processResponse(yield) != Action::Continue)
+            break;
+    }
+}
+
+AbstractServerSession::Action ServerSession::processRequest(YieldType &yield)
 {
     http_parser_settings settings;
     memset(&settings, 0, sizeof(settings));
@@ -416,6 +409,10 @@ void ServerSession::readLoop(YieldType &yield)
     settings.on_message_complete = &ServerSession::messageComplete;
     std::vector<char> tempBuffer;
     setTimeout();
+    m_statusCode = 0;
+    uint32_t events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR;
+    m_eventLoop->updateSession(this, events);
+    m_processRequest = true;
     while (yield.get() == Action::Continue) {
         try {
             auto tempSize = tempBuffer.size();
@@ -432,8 +429,10 @@ void ServerSession::readLoop(YieldType &yield)
             auto parsedBytes = http_parser_execute(&m_parser, &settings, m_eventLoop->sharedReadBuffer.data(), tempSize + sz);
             if (m_parser.http_errno) {
                 wakeuppper().wakeUp();
-                return;
+                return Action::Quit;
             }
+            if (!m_processRequest)
+                return Action::Continue;
             tempBuffer.clear();
             if (size_t(sz) > parsedBytes) {
                 auto tempLen = sz - parsedBytes;
@@ -447,39 +446,41 @@ void ServerSession::readLoop(YieldType &yield)
         } catch (const std::exception &e) {
             DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
             m_eventLoop->deleteLater(this);
+            return Action::Quit;
         } catch (...) {
             m_eventLoop->deleteLater(this);
+            return Action::Quit;
         }
     }
+    return Action::Quit;
 }
 
-void ServerSession::writeLoop(YieldType &yield)
+AbstractServerSession::Action ServerSession::processResponse(YieldType &yield)
 {
     YieldImpl yi{yield};
     try {
-        while (yield.get() == Action::Continue) {
+        if (yield.get() == Action::Continue) {
+            // Switch to write mode
+            uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | m_epollet;
+            m_eventLoop->updateSession(this, events);
+            setTimeout();
             if (m_serviceSession) {
                 m_serviceSession->writeResponse(yi);
                 Server::instance()->sessionServed();
                 m_serviceSession.reset();
-
-                // switch to read mode
-                m_statusCode = 0;
-                uint32_t events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR;
-                m_eventLoop->updateSession(this, events);
                 if (m_keepAliveSeconds.count()) {
                     setTimeout(m_keepAliveSeconds);
+                    return Action::Continue;
                 } else {
                     m_eventLoop->deleteLater(this);
-                    return;
+                    return Action::Quit;
                 }
             } else {
                 Server::instance()->sessionServed();
                 m_eventLoop->deleteLater(this);
-                return;
+                return Action::Quit;
             }
-            yield();
-        };
+        }
     } catch (const ResponseStatusError &e) {
         DEBUG(serverLogger) << addrText(peerAddress()) << e.what();
         setResponseStatusError(e);
@@ -501,12 +502,13 @@ void ServerSession::writeLoop(YieldType &yield)
     }
     wakeuppper().wakeUp();
     Server::instance()->sessionServed();
+    return Action::Quit;
 }
 
 void ServerSession::terminateSession(Action action)
 {
     TRACE(serverLogger) << "ServerSession::terminateSession " << this << " action:" << int(action);
-    quitRWLoops(action);
+    quitIoLoop(action);
     if (m_canWriteError && m_statusCode && m_statusCode != 200) {
         try {
             auto contentLength = m_tempStr.size();
@@ -681,10 +683,7 @@ int ServerSession::messageComplete(http_parser *parser)
     try {
         thiz->messageComplete();
         thiz->m_serviceSession->requestComplete();
-        // Switch to write mode
-        uint32_t events = EPOLLOUT | EPOLLRDHUP | EPOLLERR | thiz->m_epollet;
-        thiz->m_eventLoop->updateSession(thiz, events);
-        thiz->setTimeout();
+        thiz->m_processRequest = false;
     } catch (const ResponseStatusError &status) {
         return thiz->setResponseStatusError(status);
     } catch (const std::exception &e) {

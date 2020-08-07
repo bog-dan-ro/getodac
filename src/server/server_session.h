@@ -59,8 +59,6 @@ public:
     ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order, uint32_t epollet);
     ~ServerSession() override;
 
-    ServerSession *sessionReady();
-
     inline uint32_t order() const { return m_order; }
     inline int sock() const { return m_sock;}
     inline const TimePoint & nextTimeout() { return m_nextTimeout; }
@@ -72,8 +70,6 @@ public:
     virtual ssize_t sockRead(void  *buf, size_t size)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
-        if (m_sock == -1)
-            throw std::logic_error("Socket is closed");
         auto ret = ::read(m_sock, buf, size);
         if (ret < 0 && errno == EPIPE)
             throw std::logic_error("Socket is closed");
@@ -83,8 +79,6 @@ public:
     virtual ssize_t sockWrite(const void  *buf, size_t size)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
-        if (m_sock == -1)
-            throw std::logic_error("Socket is closed");
         auto ret = ::write(m_sock, buf, size);
         if (ret < 0 && errno == EPIPE)
             throw std::logic_error("Socket is closed");
@@ -94,8 +88,6 @@ public:
     virtual ssize_t sockWritev(const struct iovec *vec, int count)
     {
         std::unique_lock<std::mutex> lock{m_sockMutex};
-        if (m_sock == -1)
-            throw std::logic_error("Socket is closed");
         auto ret = ::writev(m_sock, vec, count);
         if (ret < 0 && errno == EPIPE)
             throw std::logic_error("Socket is closed");
@@ -128,14 +120,14 @@ public:
     bool setReceiveBufferSize(int size) override;
 
 protected:
-    virtual void readLoop(YieldType &yield);
-    void writeLoop(YieldType &yield);
-    inline void quitRWLoops(Action action)
+    void ioLoop(YieldType &yield);
+    virtual Action initSocket(YieldType &yield) {return yield.get();}
+    Action processRequest(YieldType &yield);
+    Action processResponse(YieldType &yield);
+    inline void quitIoLoop(Action action)
     {
-        while (m_readResume) // Quit read loop
-            m_readResume(action);
-        while (m_writeResume) // Quit write loop
-            m_writeResume(action);
+        while (m_ioResume) // Quit read loop
+            m_ioResume(action);
     }
     void terminateSession(Action action);
     void setTimeout(const std::chrono::milliseconds &ms = 5s) override;
@@ -148,20 +140,20 @@ protected:
     static int body(http_parser *parser, const char *at, size_t length);
     static int messageComplete(http_parser *parser);
     int httpParserStatusChanged(http_parser *parser);
-    virtual inline void messageComplete() {}
+    virtual inline void messageComplete(){};
     int setResponseStatusError(const ResponseStatusError &status);
 
-private:
+protected:
     uint32_t m_order;
     SessionsEventLoop *m_eventLoop;
     int m_sock;
     std::mutex m_sockMutex;
     TimePoint m_nextTimeout;
     uint32_t m_epollet;
+    bool m_processRequest = true;
 
     using Call = boost::coroutines2::coroutine<Action>::push_type;
-    Call m_readResume;
-    Call m_writeResume;
+    Call m_ioResume;
     uint32_t m_statusCode = 0;
     http_parser m_parser;
     HttpParserStatus m_parserStatus = HttpParserStatus::Url;

@@ -522,9 +522,9 @@ int Server::exec(int argc, char *argv[])
                         // Let's try to create a new session
                         std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
                         if (ssl)
-                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr, order, epollet))->sessionReady());
+                            m_activeSessions.insert((new SecuredServerSession(bestLoop, sock, in_addr, order, epollet)));
                         else
-                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr, order, epollet))->sessionReady());
+                            m_activeSessions.insert((new ServerSession(bestLoop, sock, in_addr, order, epollet)));
                     } catch (const std::exception &e) {
                         WARNING(serverLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);

@@ -18,16 +18,21 @@
 #include <gtest/gtest.h>
 #include <EasyCurl.h>
 
+#include "Utils.h"
+
 std::string hugeData;
 
 namespace {
 using namespace std;
 
-TEST(Responses, zero)
+using Responses = testing::TestWithParam<std::string>;
+
+TEST_P(Responses, zero)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test0"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test0")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -39,11 +44,12 @@ TEST(Responses, zero)
     }
 }
 
-TEST(Responses, test100)
+TEST_P(Responses, test100)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -55,11 +61,12 @@ TEST(Responses, test100)
     }
 }
 
-TEST(Responses, test50m)
+TEST_P(Responses, test50m)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50m"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test50m")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -71,11 +78,12 @@ TEST(Responses, test50m)
     }
 }
 
-TEST(Responses, test50m_iovec)
+TEST_P(Responses, test50m_iovec)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50ms"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test50ms")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -87,27 +95,29 @@ TEST(Responses, test50m_iovec)
     }
 }
 
-TEST(Responses, test50mChunked)
+TEST_P(Responses, test50mChunked)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test50mChunked"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test50mChunked")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
         EXPECT_EQ(reply.headers["Transfer-Encoding"], "chunked");
         EXPECT_EQ(reply.headers["Keep-Alive"], "timeout=10");
-        EXPECT_EQ(reply.body, hugeData);
+        EXPECT_EQ(reply.body.size(), hugeData.size());
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
 
-TEST(Responses, testWorker)
+TEST_P(Responses, testWorker)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testWorker"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testWorker")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.headers["Connection"], "keep-alive");
@@ -121,10 +131,11 @@ TEST(Responses, testWorker)
     }
 }
 
-void testPostPPP(const std::string &data, const std::string &status)
+void testPostPPP(const std::string &url, const std::string &data, const std::string &status)
 {
     Getodac::Test::EasyCurl curl;
-    EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testPPP"));
+    EXPECT_NO_THROW(curl.setUrl(url));
+    curl.ingnoreInvalidSslCertificate();
     auto reply = curl.request("PATCH", data);
     EXPECT_EQ(reply.status, status);
     for (uint32_t i = 0 ; i < reply.body.size(); ++i) {
@@ -132,13 +143,15 @@ void testPostPPP(const std::string &data, const std::string &status)
     }
 }
 
-TEST(Responses, testPPP)
+TEST_P(Responses, testPPP)
 {
     try {
-        testPostPPP(hugeData, "200");
+        testPostPPP(url(GetParam(), "/testPPP"), hugeData, "200");
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(Responses, Responses, testing::Values("http", "https"));
 
 } // namespace {

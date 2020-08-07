@@ -18,9 +18,12 @@
 #include <gtest/gtest.h>
 #include <EasyCurl.h>
 #include <boost/algorithm/string/predicate.hpp>
+#include "Utils.h"
 
 namespace {
 using namespace std;
+
+using Stress = testing::TestWithParam<std::string>;
 
 void parseEchoData(const std::string &data, size_t &contentLength, std::unordered_map<string, string> &headers, std::string &body)
 {
@@ -61,11 +64,12 @@ const std::string testBodyData = R"(/*
      You should have received a copy of the GNU Affero General Public License
      along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */)";
-TEST(Stress, server)
+TEST_P(Stress, server)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/echoTest"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/echoTest")));
+        curl.ingnoreInvalidSslCertificate();
         EXPECT_NO_THROW(curl.setHeaders({
                                             {"Super__________________long_______________field",
                                              "with___________super________log____---------value"}
@@ -87,5 +91,7 @@ TEST(Stress, server)
         EXPECT_NO_THROW(throw);
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(Stress, Stress, testing::Values("http", "https"));
 
 } // namespace

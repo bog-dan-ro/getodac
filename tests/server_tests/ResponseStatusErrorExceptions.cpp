@@ -19,17 +19,22 @@
 #include <gtest/gtest.h>
 #include <EasyCurl.h>
 
+#include "Utils.h"
+
 namespace {
 using namespace std;
 
 
-TEST(ResponseStatusError, constructor)
+using ResponseStatusError = testing::TestWithParam<std::string>;
+
+TEST_P(ResponseStatusError, constructor)
 {
     try {
         using clock = std::chrono::high_resolution_clock;
         auto start = clock::now();
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
 
@@ -40,20 +45,22 @@ TEST(ResponseStatusError, constructor)
         EXPECT_EQ(reply.headers["ErrorKey2"], "Value2");
         EXPECT_EQ(reply.body, "Only secured connections allowed");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "200");
-        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
+        EXPECT_LE(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count(),  duration(GetParam(), 10));
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
 
-TEST(ResponseStatusError, fromHeaderValue)
+TEST_P(ResponseStatusError, fromHeaderValue)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromHeaderFieldValue"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromHeaderFieldValue")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "400");
         EXPECT_EQ(reply.headers["ErrorKey1"], "Value1");
@@ -64,11 +71,12 @@ TEST(ResponseStatusError, fromHeaderValue)
     }
 }
 
-TEST(ResponseStatusError, fromHeadersComplete)
+TEST_P(ResponseStatusError, fromHeadersComplete)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromHeadersComplete"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromHeadersComplete")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "401");
         EXPECT_EQ(reply.headers["WWW-Authenticate"], "Basic realm=\"Restricted Area\"");
@@ -79,11 +87,12 @@ TEST(ResponseStatusError, fromHeadersComplete)
     }
 }
 
-TEST(ResponseStatusError, fromRequestComplete)
+TEST_P(ResponseStatusError, fromRequestComplete)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromRequestComplete"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromRequestComplete")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "412");
         EXPECT_EQ(reply.body.size(), 0);
@@ -92,11 +101,12 @@ TEST(ResponseStatusError, fromRequestComplete)
     }
 }
 
-TEST(ResponseStatusError, expectation)
+TEST_P(ResponseStatusError, expectation)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testExpectation"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testExpectation")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.post("some data");
         EXPECT_EQ(reply.status, "417");
         EXPECT_EQ(reply.body.size(), 0);
@@ -105,11 +115,12 @@ TEST(ResponseStatusError, expectation)
     }
 }
 
-TEST(ResponseStatusError, fromBody)
+TEST_P(ResponseStatusError, fromBody)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromBody"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromBody")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.post("some data");
         EXPECT_EQ(reply.status, "400");
         EXPECT_EQ(reply.headers["BodyKey1"], "Value1");
@@ -120,11 +131,12 @@ TEST(ResponseStatusError, fromBody)
     }
 }
 
-TEST(ResponseStatusError, fromWriteResponse)
+TEST_P(ResponseStatusError, fromWriteResponse)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponse"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromWriteResponse")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "409");
         EXPECT_EQ(reply.headers["WriteRes1"], "Value1");
@@ -135,74 +147,84 @@ TEST(ResponseStatusError, fromWriteResponse)
     }
 }
 
-TEST(ResponseStatusError, fromWriteResponseStd)
+TEST_P(ResponseStatusError, fromWriteResponseStd)
 {
     try {
         Getodac::Test::EasyCurl curl;
         using clock = std::chrono::high_resolution_clock;
         auto start = clock::now();
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseStd"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromWriteResponseStd")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "500");
         EXPECT_EQ(reply.body, "Throw from WriteResponseStd");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "200");
-        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
+        EXPECT_LE(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count(),  duration(GetParam(), 10));
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
 
-TEST(ResponseStatusError, fromWriteResponseAfterWrite)
+TEST_P(ResponseStatusError, fromWriteResponseAfterWrite)
 {
     try {
         Getodac::Test::EasyCurl curl;
         using clock = std::chrono::high_resolution_clock;
         auto start = clock::now();
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThowFromWriteResponseAfterWrite"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromWriteResponseAfterWrite")));
+        curl.ingnoreInvalidSslCertificate();
         EXPECT_THROW(curl.get(), std::runtime_error);
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "200");
-        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 10, true);
+        EXPECT_LE(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count(), duration(GetParam(), 10));
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
 
-TEST(ResponseStatusError, afterWakeup)
+TEST_P(ResponseStatusError, afterWakeup)
 {
     try {
         Getodac::Test::EasyCurl curl;
         using clock = std::chrono::high_resolution_clock;
         auto start = clock::now();
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         auto reply = curl.get();
         EXPECT_EQ(reply.status, "200");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/testThrowAfterWakeup"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThrowAfterWakeup")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "404");
 
-        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/test100"));
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/test100")));
+        curl.ingnoreInvalidSslCertificate();
         reply = curl.get();
         EXPECT_EQ(reply.status, "200");
-        EXPECT_EQ(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count() < 150, true);
+        EXPECT_LE(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count(), duration(GetParam(), 150));
     } catch(...) {
         EXPECT_NO_THROW(throw);
     }
 }
 
+INSTANTIATE_TEST_SUITE_P(ResponseStatusError, ResponseStatusError, testing::Values("http", "https"));
 
 } // namespace {

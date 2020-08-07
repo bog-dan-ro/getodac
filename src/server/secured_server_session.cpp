@@ -17,6 +17,9 @@
 
 #include "secured_server_session.h"
 #include "server.h"
+
+#include <sys/epoll.h>
+
 namespace Getodac {
 
 SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr,
@@ -28,7 +31,8 @@ SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int soc
 
     if (!SSL_set_fd(m_SSL, sock))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
-    SSL_set_accept_state(m_SSL);
+
+    m_eventLoop->updateSession(this, EPOLLIN | EPOLLOUT | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
 }
 
 SecuredServerSession::~SecuredServerSession()
@@ -62,15 +66,26 @@ int SecuredServerSession::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
     return preverify_ok;
 }
 
-void SecuredServerSession::readLoop(YieldType &yield)
+AbstractServerSession::Action SecuredServerSession::initSocket(YieldType &yield)
 {
-    m_readYield = &yield;
-    ServerSession::readLoop(yield);
+    m_ioYield = &yield;
+    int ret;
+    while ((ret = SSL_accept(m_SSL)) != 1) {
+        int err = SSL_get_error(m_SSL, ret);
+        if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+            yield();
+            continue;
+        } else {
+            m_shutdown = 0;
+            return Action::Quit;
+        }
+    }
+    return Action::Continue;
 }
 
 void SecuredServerSession::messageComplete()
 {
-    if (!m_renegotiate || !m_readYield)
+    if (!m_renegotiate)
         return;
 
     m_renegotiate =  false;
@@ -84,7 +99,7 @@ void SecuredServerSession::messageComplete()
             auto err = SSL_get_error(m_SSL, ret);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 if (++step > 5) {
-                    (*m_readYield)();
+                    (*m_ioYield)();
                     step = 0;
                 }
                 continue;
@@ -104,7 +119,7 @@ void SecuredServerSession::messageComplete()
             auto err = SSL_get_error(m_SSL, ret);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
                 if (++step > 5) {
-                    (*m_readYield)();
+                    (*m_ioYield)();
                     step = 0;
                 }
                 continue;

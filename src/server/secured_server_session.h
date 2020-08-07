@@ -78,8 +78,10 @@ public:
                 continue;
             auto sz = sockWrite(vec[i].iov_base, vec[i].iov_len);
             if (sz < 0)
-                break;
+                return written ? written : sz;
             written += sz;
+            if (sz != ssize_t(vec[i].iov_len))
+                break;
         }
         return written;
     }
@@ -96,13 +98,13 @@ public:
 
     static int verify_callback(int preverify_ok, X509_STORE_CTX *ctx);
 
-    void readLoop(YieldType &yield) override;
+    Action initSocket(YieldType &yield) override;
     void messageComplete() override;
 
 private:
     SSL *m_SSL = nullptr;
     bool m_renegotiate = false;
-    YieldType *m_readYield = nullptr;
+    YieldType *m_ioYield = nullptr;
     uint8_t m_shutdown = 5;
 };
 

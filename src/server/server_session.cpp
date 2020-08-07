@@ -173,7 +173,7 @@ ServerSession *ServerSession::sessionReady()
 void ServerSession::processEvents(uint32_t events) noexcept
 {
     try {
-        if (events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP) ) {
+        if (events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
             terminateSession(Action::Quit);
             return;
         }
@@ -415,12 +415,13 @@ void ServerSession::readLoop(YieldType &yield)
     settings.on_body = &ServerSession::body;
     settings.on_message_complete = &ServerSession::messageComplete;
     std::vector<char> tempBuffer;
+    setTimeout();
     while (yield.get() == Action::Continue) {
         try {
             auto tempSize = tempBuffer.size();
             auto sz = sockRead(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
 
-            if (sz <= 0) {
+            if (!sz) {
                 yield();
                 continue;
             }

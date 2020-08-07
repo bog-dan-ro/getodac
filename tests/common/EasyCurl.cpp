@@ -17,6 +17,7 @@
 
 #include "EasyCurl.h"
 
+#include <iostream>
 #include <cstring>
 #include <boost/algorithm/string.hpp>
 #include <vector>
@@ -75,8 +76,10 @@ EasyCurl::Response EasyCurl::request(const std::string &method, std::string uplo
     }
 
     auto err = curl_easy_perform(m_curl);
-    if (err != CURLE_OK)
+    if (err != CURLE_OK) {
+        std::cerr << curl_easy_strerror(err);
         throw std::runtime_error{curl_easy_strerror(err)};
+    }
 
     return res;
 }

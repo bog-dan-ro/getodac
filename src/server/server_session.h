@@ -74,7 +74,10 @@ public:
         std::unique_lock<std::mutex> lock{m_sockMutex};
         if (m_sock == -1)
             throw std::logic_error("Socket is closed");
-        return ::read(m_sock, buf, size);
+        auto ret = ::read(m_sock, buf, size);
+        if (ret < 0 && errno == EPIPE)
+            throw std::logic_error("Socket is closed");
+        return ret;
     }
 
     virtual ssize_t sockWrite(const void  *buf, size_t size)

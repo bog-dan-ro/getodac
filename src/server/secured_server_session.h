@@ -38,7 +38,7 @@ public:
     {
         // make sure we start reading with no pending errors
         ERR_clear_error();
-        auto sz = SSL_read(m_SSL, buf, size);
+        auto sz = SSL_read(m_SSL, buf, size < INT_MAX ? static_cast<int>(size) : INT_MAX);
         if (sz <= 0) {
             int err = SSL_get_error(m_SSL, sz);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
@@ -56,7 +56,7 @@ public:
     {
         // make sure we start writing with no pending errors
         ERR_clear_error();
-        auto sz = SSL_write(m_SSL, buf, size);
+        auto sz = SSL_write(m_SSL, buf, size < INT_MAX ? static_cast<int>(size) : INT_MAX);
         if (sz <= 0) {
             int err = SSL_get_error(m_SSL, sz);
             if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {

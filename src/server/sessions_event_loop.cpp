@@ -244,7 +244,7 @@ void SessionsEventLoop::loop()
 
         auto now = clock::now();
         auto duration = std::chrono::duration_cast<Ms>(now - before);
-        if ( duration < timeout && !wokeup) {
+        if (duration < timeout && !wokeup) {
             timeout -= duration;
         } else {
             std::unordered_set<ServerSession *> wokeupsessions;

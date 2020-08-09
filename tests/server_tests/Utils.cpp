@@ -10,6 +10,6 @@ std::string url(const std::string &type, const std::string &path)
 long duration(const std::string &type, long time)
 {
     if (type == "https")
-        return time + 100;
+        return time + 200; // SSL handshake takes a lot of time :(
     return time;
 }

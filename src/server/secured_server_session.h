@@ -70,21 +70,7 @@ public:
         return sz;
     }
 
-    ssize_t sockWritev(const iovec *vec, int count) override
-    {
-        ssize_t written = 0;
-        for (int i = 0; i < count; i++) {
-            if (!vec[i].iov_len)
-                continue;
-            auto sz = sockWrite(vec[i].iov_base, vec[i].iov_len);
-            if (sz < 0)
-                return written ? written : sz;
-            written += sz;
-            if (sz != ssize_t(vec[i].iov_len))
-                break;
-        }
-        return written;
-    }
+    ssize_t sockWritev(const iovec *vec, int count) override;
 
     bool sockShutdown() override
     {

@@ -134,4 +134,22 @@ void SecuredServerSession::messageComplete()
     }
 }
 
+ssize_t Getodac::SecuredServerSession::sockWritev(const iovec *vec, int count)
+{
+    // Don't copy the buffers if the first piece is bigger than the socket send buffer,
+    // or we have only one buffer
+    if ((count && vec[0].iov_len >= size_t(sendBufferSize())) || count == 1)
+        return sockWrite(vec[0].iov_base, vec[0].iov_len);
+
+    auto buff = m_eventLoop->sharedWriteBuffer(sendBufferSize());
+    char *pos = buff->data();
+    const char *end = pos + buff->size();
+    for (int i = 0; i < count && pos != end; i++) {
+        const size_t size = std::min<size_t>(vec[i].iov_len, end - pos);
+        memcpy(pos, vec[i].iov_base, size);
+        pos += size;
+    }
+    return sockWrite(buff->data(), pos - buff->data());
+}
+
 } // namespace Getodac

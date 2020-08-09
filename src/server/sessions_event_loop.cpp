@@ -41,23 +41,30 @@ namespace {
  *
  * Creates a new EPOLL event loop
  */
-SessionsEventLoop::SessionsEventLoop()
+static unsigned long readProc(const char *path)
 {
-    unsigned long mem_max = 4 * 1024 * 1024; // 4Mb
-#ifndef ENABLE_STRESS_TEST
-    FILE *f = fopen("/proc/sys/net/core/rmem_max", "r");
+    unsigned long value = 4 * 1024 * 1024; // 4Mb
+    FILE *f = fopen(path, "r");
     if (f) {
-        fscanf(f, "%lu", &mem_max);
+        fscanf(f, "%lu", &value);
         fclose(f);
     }
-#else
-    mem_max = 8; // super small bufer needed to test the partial parsing
+    return value;
+}
+
+SessionsEventLoop::SessionsEventLoop()
+{
+    unsigned long rmem_max = readProc("/proc/sys/net/core/rmem_max");
+#ifdef ENABLE_STRESS_TEST
+    rmem_max = 8; // super small bufer needed to test the partial parsing
 #endif
 
     // This buffer is shared by all ServerSessions which are server
     // by this event loop to read the incoming data without
     // allocating any memory
-    sharedReadBuffer.resize(mem_max);
+    sharedReadBuffer.resize(rmem_max);
+    m_sharedWriteBuffer = std::make_shared<std::vector<char>>();
+    m_sharedWriteBuffer->resize(readProc("/proc/sys/net/core/wmem_max"));
 
     m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
     if (m_epollHandler == -1)
@@ -77,7 +84,7 @@ SessionsEventLoop::SessionsEventLoop()
 //    sched_param sch;
 //    sch.sched_priority = sched_get_priority_max(SCHED_RR);
 //    pthread_setschedparam(m_loopThread.native_handle(), SCHED_RR, &sch);
-    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " shared buffer mem_max: " << mem_max << " activeSessions = " << activeSessions();
+    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " shared buffer mem_max: " << rmem_max << " activeSessions = " << activeSessions();
 }
 
 SessionsEventLoop::~SessionsEventLoop()
@@ -173,6 +180,15 @@ void SessionsEventLoop::deleteLater(ServerSession *session) noexcept
     try {
         m_deleteLaterObjects.insert(session);
     } catch (...) {}
+}
+
+std::shared_ptr<std::vector<char>> SessionsEventLoop::sharedWriteBuffer(size_t size) const
+{
+    if (m_loopThread.get_id() == std::this_thread::get_id() && size <= m_sharedWriteBuffer->size())
+        return m_sharedWriteBuffer;
+    auto vec = std::make_shared<std::vector<char>>();
+    vec->resize(size);
+    return vec;
 }
 
 void SessionsEventLoop::setWorkloadBalancing(bool on)

@@ -53,6 +53,7 @@ public:
     inline void shutdown() noexcept { m_quit.store(true); }
 
     std::vector<char> sharedReadBuffer;
+    std::shared_ptr<std::vector<char>> sharedWriteBuffer(size_t size) const;
     void setWorkloadBalancing(bool on);
 
     inline int eventFd() const { return m_eventFd; }
@@ -60,6 +61,7 @@ private:
     void loop();
 
 private:
+    std::shared_ptr<std::vector<char>> m_sharedWriteBuffer;
     int m_epollHandler;
     bool m_workloadBalancing = false;
     int m_eventFd;

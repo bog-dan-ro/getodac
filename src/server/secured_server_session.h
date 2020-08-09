@@ -92,6 +92,7 @@ private:
     bool m_renegotiate = false;
     YieldType *m_ioYield = nullptr;
     uint8_t m_shutdown = 5;
+    bool m_SslAccepted;
 };
 
 } // namespace Getodac

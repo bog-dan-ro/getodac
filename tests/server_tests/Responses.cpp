@@ -138,9 +138,8 @@ void testPostPPP(const std::string &url, const std::string &data, const std::str
     curl.ingnoreInvalidSslCertificate();
     auto reply = curl.request("PATCH", data);
     EXPECT_EQ(reply.status, status);
-    for (uint32_t i = 0 ; i < reply.body.size(); ++i) {
-        EXPECT_EQ(hugeData[i], reply.body[i]);
-    }
+    EXPECT_EQ(reply.body.size(), data.size());
+    EXPECT_EQ(hugeData, reply.body);
 }
 
 TEST_P(Responses, testPPP)

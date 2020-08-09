@@ -56,7 +56,7 @@ SessionsEventLoop::SessionsEventLoop()
 {
     unsigned long rmem_max = readProc("/proc/sys/net/core/rmem_max");
 #ifdef ENABLE_STRESS_TEST
-    rmem_max = 8; // super small bufer needed to test the partial parsing
+    rmem_max = 13; // super small bufer needed to test the partial parsing
 #endif
 
     // This buffer is shared by all ServerSessions which are server

@@ -23,8 +23,6 @@
 namespace {
 using namespace std;
 
-using Stress = testing::TestWithParam<std::string>;
-
 void parseEchoData(const std::string &data, size_t &contentLength, std::unordered_map<string, string> &headers, std::string &body)
 {
     contentLength = 0;
@@ -48,6 +46,7 @@ void parseEchoData(const std::string &data, size_t &contentLength, std::unordere
         pos = p + 1;
     }
 }
+
 const std::string testBodyData = R"(/*
      Copyright (C) 2020, BogDan Vatra <bogdan@kde.org>
 
@@ -64,12 +63,11 @@ const std::string testBodyData = R"(/*
      You should have received a copy of the GNU Affero General Public License
      along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */)";
-TEST_P(Stress, server)
+TEST(Stress, server)
 {
     try {
         Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/echoTest")));
-        curl.ingnoreInvalidSslCertificate();
+        EXPECT_NO_THROW(curl.setUrl("http://localhost:8080/echoTest"));
         EXPECT_NO_THROW(curl.setHeaders({
                                             {"Super__________________long_______________field",
                                              "with___________super________log____---------value"}
@@ -91,7 +89,5 @@ TEST_P(Stress, server)
         EXPECT_NO_THROW(throw);
     }
 }
-
-INSTANTIATE_TEST_CASE_P(Stress, Stress, testing::Values("http", "https"));
 
 } // namespace

@@ -417,8 +417,7 @@ AbstractServerSession::Action ServerSession::processRequest(YieldType &yield)
         try {
             auto tempSize = tempBuffer.size();
             auto sz = sockRead(m_eventLoop->sharedReadBuffer.data() + tempSize, m_eventLoop->sharedReadBuffer.size() - tempSize);
-
-            if (!sz) {
+            if (sz <= 0) {
                 yield();
                 continue;
             }
@@ -431,6 +430,7 @@ AbstractServerSession::Action ServerSession::processRequest(YieldType &yield)
                 wakeuppper().wakeUp();
                 return Action::Quit;
             }
+
             if (!m_processRequest)
                 return Action::Continue;
             tempBuffer.clear();

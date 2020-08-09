@@ -152,6 +152,6 @@ TEST_P(Responses, testPPP)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(Responses, Responses, testing::Values("http", "https"));
+INSTANTIATE_TEST_CASE_P(Responses, Responses, testing::Values("http", "https"));
 
 } // namespace {

@@ -225,6 +225,6 @@ TEST_P(ResponseStatusError, afterWakeup)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(ResponseStatusError, ResponseStatusError, testing::Values("http", "https"));
+INSTANTIATE_TEST_CASE_P(ResponseStatusError, ResponseStatusError, testing::Values("http", "https"));
 
 } // namespace {

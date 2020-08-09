@@ -92,6 +92,6 @@ TEST_P(Stress, server)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(Stress, Stress, testing::Values("http", "https"));
+INSTANTIATE_TEST_CASE_P(Stress, Stress, testing::Values("http", "https"));
 
 } // namespace

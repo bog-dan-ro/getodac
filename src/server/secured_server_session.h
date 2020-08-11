@@ -74,7 +74,7 @@ public:
 
     bool sockShutdown() override
     {
-        if (m_shutdown-- && !SSL_in_init(m_SSL)) {
+        if (m_shutdown-- && !SSL_is_init_finished(m_SSL)) {
             // Don't call SSL_shutdown() if handshake wasn't completed.
             if (SSL_shutdown(m_SSL) == 0)
                 return false;
@@ -92,7 +92,6 @@ private:
     bool m_renegotiate = false;
     YieldType *m_ioYield = nullptr;
     uint8_t m_shutdown = 5;
-    bool m_SslAccepted;
 };
 
 } // namespace Getodac

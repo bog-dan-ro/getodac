@@ -58,6 +58,7 @@ class ServerSession : public AbstractServerSession
 public:
     ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order, uint32_t epollet);
     ~ServerSession() override;
+    void initSession();
 
     inline uint32_t order() const { return m_order; }
     inline int sock() const { return m_sock;}
@@ -146,7 +147,7 @@ protected:
 protected:
     uint32_t m_order;
     SessionsEventLoop *m_eventLoop;
-    int m_sock;
+    int m_sock = -1;
     std::mutex m_sockMutex;
     TimePoint m_nextTimeout;
     uint32_t m_epollet;

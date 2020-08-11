@@ -32,9 +32,7 @@ SecuredServerSession::SecuredServerSession(SessionsEventLoop *eventLoop, int soc
     if (!SSL_set_fd(m_SSL, sock))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL, 0), nullptr));
 
-    m_SslAccepted = SSL_accept(m_SSL) == 1;
-    if (!m_SslAccepted)
-        m_eventLoop->updateSession(this, EPOLLIN | EPOLLOUT | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
+    SSL_accept(m_SSL);
 }
 
 SecuredServerSession::~SecuredServerSession()
@@ -71,8 +69,9 @@ int SecuredServerSession::verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 AbstractServerSession::Action SecuredServerSession::initSocket(YieldType &yield)
 {
     m_ioYield = &yield;
-    if (m_SslAccepted)
+    if (SSL_is_init_finished(m_SSL) == 1)
         return Action::Continue;
+
     int ret;
     while ((ret = SSL_accept(m_SSL)) != 1) {
         int err = SSL_get_error(m_SSL, ret);
@@ -84,8 +83,7 @@ AbstractServerSession::Action SecuredServerSession::initSocket(YieldType &yield)
             return Action::Quit;
         }
     }
-    m_SslAccepted = true;
-    return Action::Continue;
+    return SSL_is_init_finished(m_SSL) == 1 ? Action::Continue : Action:: Quit;
 }
 
 void SecuredServerSession::messageComplete()

@@ -46,6 +46,7 @@ class Server
 public:
     static Server *instance();
     int exec(int argc, char *argv[]);
+    void serverSessionCreated(ServerSession *session);
     void serverSessionDeleted(ServerSession *session);
     std::shared_ptr<AbstractServiceSession> createServiceSession(ServerSession *serverSession, const std::string &url, const std::string &method);
     uint32_t peakSessions();

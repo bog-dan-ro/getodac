@@ -129,6 +129,7 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
     , m_ioResume(std::bind(&ServerSession::ioLoop, this, std::placeholders::_1))
     , m_peerAddr(sockAddr)
 {
+    Server::instance()->serverSessionCreated(this);
     TRACE(Getodac::serverLogger) << "ServerSession::ServerSession " << (void*)this
                                  << " eventLoop: " << eventLoop
                                  << " socket:" << sock;
@@ -138,15 +139,13 @@ ServerSession::ServerSession(SessionsEventLoop *eventLoop, int sock, const socka
 
     m_parser.data = this;
     http_parser_init(&m_parser, HTTP_REQUEST);
-    setTimeout();
-    m_eventLoop->registerSession(this, EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
 }
 
 ServerSession::~ServerSession()
 {
     try {
-        quitIoLoop(Action::Quit);
         Server::instance()->serverSessionDeleted(this);
+        quitIoLoop(Action::Quit);
     } catch (const std::exception &e) {
         WARNING(serverLogger) << e.what();
     } catch (...) {}
@@ -155,11 +154,17 @@ ServerSession::~ServerSession()
         m_eventLoop->unregisterSession(this);
     } catch (const std::exception &e) {
         WARNING(serverLogger) << e.what();
-    }
+    } catch (...) {}
     try {
         ::close(m_sock);
     } catch (...) {}
     TRACE(serverLogger) << "ServerSession::~ServerSession " << this;
+}
+
+void ServerSession::initSession()
+{
+    setTimeout();
+    m_eventLoop->registerSession(this, EPOLLOUT | EPOLLIN | EPOLLPRI | EPOLLRDHUP | m_epollet | EPOLLERR);
 }
 
 void ServerSession::processEvents(uint32_t events) noexcept
@@ -384,13 +389,17 @@ bool ServerSession::setReceiveBufferSize(int size)
 
 void ServerSession::ioLoop(YieldType &yield)
 {
-    if (initSocket(yield) != Action::Continue)
-        return;
-    while(yield.get() == Action::Continue) {
-        if (processRequest(yield) != Action::Continue)
-            break;
-        if (processResponse(yield) != Action::Continue)
-            break;
+    try {
+        if (initSocket(yield) != Action::Continue)
+            return;
+        while(yield.get() == Action::Continue) {
+            if (processRequest(yield) != Action::Continue)
+                break;
+            if (processResponse(yield) != Action::Continue)
+                break;
+        }
+    } catch(...) {
+        m_eventLoop->deleteLater(this);
     }
 }
 

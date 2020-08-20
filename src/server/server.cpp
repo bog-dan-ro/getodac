@@ -377,7 +377,6 @@ int Server::exec(int argc, char *argv[])
 
                 SSL_CTX_set_read_ahead(m_SSLContext, 1);
                 SSL_CTX_set_mode(m_SSLContext, SSL_MODE_RELEASE_BUFFERS);
-                SSL_CTX_set_mode(m_SSLContext, SSL_MODE_ENABLE_PARTIAL_WRITE);
                 SSL_CTX_set_mode(m_SSLContext, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
             } else {
                 httpsPort = -1;

@@ -24,10 +24,9 @@
 namespace {
 using namespace std;
 
-
 using ResponseStatusError = testing::TestWithParam<std::string>;
 
-TEST_P(ResponseStatusError, constructor)
+TEST_P(ResponseStatusError, secureOnly)
 {
     try {
         using clock = std::chrono::high_resolution_clock;
@@ -55,38 +54,6 @@ TEST_P(ResponseStatusError, constructor)
     }
 }
 
-TEST_P(ResponseStatusError, fromHeaderValue)
-{
-    try {
-        Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromHeaderFieldValue")));
-        curl.ingnoreInvalidSslCertificate();
-        auto reply = curl.get();
-        EXPECT_EQ(reply.status, "400");
-        EXPECT_EQ(reply.headers["ErrorKey1"], "Value1");
-        EXPECT_EQ(reply.headers["ErrorKey2"], "Value2");
-        EXPECT_EQ(reply.body, "Too many headers");
-    } catch(...) {
-        EXPECT_NO_THROW(throw);
-    }
-}
-
-TEST_P(ResponseStatusError, fromHeadersComplete)
-{
-    try {
-        Getodac::Test::EasyCurl curl;
-        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testThowFromHeadersComplete")));
-        curl.ingnoreInvalidSslCertificate();
-        auto reply = curl.get();
-        EXPECT_EQ(reply.status, "401");
-        EXPECT_EQ(reply.headers["WWW-Authenticate"], "Basic realm=\"Restricted Area\"");
-        EXPECT_EQ(reply.headers["ErrorKey2"], "Value2");
-        EXPECT_EQ(reply.body, "What are you doing here?");
-    } catch(...) {
-        EXPECT_NO_THROW(throw);
-    }
-}
-
 TEST_P(ResponseStatusError, fromRequestComplete)
 {
     try {
@@ -101,7 +68,22 @@ TEST_P(ResponseStatusError, fromRequestComplete)
     }
 }
 
-TEST_P(ResponseStatusError, expectation)
+TEST_P(ResponseStatusError, expectations100)
+{
+    try {
+        Getodac::Test::EasyCurl curl;
+        EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testExpectation")));
+        curl.ingnoreInvalidSslCertificate();
+        curl.setHeaders({{"X-Continue", "100"}});
+        auto reply = curl.post("some data");
+        EXPECT_EQ(reply.status, "200");
+        EXPECT_EQ(reply.body.size(), 0);
+    } catch(...) {
+        EXPECT_NO_THROW(throw);
+    }
+}
+
+TEST_P(ResponseStatusError, expectations417)
 {
     try {
         Getodac::Test::EasyCurl curl;
@@ -114,6 +96,7 @@ TEST_P(ResponseStatusError, expectation)
         EXPECT_NO_THROW(throw);
     }
 }
+
 
 TEST_P(ResponseStatusError, fromBody)
 {

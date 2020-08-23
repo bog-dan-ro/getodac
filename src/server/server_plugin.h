@@ -15,10 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SERVER_PLUGIN_H
-#define SERVER_PLUGIN_H
+#pragma once
 
-#include <getodac/abstract_service_session.h>
+#include <memory>
+#include <getodac/plugin.h>
 
 namespace Getodac {
 
@@ -27,13 +27,13 @@ namespace Getodac {
  *
  * This class is used to load plugins
  */
-class ServerPlugin
+class server_plugin
 {
 public:
-    explicit ServerPlugin(const std::string &path, const std::string &confDir);
-    explicit ServerPlugin(CreateSessionType funcPtr, uint32_t order);
-    ~ServerPlugin();
-    CreateSessionType createSession;
+    explicit server_plugin(const std::string &path, const std::string &confDir);
+    explicit server_plugin(CreateSessionType funcPtr, uint32_t order);
+    ~server_plugin();
+    CreateSessionType create_session;
     uint32_t order() const { return m_order; }
 
 private:
@@ -42,5 +42,3 @@ private:
 };
 
 } // namespace Getodac
-
-#endif // SERVER_PLUGIN_H

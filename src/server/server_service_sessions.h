@@ -15,16 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SERVER_SERVICE_SESSIONS_H
-#define SERVER_SERVICE_SESSIONS_H
+#pragma once
 
-#include <string>
+#include <getodac/plugin.h>
 
-#include <getodac/abstract_server_session.h>
-#include <getodac/abstract_service_session.h>
-
-namespace ServerSessions {
-    std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method);
+namespace server_sessions {
+    Getodac::HttpSession create_session(const Getodac::request&);
 } // namespace Server
-
-#endif // SERVER_SERVICE_SESSIONS_H

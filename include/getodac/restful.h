@@ -21,7 +21,6 @@
     to use it, regardless of the license terms of your work, and to copy and distribute
     them under terms of your choice.
     If you do any changes to this file, these changes must be published under AGPL.
-
 */
 
 #pragma once
@@ -35,6 +34,8 @@
 #include <vector>
 
 #include <getodac/exceptions.h>
+#include <getodac/http.h>
+#include <getodac/plugin.h>
 #include <getodac/utils.h>
 
 namespace Getodac {
@@ -42,7 +43,7 @@ class AbstractServerSession;
 
 using QueryStrings = std::vector<std::pair<std::string, std::string>>;
 
-struct ParsedRoute
+struct parsed_route
 {
     /*!
      * \brief capturedResources
@@ -63,7 +64,7 @@ struct ParsedRoute
      */
     std::string allButOPTIONSNodeMethods;
 
-    bool operator ==(const ParsedRoute &other) const
+    bool operator ==(const parsed_route &other) const
     {
         return allButOPTIONSNodeMethods == other.allButOPTIONSNodeMethods &&
                 capturedResources == other.capturedResources && queryStrings == other.queryStrings;
@@ -71,12 +72,12 @@ struct ParsedRoute
 };
 
 template <typename ReturnType, typename ...Args>
-using RESTfulRouteMethodHandler = std::function<ReturnType(ParsedRoute parsedRoute, Args ...args)>;
+using RESTfulRouteMethodHandler = std::function<ReturnType(parsed_route parsedRoute, Args ...args)>;
 
-template <typename ReturnType, typename ...Args> class RESTfulRouter;
+template <typename ReturnType, typename ...Args> class restful_router;
 
 template <typename ReturnType, typename ...Args>
-class RESTfulRoute
+class restfull_route
 {
 public:
     /*!
@@ -85,11 +86,11 @@ public:
      * \param creator
      * \return
      */
-    RESTfulRoute &addMethodHandler(std::string method, RESTfulRouteMethodHandler<ReturnType, Args...> creator)
+    restfull_route &add_method_handler(std::string method, RESTfulRouteMethodHandler<ReturnType, Args...> creator)
     {
         if (m_methods.find(method) == m_methods.end()) {
             if (method != "OPTIONS")
-                m_allMethods += m_allMethods.empty() ? method : ", " + method;
+                m_all_methods += m_all_methods.empty() ? method : ", " + method;
             m_methods.emplace(std::move(method), std::move(creator));
         } else {
             m_methods[method] = std::move(creator);
@@ -98,12 +99,12 @@ public:
     }
 
     bool operator == (std::string_view route) {
-        auto other = routeParts(route);
-        if (other.size() != m_routeParts.size())
+        auto other = route_parts(route);
+        if (other.size() != m_route_parts.size())
             return false;
         for (int i = 0; i < other.size(); ++i) {
-            if (other[i].first != m_routeParts[i].first ||
-                    other[i].second != m_routeParts[i].second) {
+            if (other[i].first != m_route_parts[i].first ||
+                    other[i].second != m_route_parts[i].second) {
                 return false;
             }
         }
@@ -111,21 +112,21 @@ public:
     }
 protected:
     using RouteParts = std::vector<std::pair<bool, std::string>>;
-    RouteParts m_routeParts;
+    RouteParts m_route_parts;
     std::unordered_map<std::string, RESTfulRouteMethodHandler<ReturnType, Args...>> m_methods;
-    std::string m_allMethods;
+    std::string m_all_methods;
 
 private:
     template <typename T, typename ...A>
-    friend class RESTfulRouter;
+    friend class restful_router;
 
-    RouteParts routeParts(std::string_view route) const
+    RouteParts route_parts(std::string_view route) const
     {
         RouteParts res;
         auto routeParts = split(route, '/');
         for (const auto &part : routeParts) {
             if (part.size() < 2)
-                throw std::runtime_error{"Invalid route"};
+                throw response{400, "Invalid route"};
             if (part.front() == '{' && part.back() == '}')
                 res.emplace_back(std::make_pair(true, std::string{part.substr(1, part.size() - 2)}));
             else
@@ -140,29 +141,29 @@ private:
      * \param route the route to match, the capture resources must be inside {}
      *               e.g /api/v1/parents/{parent}/children/{child}
      */
-    RESTfulRoute(std::string_view route)
-        : m_routeParts(std::move(routeParts(route)))
+    restfull_route(std::string_view route)
+        : m_route_parts(std::move(route_parts(route)))
     {}
 
     using Captures = std::unordered_map<std::string, std::string>;
     std::optional<std::pair<Captures, RESTfulRouteMethodHandler<ReturnType, Args...>>>
-    createHandler(const SplitVector &urlParts, const std::string &method) const
+    create_handler(const SplitVector &urlParts, const std::string &method) const
     {
-        if (urlParts.size() != m_routeParts.size())
+        if (urlParts.size() != m_route_parts.size())
             return {};
         Captures captures;
         for (size_t i = 0; i < urlParts.size(); ++i) {
-            const auto &part = m_routeParts[i];
+            const auto &part = m_route_parts[i];
             if (part.first) {
                 captures[part.second] = urlParts[i];
-             } else if (part.second != urlParts[i]) {
+            } else if (part.second != urlParts[i]) {
                 return  {};
             }
         }
-        auto methodIt = m_methods.find(method);
-        if (methodIt == m_methods.end())
-            throw ResponseStatusError{405, {}, {{"Allow", m_allMethods}}};
-        return std::make_optional(std::make_pair(std::move(captures), methodIt->second));
+        auto method_it = m_methods.find(method);
+        if (method_it == m_methods.end())
+            throw response{405, {}, {{"Allow", m_all_methods}}};
+        return std::make_optional(std::make_pair(std::move(captures), method_it->second));
     }
 };
 
@@ -170,47 +171,47 @@ private:
  * \brief The RESTfulRouter class
  */
 template <typename ReturnType, typename ...Args>
-class RESTfulRouter
+class restful_router
 {
-    using RESTfulRoutePtr = std::shared_ptr<RESTfulRoute<ReturnType, Args...>>;
+    using RESTfulRoutePtr = std::shared_ptr<restfull_route<ReturnType, Args...>>;
 public:
-    RESTfulRouter(std::string baseUrl = {})
+    restful_router(std::string baseUrl = {})
     {
         auto baseUrlParts = split(baseUrl, '/');
         for (const auto &part : baseUrlParts)
-            m_baseUrl.emplace_back(std::string{part});
+            m_base_url.emplace_back(std::string{part});
     }
     /*!
      * \brief ceateRoute
      * \param route
      * \return
      */
-    RESTfulRoutePtr createRoute(std::string_view route)
+    RESTfulRoutePtr create_route(std::string_view route)
     {
         for (auto rt : m_routes)
             if (*rt == route)
                 return rt;
-        return m_routes.emplace_back(RESTfulRoutePtr{new RESTfulRoute<ReturnType, Args...>{route}});
+        return m_routes.emplace_back(RESTfulRoutePtr{new restfull_route<ReturnType, Args...>{route}});
     }
 
     /*!
      * \brief createHandle parse the given \a url and \a method and if they match
      * with a route, it creates and returns a handler. Otherwise it returns {}
      */
-    ReturnType createHandler(std::string_view url, const std::string &method, Args ...args) const
+    ReturnType create_handler(std::string_view url, const std::string &method, Args ...args) const
     {
         auto qpos = url.find('?');
         auto resources = split(url.substr(0, qpos), '/');
-        if (resources.size() < m_baseUrl.size() + 1)
+        if (resources.size() < m_base_url.size() + 1)
             return {};
-        for (size_t i = 0; i < m_baseUrl.size(); ++i)
-            if (resources[i] != m_baseUrl[i])
+        for (size_t i = 0; i < m_base_url.size(); ++i)
+            if (resources[i] != m_base_url[i])
                 return {};
-        resources.erase(resources.begin(), resources.begin() + m_baseUrl.size());
+        resources.erase(resources.begin(), resources.begin() + m_base_url.size());
         for (const auto &route : m_routes) {
-            if (auto handle = route->createHandler(resources, method)) {
-                ParsedRoute parsedRoute;
-                parsedRoute.allButOPTIONSNodeMethods = route->m_allMethods;
+            if (auto handle = route->create_handler(resources, method)) {
+                parsed_route parsedRoute;
+                parsedRoute.allButOPTIONSNodeMethods = route->m_all_methods;
                 parsedRoute.capturedResources = std::move(handle->first);
                 if (qpos != std::string::npos) {
                     auto &queryStrings = parsedRoute.queryStrings;
@@ -222,10 +223,10 @@ public:
                             break;
                         case 2:
                             queryStrings.emplace_back(std::make_pair(unEscapeUrl(kv[0]),
-                                                                                unEscapeUrl(kv[1])));
+                                                      unEscapeUrl(kv[1])));
                             break;
                         default:
-                            throw ResponseStatusError{400, "Invalid query strings"};
+                            throw response{400, "Invalid query strings"};
                         }
                     }
                 }
@@ -236,7 +237,18 @@ public:
     }
 
 protected:
-    std::vector<std::string> m_baseUrl;
+    std::vector<std::string> m_base_url;
     std::vector<RESTfulRoutePtr> m_routes;
 };
+
+using RESTfulRouterType = restful_router<HttpSession>;
+
+template <typename T>
+RESTfulRouteMethodHandler<HttpSession> session_handler(T && function)
+{
+    return [function = std::move(function)](parsed_route &&route) -> HttpSession {
+        return std::bind<void>(function, std::move(route), std::placeholders::_1, std::placeholders::_2);
+    };
+}
+
 } // namespace Getodac

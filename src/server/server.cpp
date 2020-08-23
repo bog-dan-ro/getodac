@@ -57,12 +57,12 @@
 #include <getodac/exceptions.h>
 #include <getodac/logging.h>
 
-#include "secured_server_session.h"
 #include "server.h"
 #include "server_logger.h"
 #include "server_session.h"
 #include "server_service_sessions.h"
 #include "sessions_event_loop.h"
+#include "streams.h"
 
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL
 # error "Only SSL 1.1+ is supported"
@@ -94,7 +94,7 @@ using deleted_unique_ptr = std::unique_ptr<T,std::function<void(T*)>>;
 
 namespace Getodac {
 
-TaggedLogger<> serverLogger{"Server"};
+TaggedLogger<> server_logger{"Server"};
 
 namespace {
     uint32_t queuedConnections = 20000;
@@ -167,7 +167,7 @@ namespace {
             throw Getodac::FloatingPointError(stackTrace(3));
         }
         if (sig == SIGTERM || sig == SIGINT) {
-            Server::exitSignalHandler();
+            server::exit_signal_handler();
             return;
         }
         throw std::runtime_error(stackTrace(3));
@@ -179,10 +179,10 @@ namespace {
  *
  * Exit the server
  */
-void Server::exitSignalHandler()
+void server::exit_signal_handler()
 {
     // Quit server loop
-    INFO(serverLogger) << "shutting down the server";
+    INFO(server_logger) << "shutting down the server";
     instance()->m_shutdown.store(true);
 }
 
@@ -195,7 +195,7 @@ void Server::exitSignalHandler()
  *
  * \return the bound socket
  */
-int Server::bind(SocketType type, int port)
+int server::bind(SocketType type, int port)
 {
     int sock = -1;
     if ((sock = ::socket(type == IPV4 ? AF_INET : AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0)
@@ -235,10 +235,10 @@ int Server::bind(SocketType type, int port)
     event.data.fd = sock;
     event.events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET;
 
-    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, sock, &event))
+    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, sock, &event))
         throw std::runtime_error{"Can't  epoll_ctl"};
 
-    ++m_eventsSize;
+    ++m_events_size;
     return sock;
 }
 
@@ -247,9 +247,9 @@ int Server::bind(SocketType type, int port)
  *
  * \return the server instance
  */
-Server *Server::instance()
+server *server::instance()
 {
-    static Server server;
+    static server server;
     return &server;
 }
 
@@ -264,7 +264,7 @@ Server *Server::instance()
  *
  * \return the status
  */
-int Server::exec(int argc, char *argv[])
+int server::exec(int argc, char *argv[])
 {
     static bool running = false;
     if (running)
@@ -275,7 +275,7 @@ int Server::exec(int argc, char *argv[])
     boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
 
     // Server start time, will be used by server sessions
-    m_startTime = std::chrono::system_clock::now();
+    m_start_time = std::chrono::system_clock::now();
 
     namespace po = boost::program_options;
     namespace fs = boost::filesystem;
@@ -308,7 +308,7 @@ int Server::exec(int argc, char *argv[])
         po::notify(vm);
         if (vm.count("help")) {
             std::cout << desc << std::endl;
-            exitSignalHandler();
+            exit_signal_handler();
             return 0;
         }
         printPID = vm.count("pid");
@@ -325,7 +325,6 @@ int Server::exec(int argc, char *argv[])
     gid_t gid = gid_t(-1);
     uid_t uid = uid_t(-1);
     boost::log::settings loggingSettings;
-    uint32_t epollet = 0;
     if (!confDir.empty()) {
         auto curPath = boost::filesystem::current_path();
         boost::filesystem::current_path(confDir);
@@ -341,43 +340,43 @@ int Server::exec(int argc, char *argv[])
         queuedConnections = properties.get("queued_connections", queuedConnections);
         maxConnectionsPerIp = properties.get("max_connections_per_ip", maxConnectionsPerIp);
         workloadBalancing = properties.get("workload_balancing", workloadBalancing);
-        epollet = properties.get("use_epoll_edge_trigger", false) ? EPOLLET : 0;
-        TRACE(serverLogger) << "http port:" << httpPort;
+        TRACE(server_logger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
-            TRACE(serverLogger) << "https section found in config";
+            TRACE(server_logger) << "https section found in config";
             if (properties.get("https.enabled", false)) {
                 httpsPort = properties.get("https.port", httpsPort);
-                TRACE(serverLogger) << "https enabled in configm port=" << httpsPort;
+                TRACE(server_logger) << "https enabled in configm port=" << httpsPort;
 
                 // Init SSL Context
                 SSL_library_init();
                 SSL_load_error_strings();
+                ERR_load_crypto_strings();
                 OpenSSL_add_all_algorithms();
                 std::string ctxMethod = boost::algorithm::to_lower_copy(properties.get<std::string>("https.ssl.ctx_method"));
-                DEBUG(serverLogger) << "SSL_CTX_new(" << ctxMethod << ")";
-                if (!(m_SSLContext = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
+                DEBUG(server_logger) << "SSL_CTX_new(" << ctxMethod << ")";
+                if (!(m_ssl_context = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
                     throw std::runtime_error("Can't create SSL Context");
 
                 // load SSL CTX configuration
                 auto ctxConf = deleted_unique_ptr<SSL_CONF_CTX>(SSL_CONF_CTX_new(), [](SSL_CONF_CTX *ptr){SSL_CONF_CTX_free(ptr);});
                 if (!ctxConf)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
-                SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_SSLContext);
+                SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_ssl_context);
                 SSL_CONF_CTX_set_flags(ctxConf.get(), SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_SERVER | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_REQUIRE_PRIVATE | SSL_CONF_FLAG_SHOW_ERRORS);
 
                 auto cxt_settings = mergedProperties(properties.get_child("https.ssl.cxt_settings"));
                 for (const auto &kv : cxt_settings) {
-                    DEBUG(serverLogger) << "SSL_CONF_cmd(" << kv.first << ", " << kv.second << ")";
+                    DEBUG(server_logger) << "SSL_CONF_cmd(" << kv.first << ", " << kv.second << ")";
                     if (SSL_CONF_cmd(ctxConf.get(), kv.first.c_str(), kv.second.empty() ? nullptr : kv.second.c_str()) < 1)
                         throw std::runtime_error{ERR_error_string(ERR_get_error(), nullptr)};
                 }
 
-                if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_SSLContext) != 1)
+                if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_ssl_context) != 1)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
-                SSL_CTX_set_read_ahead(m_SSLContext, 1);
-                SSL_CTX_set_mode(m_SSLContext, SSL_MODE_RELEASE_BUFFERS);
-                SSL_CTX_set_mode(m_SSLContext, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+                SSL_CTX_set_read_ahead(m_ssl_context, 1);
+                SSL_CTX_set_mode(m_ssl_context, SSL_MODE_RELEASE_BUFFERS);
+                SSL_CTX_set_mode(m_ssl_context, SSL_MODE_ENABLE_PARTIAL_WRITE);
             } else {
                 httpsPort = -1;
             }
@@ -413,15 +412,15 @@ int Server::exec(int argc, char *argv[])
                 if (fs::is_regular_file(dir_itr->status()))
                     m_plugins.emplace_back(dir_itr->path().string(), confDir);
             } catch (const std::exception &e) {
-                ERROR(serverLogger) << e.what();
+                ERROR(server_logger) << e.what();
             }
         }
     }
 
     // at the end add the server sessions
     if (enableServerStatus)
-        m_plugins.emplace_back(&ServerSessions::createSession, UINT32_MAX / 2);
-    std::sort(m_plugins.begin(), m_plugins.end(), [](const ServerPlugin &a, const ServerPlugin &b){return a.order() < b.order();});
+        m_plugins.emplace_back(&server_sessions::create_session, UINT32_MAX / 2);
+    std::sort(m_plugins.begin(), m_plugins.end(), [](const server_plugin &a, const server_plugin &b){return a.order() < b.order();});
 
     // accept thread must have insane priority to be able to accept connections
     // as fast as possible
@@ -433,47 +432,47 @@ int Server::exec(int argc, char *argv[])
     if (httpPort > 0) {
         bind(IPV4, httpPort);
         bind(IPV6, httpPort);
-        INFO(serverLogger) << "listen on :"<< httpPort << " port";
+        INFO(server_logger) << "listen on :"<< httpPort << " port";
     }
 
     if (httpsPort > 0) {
         // Bind IPv4 & IPv6 https ports
-        https4Sock = bind(IPV4, httpsPort);
-        https6Sock = bind(IPV6, httpsPort);
-        INFO(serverLogger) << "listen on :"<< httpsPort << " port";
+        m_https_4_sock = bind(IPV4, httpsPort);
+        m_https_6_sock = bind(IPV6, httpsPort);
+        INFO(server_logger) << "listen on :"<< httpsPort << " port";
     }
 
     if (!getuid() && gid != gid_t(-1) && uid != uid_t(-1)) {
         if (setgid(gid) || setuid(uid))
              throw std::runtime_error("Can't drop privileges");
-        INFO(serverLogger) << "Droping privileges";
+        INFO(server_logger) << "Droping privileges";
     }
 
     boost::log::init_from_settings(loggingSettings);
-    INFO(serverLogger) << "Logging setup succeeded";
+    INFO(server_logger) << "Logging setup succeeded";
 
-    auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
+    auto eventLoops = std::make_unique<sessions_event_loop[]>(eventLoopsSize);
     for (uint32_t i = 0; i < eventLoopsSize; ++i)
         eventLoops[i].setWorkloadBalancing(workloadBalancing);
 
-    INFO(serverLogger) << "using " << eventLoopsSize << " worker threads";
+    INFO(server_logger) << "using " << eventLoopsSize << " worker threads";
 
-    INFO(serverLogger) << "using " << queuedConnections << " queued connections";
+    INFO(server_logger) << "using " << queuedConnections << " queued connections";
 
     // allocate epoll list
-    const auto epollList = std::make_unique<epoll_event[]>(m_eventsSize);
+    const auto epollList = std::make_unique<epoll_event[]>(m_events_size);
 
     if (printPID)
         std::cout << "pid:" << getpid() << std::endl << std::flush;
 
     // Wait for incoming connections
     while (!m_shutdown) {
-        int triggeredEvents = epoll_wait(m_epollHandler, epollList.get(), m_eventsSize, 1000);
+        int triggeredEvents = epoll_wait(m_epoll_handler, epollList.get(), m_events_size, 1000);
         {
-            std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
-            auto sessions = m_activeSessions.size();
-            if (sessions > m_peakSessions)
-                m_peakSessions = sessions;
+            std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
+            auto sessions = m_active_sessions.size();
+            if (sessions > m_peak_sessions)
+                m_peak_sessions = sessions;
 
             if (sessions <= 1)  // No more pending sessions?
                 malloc_trim(0); // release the memory to OS
@@ -491,7 +490,7 @@ int Server::exec(int argc, char *argv[])
                 socklen_t in_len = sizeof(struct sockaddr_storage);
                 while (!m_shutdown) {
                     int fd = epollList[i].data.fd;
-                    bool ssl = fd == https4Sock || fd == https6Sock;
+                    bool ssl = fd == m_https_4_sock || fd == m_https_6_sock;
                     int sock = ::accept4(fd, (struct sockaddr *)&in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
                     if (-1 == sock)
                         break;
@@ -499,37 +498,37 @@ int Server::exec(int argc, char *argv[])
                     uint32_t order;
                     {
                         auto addr = addrText(in_addr);
-                        std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
-                        if (m_connectionsPerIp[addr] > maxConnectionsPerIp) {
+                        std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
+                        if (m_connections_per_ip[addr] > maxConnectionsPerIp) {
                             ::close(sock);
                             continue;
                         }
-                        order = m_connectionsPerIp[addr]++;
+                        order = m_connections_per_ip[addr]++;
                     }
 
                     //TODO: here we can check if sock address is banned
                     //and we can drop the connection
 
                     // Find the least used session
-                    SessionsEventLoop *bestLoop = eventLoops.get();
+                    sessions_event_loop *bestLoop = eventLoops.get();
                     for (uint32_t i = 1; i < eventLoopsSize; ++i) {
-                        SessionsEventLoop &loop = eventLoops[i];
-                        if (bestLoop->activeSessions() > loop.activeSessions())
+                        sessions_event_loop &loop = eventLoops[i];
+                        if (bestLoop->active_sessions() > loop.active_sessions())
                             bestLoop = &loop;
                     }
                     try {
                         // Let's try to create a new session
                         if (ssl)
-                            (new SecuredServerSession(bestLoop, sock, in_addr, order, epollet))->initSession();
+                            (new server_session<ssl_socket_session>(bestLoop, sock, in_addr, order))->init_session();
                         else
-                            (new ServerSession(bestLoop, sock, in_addr, order, epollet))->initSession();
+                            (new server_session<socket_session>(bestLoop, sock, in_addr, order))->init_session();
                     } catch (const std::exception &e) {
-                        WARNING(serverLogger) << " Can't create session, reason: " << e.what();
+                        WARNING(server_logger) << " Can't create session, reason: " << e.what();
                         ::close(sock);
                     } catch (...) {
                         // if we can't create a new session
                         // then just close the socket
-                        WARNING(serverLogger) << " Can't create session, for unknown reason";
+                        WARNING(server_logger) << " Can't create session, for unknown reason";
                         ::close(sock);
                     }
                 }
@@ -544,17 +543,17 @@ int Server::exec(int argc, char *argv[])
     eventLoops.reset();
 
     // Delete all active sessions
-    for (auto &session : m_activeSessions)
+    for (auto &session : m_active_sessions)
         delete session;
 
     m_plugins.clear();
     return 0;
 }
 
-void Server::serverSessionCreated(ServerSession *session)
+void server::server_session_created(basic_server_session *session)
 {
-    std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
-    m_activeSessions.insert(session);
+    std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
+    m_active_sessions.insert(session);
 }
 
 /*!
@@ -563,31 +562,27 @@ void Server::serverSessionCreated(ServerSession *session)
  * Called by the ServerSession when is deleted
  * \param session that was deleted
  */
-void Server::serverSessionDeleted(ServerSession *session)
+void server::server_session_deleted(basic_server_session *session)
 {
     {
-        std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
-        m_activeSessions.erase(session);
+        std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
+        m_active_sessions.erase(session);
     }
 
     {
-        auto addr = addrText(session->peerAddress());
-        std::unique_lock<SpinLock> lock{m_connectionsPerIpMutex};
-        auto it = m_connectionsPerIp.find(addr);
-        assert(it != m_connectionsPerIp.end());
+        auto addr = addrText(session->peer_address());
+        std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
+        auto it = m_connections_per_ip.find(addr);
+        assert(it != m_connections_per_ip.end());
         if (--(it->second) == 0)
-            m_connectionsPerIp.erase(it);
+            m_connections_per_ip.erase(it);
     }
 }
 
-/*!
- * \brief Called by the ServerSession when it has an url and method
- * \return a ServicesSession that can handle the url and the method
- */
-std::shared_ptr<AbstractServiceSession> Server::createServiceSession(ServerSession * serverSession, const std::string &url, const std::string &method)
+std::function<void (abstract_stream &, request &)> server::create_session(const request &request)
 {
     for (const auto &plugin : m_plugins) {
-        if (auto service = plugin.createSession(serverSession, url, method))
+        if (auto service = plugin.create_session(request))
             return service;
     }
     return {};
@@ -597,33 +592,33 @@ std::shared_ptr<AbstractServiceSession> Server::createServiceSession(ServerSessi
  * \brief Server::peakSessions
  * \return the peak of simulatneous connections since the beginning
  */
-uint32_t Server::peakSessions()
+uint32_t server::peak_sessions()
 {
-    return m_peakSessions;
+    return m_peak_sessions;
 }
 
 /*!
  * \brief Server::activeSessions
  * \return the number of active connections
  */
-uint32_t Server::activeSessions()
+uint32_t server::active_sessions()
 {
-    std::unique_lock<SpinLock> lock{m_activeSessionsMutex};
-    return m_activeSessions.size();
+    std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
+    return m_active_sessions.size();
 }
 
 /*!
  * \brief Getodac::Server::uptime
  * \return the number of seconds since the server started
  */
-std::chrono::seconds Getodac::Server::uptime() const
+std::chrono::seconds Getodac::server::uptime() const
 {
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - m_startTime);
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - m_start_time);
 }
 
-SSL_CTX *Getodac::Server::sslContext() const
+SSL_CTX *Getodac::server::ssl_context() const
 {
-    return m_SSLContext;
+    return m_ssl_context;
 }
 
 /*!
@@ -631,9 +626,9 @@ SSL_CTX *Getodac::Server::sslContext() const
  *
  * Creates the server object & the server events loop
  */
-Server::Server()
+server::server()
 {
-    m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
+    m_epoll_handler = epoll_create1(EPOLL_CLOEXEC);
 
     // register signal handlers
     struct sigaction sa;
@@ -666,11 +661,11 @@ Server::Server()
  *
  * Cleanup everything
  */
-Server::~Server()
+server::~server()
 {
     try {
-        if (m_SSLContext)
-            SSL_CTX_free(m_SSLContext);
+        if (m_ssl_context)
+            SSL_CTX_free(m_ssl_context);
         CRYPTO_set_locking_callback(nullptr);
         CRYPTO_set_id_callback(nullptr);
     } catch (...) {}

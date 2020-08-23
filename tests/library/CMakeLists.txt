@@ -1,6 +1,6 @@
 include_directories(${GTEST_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
 
-set(TEST_SRCS GETodacTests.cpp GETodacUtils.cpp GETodacOStreamBuffer.cpp GETodacRESTfullRoute.cpp)
+set(TEST_SRCS GETodacTests.cpp GETodacUtils.cpp GETodacRESTfullRoute.cpp)
 
 add_executable(GETodacLibrartyTests ${TEST_SRCS})
 add_sanitizers(GETodacLibrartyTests)

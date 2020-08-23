@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/time.h>
 
 #include <chrono>
@@ -33,7 +34,7 @@ using namespace std::chrono_literals;
 namespace Getodac {
 
 namespace {
-    const uint32_t EventsSize = 10000;
+const uint32_t EventsSize = 10000;
 }
 
 /*!
@@ -52,50 +53,49 @@ static unsigned long readProc(const char *path)
     return value;
 }
 
-SessionsEventLoop::SessionsEventLoop()
+sessions_event_loop::sessions_event_loop()
 {
     unsigned long rmem_max = readProc("/proc/sys/net/core/rmem_max");
 #ifdef ENABLE_STRESS_TEST
     rmem_max = 13; // super small bufer needed to test the partial parsing
 #endif
 
-    // This buffer is shared by all ServerSessions which are server
+    // This buffer is shared by all basic_server_sessions which are server
     // by this event loop to read the incoming data without
     // allocating any memory
-    sharedReadBuffer.resize(rmem_max);
-    m_sharedWriteBuffer = std::make_shared<std::vector<char>>();
-    m_sharedWriteBuffer->resize(readProc("/proc/sys/net/core/wmem_max"));
+    shared_read_buffer.resize(rmem_max);
+    m_shared_write_buffer = std::make_shared<char_buffer>(readProc("/proc/sys/net/core/wmem_max"));
 
-    m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
-    if (m_epollHandler == -1)
+    m_epoll_handler = epoll_create1(EPOLL_CLOEXEC);
+    if (m_epoll_handler == -1)
         throw std::runtime_error{"Can't create epool handler"};
 
-    m_eventFd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    m_event_fd = eventfd(0, EFD_NONBLOCK);
     epoll_event event;
     event.data.ptr = nullptr;
-    event.data.fd = m_eventFd;
-    event.events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET;
-    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, m_eventFd, &event))
+    event.data.fd = m_event_fd;
+    event.events = EPOLLHUP | EPOLLERR | EPOLLIN | EPOLLET;
+    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, m_event_fd, &event))
         throw std::runtime_error{"Can't register the event handler"};
 
-    m_loopThread = std::thread([this]{loop();});
+    m_loop_thread = std::thread([this]{loop();});
 
 //    // set insane priority ?
 //    sched_param sch;
 //    sch.sched_priority = sched_get_priority_max(SCHED_RR);
 //    pthread_setschedparam(m_loopThread.native_handle(), SCHED_RR, &sch);
-    TRACE(serverLogger) << "SessionsEventLoop::SessionsEventLoop " << this << " shared buffer mem_max: " << rmem_max << " activeSessions = " << activeSessions();
+    TRACE(server_logger) << this << " shared buffer mem_max: " << rmem_max << " eventfd = " << m_event_fd;
 }
 
-SessionsEventLoop::~SessionsEventLoop()
+sessions_event_loop::~sessions_event_loop()
 {
+    shutdown();
     try {
         // Quit event loop
-        m_quit.store(true);
-        m_loopThread.join();
+        m_loop_thread.join();
 
         // Destroy all registered sessions
-        std::unique_lock<std::mutex> lock{m_sessionsMutex};
+        std::unique_lock<std::mutex> lock{m_sessions_mutex};
         auto it = m_sessions.begin();
         while (it != m_sessions.end()) {
             auto session = it++;
@@ -103,50 +103,50 @@ SessionsEventLoop::~SessionsEventLoop()
             delete (*session);
             lock.lock();
         }
-        close(m_eventFd);
+        close(m_event_fd);
     } catch (...) {}
-    TRACE(serverLogger) << "SessionsEventLoop::~SessionsEventLoop " << this;
+    TRACE(server_logger) << this;
 }
 
 /*!
  * \brief SessionsEventLoop::registerSession
  *
- * Register a new ServerSession to this even loop
+ * Register a new basic_server_session to this even loop
  *
  * \param session to register
  * \param events the events that epoll will listen for
  */
-void SessionsEventLoop::registerSession(ServerSession *session, uint32_t events)
+void sessions_event_loop::register_session(basic_server_session *session, uint32_t events)
 {
+    TRACE(server_logger) << session << " events" << events << active_sessions();
     {
-        std::unique_lock<std::mutex> lock{m_sessionsMutex};
+        std::unique_lock<std::mutex> lock{m_sessions_mutex};
         m_sessions.insert(session);
     }
     epoll_event event;
     event.data.ptr = session;
     event.events = events;
-    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, session->sock(), &event))
+    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, session->sock(), &event))
         throw std::runtime_error{"Can't register session"};
-    ++m_activeSessions;
-    TRACE(serverLogger) << "SessionsEventLoop::registerSession(" << session << ", " << events << "), activeSessions = " << activeSessions();
+    ++m_active_sessions;
 }
 
 /*!
  * \brief SessionsEventLoop::updateSession
  *
- * Updates a registered ServerSession
+ * Updates a registered basic_server_session
  *
  * \param session to update
  * \param events new epoll events
  */
-void SessionsEventLoop::updateSession(ServerSession *session, uint32_t events)
+void sessions_event_loop::update_session(basic_server_session *session, uint32_t events)
 {
+    TRACE(server_logger) << session << " events:" << events;
     epoll_event event;
     event.data.ptr = session;
     event.events = events;
-    if (epoll_ctl(m_epollHandler, EPOLL_CTL_MOD, session->sock(), &event))
+    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_MOD, session->sock(), &event))
         throw std::runtime_error{"Can't change the session"};
-    TRACE(serverLogger) << "SessionsEventLoop::registerSession(" << session << ", " << events << ")";
 }
 
 /*!
@@ -154,16 +154,19 @@ void SessionsEventLoop::updateSession(ServerSession *session, uint32_t events)
  *
  * \param session to unregister
  */
-void SessionsEventLoop::unregisterSession(ServerSession *session)
+void sessions_event_loop::unregister_session(basic_server_session *session)
 {
+    TRACE(server_logger) << session << " activeSessions:" << active_sessions();
     {
-        std::unique_lock<std::mutex> lock{m_sessionsMutex};
-        m_sessions.erase(session);
+        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        if (!m_sessions.erase(session))
+            return;
     }
-    if (epoll_ctl(m_epollHandler, EPOLL_CTL_DEL, session->sock(), nullptr))
-        throw std::runtime_error{"Can't remove the session"};
-    --m_activeSessions;
-    TRACE(serverLogger) << "SessionsEventLoop::unregisterSession(" << session << "), activeSessions = " << activeSessions();
+    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_DEL, session->sock(), nullptr)) {
+        ERROR(server_logger) << "Can't remove " << session << " socket " << session->sock() << "error " << strerror(errno);
+        throw std::make_error_code(std::errc(errno));
+    }
+    --m_active_sessions;
 }
 
 /*!
@@ -173,33 +176,38 @@ void SessionsEventLoop::unregisterSession(ServerSession *session)
  *
  * \param session to delete later
  */
-void SessionsEventLoop::deleteLater(ServerSession *session) noexcept
+void sessions_event_loop::delete_later(basic_server_session *session) noexcept
 {
+    unregister_session(session);
     // Idea "stolen" from Qt :)
-    std::unique_lock<SpinLock> lock{m_deleteLaterMutex};
+    std::unique_lock<SpinLock> lock{m_deleteLater_mutex};
     try {
-        m_deleteLaterObjects.insert(session);
+        m_delete_later_objects.insert(session);
     } catch (...) {}
 }
 
-std::shared_ptr<std::vector<char>> SessionsEventLoop::sharedWriteBuffer(size_t size) const
+void sessions_event_loop::shutdown() noexcept
 {
-    if (m_loopThread.get_id() == std::this_thread::get_id() && size <= m_sharedWriteBuffer->size())
-        return m_sharedWriteBuffer;
-    auto vec = std::make_shared<std::vector<char>>();
-    vec->resize(size);
-    return vec;
+    m_quit.store(true);
+    eventfd_write(m_event_fd, 1);
 }
 
-void SessionsEventLoop::setWorkloadBalancing(bool on)
+std::shared_ptr<char_buffer> sessions_event_loop::shared_write_buffer(size_t size) const
 {
-    m_workloadBalancing = on;
+    if (m_loop_thread.get_id() == std::this_thread::get_id() && size <= m_shared_write_buffer->size())
+        return m_shared_write_buffer;
+    return std::make_shared<char_buffer>(size);
+}
+
+void sessions_event_loop::setWorkloadBalancing(bool on)
+{
+    m_workload_balancing = on;
 }
 
 /*!
  * \brief SessionsEventLoop::sharedReadBuffer
  *
- * Quite useful buffer, used by all ServerSession to temporary read all sock data.
+ * Quite useful buffer, used by all basic_server_session to temporary read all sock data.
  */
 
 /*!
@@ -216,85 +224,88 @@ void SessionsEventLoop::setWorkloadBalancing(bool on)
  */
 
 
-void SessionsEventLoop::loop()
+void sessions_event_loop::loop()
 {
     using Ms = std::chrono::milliseconds;
-    using clock = std::chrono::high_resolution_clock;
-    using TimePoint = std::chrono::time_point<clock>;
+    using Clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<Clock>;
     auto events = std::make_unique<epoll_event[]>(EventsSize);
-    Ms timeout(1s); // Initial timeout
+    Ms timeout(-1ms); // Initial timeout
     while (!m_quit) {
-        auto before = clock::now();
         bool wokeup = false;
-        int triggeredEvents = epoll_wait(m_epollHandler, events.get(), EventsSize, timeout.count());
+        TRACE(server_logger) << "timeout = " << timeout.count();
+        int triggeredEvents = epoll_wait(m_epoll_handler, events.get(), EventsSize, timeout.count());
         if (triggeredEvents < 0)
             continue;
-        if (!m_workloadBalancing) {
+        if (!m_workload_balancing) {
             for (int i = 0 ; i < triggeredEvents; ++i) {
                 auto &event = events[i];
-                if (event.data.fd != m_eventFd)
-                    reinterpret_cast<ServerSession *>(event.data.ptr)->processEvents(event.events);
-                wokeup = true;
+                if (event.data.fd != m_event_fd)
+                    reinterpret_cast<basic_server_session *>(event.data.ptr)->process_events(event.events);
+                else
+                    wokeup = true;
             }
         } else {
-            std::vector<std::pair<ServerSession *, uint32_t>> sessionEvents;
+            std::vector<std::pair<basic_server_session *, uint32_t>> sessionEvents;
             sessionEvents.reserve(triggeredEvents);
             for (int i = 0 ; i < triggeredEvents; ++i) {
                 auto &event = events[i];
-                if (event.data.fd != m_eventFd) {
-                    auto ptr = reinterpret_cast<ServerSession *>(event.data.ptr);
+                if (event.data.fd != m_event_fd) {
+                    auto ptr = reinterpret_cast<basic_server_session *>(event.data.ptr);
                     auto evs = event.events;
-                    std::pair<ServerSession *, uint32_t> event{ptr, evs};
-                    sessionEvents.insert(std::upper_bound(sessionEvents.begin(), sessionEvents.end(), event,
+                    std::pair<basic_server_session *, uint32_t> event{ptr, evs};
+                    sessionEvents.insert(std::upper_bound(sessionEvents.begin(),
+                                                          sessionEvents.end(),
+                                                          event,
                                                           [](auto a, auto b) {
-                        return a.first->order() < b.first->order();
-                    }),
+                                                                return a.first->order() < b.first->order();
+                                                          }),
                                          event);
                 } else {
                     wokeup = true;
                 }
             }
             for (auto event : sessionEvents)
-                event.first->processEvents(event.second);
+                event.first->process_events(event.second);
         }
 
-        auto now = clock::now();
-        auto duration = std::chrono::duration_cast<Ms>(now - before);
-        if (duration < timeout && !wokeup) {
-            timeout -= duration;
-        } else {
-            std::unordered_set<ServerSession *> wokeupsessions;
-            if (wokeup) {
-                uint64_t data;
-                while(eventfd_read(m_eventFd, &data) == 0)
-                    wokeupsessions.insert(reinterpret_cast<ServerSession *>(data));
+        std::unordered_set<basic_server_session *> wokeup_sessions;
+        if (wokeup) {
+            uint64_t data;
+            while(eventfd_read(m_event_fd, &data) == 0) {
+                if (data != 1)
+                    wokeup_sessions.insert(reinterpret_cast<basic_server_session *>(data));
             }
-            // Some session(s) have timeout
-            timeout = 1s; // maximum timeout
-            std::unique_lock<std::mutex> lock{m_sessionsMutex};
-            std::vector<ServerSession *> sessions;
-            sessions.reserve(m_sessions.size());
-            for (auto session : m_sessions)
-                sessions.push_back(session);
-            lock.unlock(); // Allow the server to insert new connections
+        }
+        // Some session(s) have timeout
+        timeout = -1ms; // maximum timeout
+        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        std::vector<basic_server_session *> sessions;
+        sessions.reserve(m_sessions.size());
+        for (auto session : m_sessions)
+            sessions.push_back(session);
+        lock.unlock(); // Allow the server to insert new connections
 
-            auto now = clock::now();
-            for (auto session : sessions) {
-                if (wokeup && wokeupsessions.find(session) != wokeupsessions.end())
-                    session->wakeUp();
-                auto sessionTimeout = session->nextTimeout();
-                if (sessionTimeout != TimePoint{} && sessionTimeout <= now)
-                    session->timeout();
-                else // round to 50ms
-                    timeout = std::min(timeout, std::max(50ms, std::chrono::duration_cast<Ms>(sessionTimeout - now)));
+        auto now = Clock::now();
+        for (auto session : sessions) {
+            if (wokeup && wokeup_sessions.find(session) != wokeup_sessions.end())
+                session->wake_up();
+            auto session_timeout = session->next_timeout();
+            if (session_timeout == TimePoint{})
+                continue;
+            if (session_timeout <= now) {
+                session->timeout();
+            } else {// round to 1s
+                auto next_timeout = std::max(1000ms, std::chrono::duration_cast<Ms>(session_timeout - now) + 50ms);
+                timeout = timeout != -1ms ? std::min(timeout, next_timeout) : next_timeout;
             }
         }
 
         // Delete all deleteLater pending sessions
-        std::unique_lock<SpinLock> lock{m_deleteLaterMutex};
-        for (auto &obj : m_deleteLaterObjects)
+        std::unique_lock<SpinLock> lock1{m_deleteLater_mutex};
+        for (auto &obj : m_delete_later_objects)
             delete obj;
-        m_deleteLaterObjects.clear();
+        m_delete_later_objects.clear();
     }
 }
 

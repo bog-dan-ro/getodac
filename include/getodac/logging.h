@@ -55,18 +55,18 @@ public:
 };
 
 #ifdef ENABLE_TRACE_LOG
-# define TRACE(logger) LOG(logger, boost::log::trivial::trace)
+# define TRACE(logger) LOG(logger, boost::log::trivial::trace) << __PRETTY_FUNCTION__ << " : "
 #else
 # define TRACE(logger) DummyStream{}
 #endif
 
 #ifdef ENABLE_DEBUG_LOG
-#define DEBUG(logger) LOG(logger, boost::log::trivial::debug)
+#define DEBUG(logger) LOG(logger, boost::log::trivial::debug) << __PRETTY_FUNCTION__ << " : "
 #else
 # define DEBUG(logger)  DummyStream{}
 #endif
 
-#define INFO(logger) LOG(logger, boost::log::trivial::info)
-#define WARNING(logger) LOG(logger, boost::log::trivial::warning)
-#define ERROR(logger) LOG(logger, boost::log::trivial::error)
-#define FATAL(logger) LOG(logger, boost::log::trivial::fatal)
+#define INFO(logger) LOG(logger, boost::log::trivial::info) << __PRETTY_FUNCTION__ << " : "
+#define WARNING(logger) LOG(logger, boost::log::trivial::warning) << __PRETTY_FUNCTION__ << " : "
+#define ERROR(logger) LOG(logger, boost::log::trivial::error) << __PRETTY_FUNCTION__ << " : "
+#define FATAL(logger) LOG(logger, boost::log::trivial::fatal) << __PRETTY_FUNCTION__ << " : "

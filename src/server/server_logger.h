@@ -21,6 +21,6 @@
 
 namespace Getodac {
 
-extern TaggedLogger<SeverityLoggerMt> serverLogger;
+extern TaggedLogger<SeverityLoggerMt> server_logger;
 
 } // namespace Getodac

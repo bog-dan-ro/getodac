@@ -15,13 +15,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SERVER_H
-#define SERVER_H
+#pragma once
 
 #include <netdb.h>
 
 #include <atomic>
 #include <condition_variable>
+#include <map>
 #include <mutex>
 #include <string>
 #include <unordered_set>
@@ -29,7 +29,6 @@
 
 #include <openssl/ssl.h>
 
-#include <getodac/abstract_server_session.h>
 #include <getodac/logging.h>
 #include <getodac/utils.h>
 
@@ -37,29 +36,30 @@
 
 namespace Getodac {
 
-class ServerSession;
-class AbstractServiceSession;
-class SessionsEventLoop;
+class abstract_stream;
+class basic_server_session;
+class request;
+class sessions_event_loop;
 
-class Server
+class server
 {
 public:
-    static Server *instance();
+    static server *instance();
     int exec(int argc, char *argv[]);
-    void serverSessionCreated(ServerSession *session);
-    void serverSessionDeleted(ServerSession *session);
-    std::shared_ptr<AbstractServiceSession> createServiceSession(ServerSession *serverSession, const std::string &url, const std::string &method);
-    uint32_t peakSessions();
-    uint32_t activeSessions();
+    void server_session_created(basic_server_session *session);
+    void server_session_deleted(basic_server_session *session);
+    std::function<void(abstract_stream &, request &)> create_session(const request &request);
+    uint32_t peak_sessions();
+    uint32_t active_sessions();
     std::chrono::seconds uptime() const;
-    inline void sessionServed() { ++m_servedSessions; }
-    uint64_t servedSessions() const { return m_servedSessions; }
-    SSL_CTX *sslContext() const;
-    static void exitSignalHandler();
+    inline void session_served() { ++m_served_sessions; }
+    uint64_t served_sessions() const { return m_served_sessions; }
+    SSL_CTX *ssl_context() const;
+    static void exit_signal_handler();
 
 private:
-    Server();
-    ~Server();
+    server();
+    ~server();
 
     enum SocketType {
         IPV4,
@@ -69,21 +69,19 @@ private:
 
 private:
     std::atomic_bool m_shutdown{false};
-    std::atomic<uint32_t> m_peakSessions{0};
-    std::atomic<size_t> m_servedSessions{0};
-    int m_eventsSize = 0;
-    int m_epollHandler;
-    SpinLock m_activeSessionsMutex;
-    std::unordered_set<ServerSession*> m_activeSessions;
-    std::vector<ServerPlugin> m_plugins;
-    std::chrono::system_clock::time_point m_startTime;
-    SSL_CTX *m_SSLContext = nullptr;
-    SpinLock m_connectionsPerIpMutex;
-    std::map<std::string, uint32_t> m_connectionsPerIp;
-    int https4Sock = -1;
-    int https6Sock = -1;
+    std::atomic<uint32_t> m_peak_sessions{0};
+    std::atomic<size_t> m_served_sessions{0};
+    int m_events_size = 0;
+    int m_epoll_handler;
+    std::mutex m_active_sessions_mutex;
+    std::unordered_set<basic_server_session*> m_active_sessions;
+    std::vector<server_plugin> m_plugins;
+    std::chrono::system_clock::time_point m_start_time;
+    SSL_CTX *m_ssl_context = nullptr;
+    std::mutex m_connections_per_ip_mutex;
+    std::map<std::string, uint32_t> m_connections_per_ip;
+    int m_https_4_sock = -1;
+    int m_https_6_sock = -1;
 };
 
 } // namespace Getodac
-
-#endif // SERVER_H

@@ -15,8 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SESSIONS_EVENT_LOOP_H
-#define SESSIONS_EVENT_LOOP_H
+#pragma once
 
 #include <atomic>
 #include <mutex>
@@ -29,7 +28,7 @@
 
 namespace Getodac {
 
-class ServerSession;
+class basic_server_session;
 
 /*!
  * \brief The SessionsEventLoop class
@@ -37,42 +36,41 @@ class ServerSession;
  * This class is used by the server to handle the sessions (sock & timer) events.
  * Usually the server creates one event loop for every CPU core on the system.
  */
-class SessionsEventLoop
+class sessions_event_loop
 {
 public:
-    SessionsEventLoop();
-    ~SessionsEventLoop();
+    sessions_event_loop();
+    ~sessions_event_loop();
 
-    void registerSession(ServerSession *session, uint32_t events);
-    void updateSession(ServerSession *session, uint32_t events);
-    void unregisterSession(ServerSession *session);
+    void register_session(basic_server_session *session, uint32_t events);
+    void update_session(basic_server_session *session, uint32_t events);
+    void unregister_session(basic_server_session *session);
 
-    void deleteLater(ServerSession *session) noexcept;
+    void delete_later(basic_server_session *session) noexcept;
 
-    inline int activeSessions() const noexcept { return m_activeSessions.load(); }
-    inline void shutdown() noexcept { m_quit.store(true); }
+    inline int active_sessions() const noexcept { return m_active_sessions.load(); }
+    void shutdown() noexcept;
 
-    std::vector<char> sharedReadBuffer;
-    std::shared_ptr<std::vector<char>> sharedWriteBuffer(size_t size) const;
+    char_buffer shared_read_buffer;
+    std::shared_ptr<char_buffer> shared_write_buffer(size_t size) const;
     void setWorkloadBalancing(bool on);
 
-    inline int eventFd() const { return m_eventFd; }
+    inline int event_fd() const { return m_event_fd; }
 private:
     void loop();
 
 private:
-    std::shared_ptr<std::vector<char>> m_sharedWriteBuffer;
-    int m_epollHandler;
-    bool m_workloadBalancing = false;
-    int m_eventFd;
-    std::atomic_uint m_activeSessions{0};
+    std::shared_ptr<char_buffer> m_shared_write_buffer;
+    int m_epoll_handler;
+    bool m_workload_balancing = false;
+    int m_event_fd;
+    std::atomic_uint m_active_sessions{0};
     std::atomic_bool m_quit{false};
-    std::thread m_loopThread;
-    std::mutex m_sessionsMutex;
-    std::set<ServerSession *> m_sessions;
-    SpinLock m_deleteLaterMutex;
-    std::unordered_set<ServerSession *> m_deleteLaterObjects;
+    std::thread m_loop_thread;
+    std::mutex m_sessions_mutex;
+    std::set<basic_server_session *> m_sessions;
+    SpinLock m_deleteLater_mutex;
+    std::unordered_set<basic_server_session *> m_delete_later_objects;
 };
 
 } // namespace Getodac
-#endif // SESSIONS_EVENT_LOOP_H

@@ -19,38 +19,31 @@
 #include "server.h"
 #include "server_logger.h"
 
+#include <chrono>
 #include <iostream>
 #include <sstream>
 
-namespace ServerSessions {
+#include <getodac/http.h>
 
-/// ServerStatus class is used to show the current server status
-class ServerStatus : public Getodac::AbstractServiceSession
+using namespace std::chrono_literals;
+namespace server_sessions {
+
+
+static void write_response(Getodac::abstract_stream& stream, Getodac::request& req)
 {
-public:
-    explicit ServerStatus(Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractServiceSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void appendHeaderField(const std::string &, const std::string &) override {}
-    bool acceptContentLength(size_t) override {return false;}
-    void headersComplete() override {}
-    void appendBody(const char *, size_t) override {}
-    void requestComplete() override {};
-
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        try {
-            Getodac::ResponseHeaders responseHeaders;
-            responseHeaders.headers["Refresh"] = "5";
+    bool can_write_error = true;
+    try {
+        stream >> req;
+        Getodac::response res{200};
+        {
+            res["Refresh"] = "5";
             std::ostringstream response;
 
-            auto server = Getodac::Server::instance();
-            auto activeSessions = server->activeSessions();
+            auto server = Getodac::server::instance();
+            auto activeSessions = server->active_sessions();
 
             // the peakSessions is updated slowly
-            auto peak = std::max(server->peakSessions(), activeSessions);
+            auto peak = std::max(server->peak_sessions(), activeSessions);
 
             auto seconds = server->uptime().count();
             auto days = seconds / (60 * 60 * 24);
@@ -60,27 +53,39 @@ public:
             auto minutes = seconds / 60;
             seconds  -= minutes * 60;
 
-            auto servedSessions = server->servedSessions();
-
+            auto servedSessions = server->served_sessions();
             response << "Active sessions: " << activeSessions << std::endl
                      << "Sessions peak: " << peak << std::endl
                      << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl
                      << "Serverd sessions: " << servedSessions << std::endl;
-            auto str = response.str();
-            responseHeaders.contentLength = str.size();
-            m_serverSession->write(yield, responseHeaders, str);
-        } catch (const std::exception &e) {
-            WARNING(Getodac::serverLogger) << e.what();
-        } catch (...) {}
+            res.body(response.str());
+        }
+        can_write_error = false;
+        stream << res;
+    } catch (const Getodac::response &res) {
+        if (can_write_error)
+            stream << res;
+        WARNING(Getodac::server_logger) << res.status_code() << " " << res.body();
+    } catch (const std::error_code &ec) {
+        if (can_write_error)
+            stream << Getodac::response{500, ec.message()};
+        WARNING(Getodac::server_logger) << ec.message();
+    } catch (const std::exception &e) {
+        if (can_write_error)
+            stream << Getodac::response{500, e.what()};
+        WARNING(Getodac::server_logger) << e.what();
+    } catch (...) {
+        if (can_write_error)
+            stream << Getodac::response{500};
+        WARNING(Getodac::server_logger) << "Unkown error";
     }
-};
+}
 
-std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &/*method*/)
+Getodac::HttpSession create_session(const Getodac::request &req)
 {
-    if (url == "/server_status")
-        return std::make_shared<ServerStatus>(serverSession);
-
-    return std::shared_ptr<Getodac::AbstractServiceSession>();
+    if (req.url() == "/server_status" && req.method() == "GET")
+        return &server_sessions::write_response;
+    return {};
 }
 
 } // namespace ServerSessions

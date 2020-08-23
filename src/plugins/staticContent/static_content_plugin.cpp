@@ -14,23 +14,16 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include <getodac/abstract_server_session.h>
-#include <getodac/abstract_service_session.h>
-#include <getodac/exceptions.h>
+#include <getodac/http.h>
 #include <getodac/logging.h>
-#include <getodac/restful.h>
+#include <getodac/plugin.h>
 #include <getodac/utils.h>
-
-#include <iostream>
-#include <mutex>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-#include <boost/utility/string_view.hpp>
 
 namespace {
 class FileMap : public boost::iostreams::mapped_file_source
@@ -46,8 +39,8 @@ private:
     std::time_t m_lastWriteTime;
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
-
 Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{100};
+
 std::mutex s_filesCacheMutex;
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
@@ -83,63 +76,42 @@ inline std::string mimeType(boost::string_view ext)
     return "application/octet-stream";
 }
 
-class StaticContent : public Getodac::AbstractServiceSession
+void static_content_session(boost::filesystem::path root, boost::filesystem::path path, Getodac::abstract_stream& stream, Getodac::request& req)
 {
-public:
-    StaticContent(Getodac::AbstractServerSession *serverSession, const boost::filesystem::path &root, const boost::filesystem::path &path)
-        : Getodac::AbstractServiceSession(serverSession)
-    {
-        try {
-            auto p = (root / path).lexically_normal();
-            if (!s_allow_symlinks)
-                p = boost::filesystem::canonical(p);
-            if (!boost::starts_with(p, root)) { // make sure we don't server files outside the root
-                std::stringstream str;
-                str << "path \"" << p << "\" is outside the root \"" << root << "\"";
-                throw std::runtime_error{str.str()};
-            }
-            if (boost::filesystem::is_directory(p))
-                p /= s_default_file;
-            TRACE(logger) << "Serving " << p.string();
-            m_mimeType = mimeType(p.extension().string());
-            std::unique_lock lock{s_filesCacheMutex};
-            m_file = s_filesCache.getValue(p.string());
-            auto lastWriteTime = boost::filesystem::last_write_time(p);
-            if (!m_file || m_file->lastWriteTime() != lastWriteTime) {
-                m_file = std::make_shared<FileMap>(p, lastWriteTime);
-                s_filesCache.put(p.string(), m_file);
-            }
-        } catch (const std::exception &e) {
-            WARNING(logger) << " 404 : " << Getodac::addrText(serverSession->peerAddress()) << " : " << e.what();
-            throw 404;
-        } catch (...) {
-            throw Getodac::ResponseStatusError(404, "Unhandled error");
-        }
+    stream >> req;
+    auto p = (root / path).lexically_normal();
+    if (!s_allow_symlinks)
+        p = boost::filesystem::canonical(p);
+    if (!boost::starts_with(p, root)) { // make sure we don't server files outside the root
+        WARNING(logger) << "path \"" << p << "\" is outside the root \"" << root << "\"";
+        throw Getodac::response{400};
+    }
+    if (boost::filesystem::is_directory(p))
+        p /= s_default_file;
+    TRACE(logger) << "Serving " << p.string();
+    std::unique_lock lock{s_filesCacheMutex};
+    auto file = s_filesCache.getValue(p.string());
+    auto lastWriteTime = boost::filesystem::last_write_time(p);
+    if (!file || file->lastWriteTime() != lastWriteTime) {
+        file = std::make_shared<FileMap>(p, lastWriteTime);
+        s_filesCache.put(p.string(), file);
     }
 
-    // ServiceSession interface
-    void appendHeaderField(const std::string &, const std::string &) override {}
-    bool acceptContentLength(size_t) override {return false;}
-    void headersComplete() override {}
-    void appendBody(const char *, size_t) override {}
-    void requestComplete() override {}
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
     {
-        m_serverSession->write(yield, Getodac::ResponseHeaders{.headers = {{"Content-Type", m_mimeType}}, .contentLength = m_file->size()}, std::string_view{m_file->data(), m_file->size()});
+        Getodac::response res{200};
+        res["Content-Type"] = mimeType(p.extension().string());
+        res.content_length(file->size());
+        stream << res;
     }
-
-private:
-    FileMapPtr m_file;
-    std::string m_mimeType;
-};
+    stream.write({file->data(), file->size()});
+}
 
 } // namespace
 
-PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
-{
-    if (method != "GET")
+PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req) {
+    if (req.method() != "GET")
         return {};
-
+    auto &url = req.url();
     for (const auto &pair : s_urls) {
         if (boost::starts_with(url, pair.first)) {
             if (boost::starts_with(pair.first, "/~")) {
@@ -156,16 +128,24 @@ PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Get
                 boost::filesystem::path file_path;
                 if (url.size() - pos > 1)
                     file_path /= Getodac::unEscapeUrl(url.substr(pos + 1, url.size() - pos - 1));
-                return std::make_shared<StaticContent>(serverSession, root_path.string(), file_path.lexically_normal());
+                return std::bind<void>(static_content_session,
+                                       root_path,
+                                       file_path.lexically_normal(),
+                                       std::placeholders::_1,
+                                       std::placeholders::_2);
             } else {
-                return std::make_shared<StaticContent>(serverSession, pair.second, boost::filesystem::path{Getodac::unEscapeUrl(url.c_str() + pair.first.size())}.lexically_normal());
+                return std::bind<void>(static_content_session,
+                                       boost::filesystem::path{pair.second},
+                                       boost::filesystem::path{Getodac::unEscapeUrl(url.c_str() + pair.first.size())}.lexically_normal(),
+                                       std::placeholders::_1,
+                                       std::placeholders::_2);
             }
         }
     }
-    return std::shared_ptr<Getodac::AbstractServiceSession>();
+    return {};
 }
 
-PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
+PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
 {
     using namespace std::chrono_literals;
     INFO(logger) << "Initializing plugin";
@@ -190,12 +170,12 @@ PLUGIN_EXPORT bool initPlugin(const std::string &confDir)
     return !s_urls.empty();
 }
 
-PLUGIN_EXPORT uint32_t pluginOrder()
+PLUGIN_EXPORT uint32_t plugin_order()
 {
     return UINT32_MAX;
 }
 
-PLUGIN_EXPORT void destoryPlugin()
+PLUGIN_EXPORT void destory_plugin()
 {
     g_timer.reset();
 }

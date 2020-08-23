@@ -15,160 +15,198 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SERVER_SESSION_H
-#define SERVER_SESSION_H
+#pragma once
 
 #include "sessions_event_loop.h"
+#include "server_logger.h"
 
 #include "http_parser.h"
 
-#include <unistd.h>
+#include <netinet/tcp.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <chrono>
 #include <memory>
 #include <mutex>
-#include <sstream>
+#include <type_traits>
 
 #include <boost/coroutine2/coroutine.hpp>
 
-#include <getodac/abstract_server_session.h>
-#include <getodac/abstract_service_session.h>
+#include "server.h"
+#include "streams.h"
 
 using namespace std::chrono_literals;
 
 namespace Getodac {
 
-/*!
- * \brief The ServerSession class
- *
- * This class servers HTTP requests
- */
-using YieldType = boost::coroutines2::coroutine<AbstractServerSession::Action>::pull_type;
-class ServerSession : public AbstractServerSession
+using Clock = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+
+struct wakeupper : abstract_stream::abstract_wakeupper
 {
-    using Clock = std::chrono::high_resolution_clock;
-    using TimePoint = std::chrono::time_point<Clock>;
-    enum class HttpParserStatus {
-        Url,
-        HeaderField,
-        HeaderValue
-    };
+    wakeupper(int fd, uint64_t ptr)
+        : m_fd(fd)
+        , m_ptr(ptr)
+    {}
+    // abstract_wakeupper interface
+    void wake_up() noexcept override
+    {
+        eventfd_write(m_fd, m_ptr);
+    }
+    int m_fd;
+    uint64_t m_ptr;
+};
 
+class basic_server_session
+{
 public:
-    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order, uint32_t epollet);
-    ~ServerSession() override;
-    void initSession();
+    basic_server_session(sessions_event_loop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order);
+    virtual ~basic_server_session();
+    void init_session();
 
-    inline uint32_t order() const { return m_order; }
-    inline int sock() const { return m_sock;}
-    inline const TimePoint & nextTimeout() { return m_nextTimeout; }
+    inline uint32_t order() const noexcept { return m_order; }
+    inline int sock() const noexcept { return m_sock;}
+    const sockaddr_storage &peer_address() const noexcept;
 
-    void processEvents(uint32_t events) noexcept;
-    void timeout() noexcept;
-    void wakeUp() noexcept;
-
-    virtual ssize_t sockRead(void  *buf, size_t size)
+    void next_timeout(std::chrono::seconds seconds) noexcept
     {
-        std::unique_lock<std::mutex> lock{m_sockMutex};
-        auto ret = ::read(m_sock, buf, size);
-        if (ret < 0 && errno == EPIPE)
-            throw std::logic_error("Socket is closed");
-        return ret;
+        m_next_timeout = Clock::now() + seconds;
+    }
+    // basic_server_session interface
+    TimePoint next_timeout() const noexcept
+    {
+        std::unique_lock<std::mutex> lock{m_stream_mutex};
+        if (m_stream)
+            return m_stream->next_timeout();
+        return m_next_timeout;
     }
 
-    virtual ssize_t sockWrite(const void  *buf, size_t size)
-    {
-        std::unique_lock<std::mutex> lock{m_sockMutex};
-        auto ret = ::write(m_sock, buf, size);
-        if (ret < 0 && errno == EPIPE)
-            throw std::logic_error("Socket is closed");
-        return ret;
-    }
-
-    virtual ssize_t sockWritev(const struct iovec *vec, int count)
-    {
-        std::unique_lock<std::mutex> lock{m_sockMutex};
-        auto ret = ::writev(m_sock, vec, count);
-        if (ret < 0 && errno == EPIPE)
-            throw std::logic_error("Socket is closed");
-        return ret;
-    }
-
-    virtual bool sockShutdown()
-    {
-        if (m_wasShutdown)
-            return true;
-        m_wasShutdown = true;
-        return 0 == ::shutdown(m_sock, SHUT_RDWR);
-    }
-
-    // AbstractServerSession interface
-    Wakeupper wakeuppper() const override;
-    std::string responseHeadersString(const ResponseHeaders &hdrs) override;
-
-    inline const sockaddr_storage& peerAddress() const override { return m_peerAddr; }
-    void write(Yield &yield, const ResponseHeaders &response) override;
-    void write(Yield &yield, const ResponseHeaders &response, std::string_view data) override;
-    void writev(Yield &yield, const ResponseHeaders &response, iovec *vec, size_t count) override;
-
-
-    void write(Yield &yield, std::string_view data) override;
-    void writev(Yield &yield, iovec *vec, size_t count) override;
-    int sendBufferSize() const override;
-    bool setSendBufferSize(int size) override;
-    int receiveBufferSize() const override;
-    bool setReceiveBufferSize(int size) override;
+    virtual void process_events(uint32_t events) noexcept = 0;
+    virtual void timeout() noexcept = 0;
+    virtual void wake_up() noexcept = 0;
 
 protected:
-    void ioLoop(YieldType &yield);
-    virtual Action initSocket(YieldType &yield) {return yield.get();}
-    Action processRequest(YieldType &yield);
-    Action processResponse(YieldType &yield);
-    inline void quitIoLoop(Action action)
-    {
-        while (m_ioResume) // Quit read loop
-            m_ioResume(action);
-    }
-    void terminateSession(Action action);
-    void setTimeout(const std::chrono::milliseconds &ms = 5s) override;
+    int m_sock;
+    int m_order;
+    struct sockaddr_storage m_peer_addr;
+    sessions_event_loop *m_event_loop;
+    mutable std::mutex m_stream_mutex;
+    std::unique_ptr<basic_http_session> m_stream;
+    TimePoint m_next_timeout;
+};
 
-    static int messageBegin(http_parser *parser);
-    static int url(http_parser *parser, const char *at, size_t length);
-    static int headerField(http_parser *parser, const char *at, size_t length);
-    static int headerValue(http_parser *parser, const char *at, size_t length);
-    static int headersComplete(http_parser *parser);
-    static int body(http_parser *parser, const char *at, size_t length);
-    static int messageComplete(http_parser *parser);
-    int httpParserStatusChanged(http_parser *parser);
-    virtual inline void messageComplete(){};
-    int setResponseStatusError(const ResponseStatusError &status);
+template <typename SocketStream>
+class server_session : public basic_server_session
+{
+    static_assert(std::is_base_of<basic_http_session, SocketStream>::value, "SocketStream must subclass basic_http_session");
+public:
+    server_session(sessions_event_loop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
+        : basic_server_session(eventLoop, sock, sockAddr, order)
+        , m_io_yield(std::bind(&server_session::io_loop, this, std::placeholders::_1))
+    {
+        TRACE(Getodac::server_logger) << (void*)this
+                                     << " eventLoop: " << eventLoop
+                                     << " socket:" << sock;
+        int opt = 1;
+        if (setsockopt(m_sock, SOL_TCP, TCP_NODELAY, &opt, sizeof(int)))
+            throw std::runtime_error{"Can't set socket option TCP_NODELAY"};
+        next_timeout(5s);
+    }
+
+    ~server_session() override
+    {
+        quit_io_loop(std::make_error_code(std::errc::operation_canceled));
+        try {
+            m_event_loop->unregister_session(this);
+        } catch (...) {}
+        ::close(m_sock);
+    }
+
+    void quit_io_loop(std::error_code ec)
+    {
+        try {
+            while (m_io_yield) m_io_yield(ec);
+        } catch (const std::error_code &ec) {
+            ERROR(server_logger) << ec.message();
+        } catch (const std::exception &e) {
+            ERROR(server_logger) << e.what();
+        } catch (...) {
+            ERROR(server_logger) << "Unhandled error";
+        }
+    }
+
+    void process_events(uint32_t events) noexcept override
+    {
+        try {
+            if (events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
+                quit_io_loop(std::make_error_code(std::errc::io_error));
+                m_event_loop->delete_later(this);
+            } else if (events & (EPOLLIN | EPOLLPRI | EPOLLOUT)) {
+                if (m_io_yield) {
+                    m_io_yield({});
+                } else {
+                    m_event_loop->delete_later(this);
+                }
+            } else {
+                WARNING(server_logger) << "Unhandled epool events " << events;
+                m_event_loop->delete_later(this);
+            }
+        } catch (const std::exception &e) {
+            DEBUG(server_logger) << addrText(m_peer_addr) << e.what();
+            m_event_loop->delete_later(this);
+        } catch (...) {
+            DEBUG(server_logger) << addrText(m_peer_addr) << "Unkown exception, terminating the session";
+            m_event_loop->delete_later(this);
+        }
+    }
+
+    void timeout() noexcept override
+    {
+        quit_io_loop(std::make_error_code(std::errc::timed_out));
+        m_event_loop->delete_later(this);
+    }
+
+    void wake_up() noexcept override
+    {
+        try {
+            if (m_io_yield)
+                m_io_yield({});
+            else
+                m_event_loop->delete_later(this);
+        } catch (const std::exception &e) {
+            ERROR(server_logger) << e.what();
+            m_event_loop->delete_later(this);
+        } catch (...) {
+            ERROR(server_logger) << "Unhandled error";
+            m_event_loop->delete_later(this);
+        }
+    }
 
 protected:
-    uint32_t m_order;
-    SessionsEventLoop *m_eventLoop;
-    int m_sock = -1;
-    std::mutex m_sockMutex;
-    TimePoint m_nextTimeout;
-    uint32_t m_epollet;
-    bool m_processRequest = true;
+    void io_loop(YieldType &yield)
+    {
+        try {
+            {
+                auto wu = std::make_shared<wakeupper>(m_event_loop->event_fd(),
+                                                      uint64_t(static_cast<basic_server_session*>(this)));
+                auto stream = std::make_unique<SocketStream>(m_event_loop, m_sock,
+                                                             yield, m_peer_addr,
+                                                             wu);
+                std::unique_lock<std::mutex> lock{m_stream_mutex};
+                m_stream = std::move(stream);
+            }
+            m_stream->io_loop();
+        } catch(...) {
+            m_event_loop->delete_later(this);
+        }
+    }
 
-    using Call = boost::coroutines2::coroutine<Action>::push_type;
-    Call m_ioResume;
-    uint32_t m_statusCode = 0;
-    http_parser m_parser;
-    HttpParserStatus m_parserStatus = HttpParserStatus::Url;
-    std::string m_headerField;
-    std::string m_tempStr;
-    std::shared_ptr<AbstractServiceSession> m_serviceSession;
-    std::chrono::seconds m_keepAliveSeconds{10};
-    struct sockaddr_storage m_peerAddr;
-    bool m_canWriteError = true;
-    bool m_wasShutdown = false;
-    HeadersData m_responseStatusErrorHeaders;
-    size_t m_contentLength = ChunkedData;
+protected:
+    using Call = boost::coroutines2::coroutine<std::error_code>::push_type;
+    Call m_io_yield;
 };
 
 } // namespace Getodac
-
-#endif // SERVER_SESSION_H

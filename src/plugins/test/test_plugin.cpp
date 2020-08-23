@@ -15,9 +15,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <getodac/abstract_restful_session.h>
-#include <getodac/abstract_server_session.h>
-#include <getodac/abstract_service_session.h>
+#include <getodac/http.h>
+#include <getodac/plugin.h>
+#include <getodac/restful.h>
+#include <getodac/logging.h>
 #include <getodac/thread_worker.h>
 
 #include <cassert>
@@ -34,490 +35,260 @@ std::string test50mresponse;
 Getodac::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
 Getodac::ThreadWorker s_threadWorker{10};
 
-class BaseTestSession : public Getodac::AbstractServiceSession
-{
-public:
-    explicit BaseTestSession(Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractServiceSession(serverSession)
-    {}
-    // AbstractServiceSession interface
-    void appendHeaderField(const std::string &, const std::string &) override
-    {}
-    bool acceptContentLength(size_t) override {return false;}
-    void headersComplete() override
-    {}
-    void appendBody(const char *, size_t ) override
-    {}
-    void requestComplete() override
-    {}
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, {.status = 200});
+TaggedLogger<> logger{"test"};
+
+void TestRESTGET(Getodac::parsed_route parsed_route, Getodac::abstract_stream& stream, Getodac::request& req){
+    stream >> req;
+    stream << Getodac::response{200, {}, {{"Content-Type","text/plain"}}}.content_length(Getodac::Chunked_Data);
+    Getodac::chunked_stream chunked_stream{stream};
+    Getodac::ostreambuffer buff{chunked_stream};
+    std::ostream str{&buff};
+    str << "Got " << parsed_route.capturedResources.size() << " captured resources\n";
+    str << "and " << parsed_route.queryStrings.size() << " queries\n";
+    str << "All methods but OPTIONS " << parsed_route.allButOPTIONSNodeMethods << " \n";
+    for (const auto &resource : parsed_route.capturedResources) {
+        str << "Resource name: " << resource.first << "  value: " << resource.second << std::endl;
     }
-};
-
-class TestSecureOnly : public BaseTestSession
-{
-public:
-    explicit TestSecureOnly(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {
-        if (!serverSession->isSecuredConnection())
-            throw Getodac::ResponseStatusError{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
+    for (const auto &query : parsed_route.queryStrings) {
+        str << "Query name: " << query.first << "  value: " << query.second << std::endl;
     }
-    // AbstractServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
-    {
-        assert(false);
-    }
-};
-
-struct TestThowFromHeaderFieldValue : public BaseTestSession
-{
-    explicit TestThowFromHeaderFieldValue(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-    void appendHeaderField(const std::string &, const std::string &) override
-    {
-        throw Getodac::ResponseStatusError{400, "Too many headers", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
-    }
-};
-
-struct TestThowFromHeadersComplete : public BaseTestSession
-{
-    explicit TestThowFromHeadersComplete(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-
-    void headersComplete() override
-    {
-        throw Getodac::ResponseStatusError{401, "What are you doing here?", {{"WWW-Authenticate","Basic realm=\"Restricted Area\""}, {"ErrorKey2","Value2"}}};
-    }
-};
-
-struct TestThowFromRequestComplete : public BaseTestSession
-{
-    explicit TestThowFromRequestComplete(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-
-    void requestComplete() override
-    {
-        throw 412;
-    }
-};
-
-struct TestExpectation : public BaseTestSession
-{
-    explicit TestExpectation(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-    bool acceptContentLength(size_t) override
-    {
-        return false;
-    }
-    void appendBody(const char *, size_t ) override
-    {
-        assert(false);
-    }
-};
-
-
-struct TestThowFromBody : public BaseTestSession
-{
-    explicit TestThowFromBody(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-    bool acceptContentLength(size_t) override
-    {
-        return true;
-    }
-    void appendBody(const char *, size_t ) override
-    {
-        throw Getodac::ResponseStatusError{400, "Body too big, lose some weight", {{"BodyKey1","Value1"}, {"BodyKey2","Value2"}}};
-    }
-
-};
-
-struct TestThowFromWriteResponse : public BaseTestSession
-{
-    explicit TestThowFromWriteResponse(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-
-    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
-    {
-        throw Getodac::ResponseStatusError{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
-    }
-};
-
-struct TestThowFromWriteResponseStd : public BaseTestSession
-{
-    explicit TestThowFromWriteResponseStd(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-    void writeResponse(Getodac::AbstractServerSession::Yield &/*yield*/) override
-    {
-        throw std::runtime_error{"Throw from WriteResponseStd"};
-    }
-};
-
-struct TestThowFromWriteResponseAfterWrite : public BaseTestSession
-{
-    explicit TestThowFromWriteResponseAfterWrite(Getodac::AbstractServerSession *serverSession) : BaseTestSession(serverSession) {}
-
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, Getodac::ResponseHeaders{.contentLength = Getodac::ChunkedData});
-        throw std::runtime_error{"Unexpected error"};
-    }
-};
-
-class TestThrowAfterWakeup : public BaseTestSession
-{
-public:
-    explicit TestThrowAfterWakeup(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        auto wakeupper = m_serverSession->wakeuppper();
-        auto wait = std::make_shared<std::atomic_bool>();
-        wait->store(true);
-        s_threadWorker.insertTask([=]{
-            // simulate some heavy work
-            std::this_thread::sleep_for(100ms);
-            wait->store(false);
-            wakeupper.wakeUp();
-        });
-        do {
-            yield();
-            if (yield.get() != Getodac::AbstractServerSession::Action::Continue)
-                return;
-        } while (wait->load());
-        throw 404;
-    }
-};
-
-
-
-class Test0 : public BaseTestSession
-{
-public:
-    explicit Test0(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, Getodac::ResponseHeaders{});
-    }
-};
-
-
-class Test100 : public BaseTestSession
-{
-public:
-    explicit Test100(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        try {
-            m_serverSession->write(yield, {.contentLength = test100response.size()},  test100response);
-        } catch (const std::exception &e) {
-            std::cerr << e.what() << std::endl;
-        } catch (...) {
-        }
-    }
-};
-
-class Test50M : public BaseTestSession
-{
-public:
-    explicit Test50M(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        try {
-            m_serverSession->write(yield, {.contentLength = test50mresponse.size()}, test50mresponse);
-        } catch (const std::exception &e) {
-            std::cerr << e.what() << std::endl;
-        } catch (...) {
-        }
-    }
-};
-
-class Test50MS : public BaseTestSession
-{
-public:
-    explicit Test50MS(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        try {
-            iovec vec[50];
-            for (int i = 0; i < 50; ++i) {
-                vec[i].iov_base = (void*)(test50mresponse.c_str() + 1024 * 1024 * i);
-                vec[i].iov_len = 1024 * 1024;
-            }
-            m_serverSession->writev(yield, {.contentLength = test50mresponse.size()}, vec, 50);
-        } catch (const std::exception &e) {
-            std::cerr << e.what() << std::endl;
-        } catch (...) {}
-    }
-};
-
-class Test50MChunked : public BaseTestSession
-{
-public:
-    explicit Test50MChunked(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, {.contentLength = Getodac::ChunkedData});
-        uint32_t pos = 0;
-        uint32_t chunkSize = 1 + rand() % (1024 * 1024);
-        do {
-            chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
-            writeChunkedData(yield, {test50mresponse.c_str() + pos, chunkSize});
-            pos += chunkSize;
-        } while (chunkSize);
-        writeChunkedData(yield);
-    }
-};
-
-class TestWorker : public BaseTestSession
-{
-public:
-    explicit TestWorker(Getodac::AbstractServerSession *serverSession)
-        : BaseTestSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->write(yield, {.contentLength = Getodac::ChunkedData});
-        auto wakeupper = m_serverSession->wakeuppper();
-        auto wait = std::make_shared<std::atomic_bool>();
-        auto buffer = std::make_shared<std::string>();
-        uint32_t size = 0;
-        do {
-            wait->store(true);
-            s_threadWorker.insertTask([=]{
-                // simulate some heavy work
-                std::this_thread::sleep_for(15ms);
-                uint32_t chunkSize = 1000 + (rand() % 4) * 1000;
-                buffer->resize(chunkSize);
-                for (uint32_t i = 0; i < chunkSize; ++i)
-                    (*buffer)[i] = '0' + i % 10;
-                wait->store(false);
-                wakeupper.wakeUp();
-            });
-            do {
-                yield();
-                if (yield.get() != Getodac::AbstractServerSession::Action::Continue)
-                    return;
-            } while (wait->load());
-            writeChunkedData(yield, *buffer);
-            size += buffer->size();
-        } while (size < 100000);
-        writeChunkedData(yield);
-    }
-};
-
-
-class TestRESTGET : public Getodac::AbstractRESTfulRouteGETSession<Getodac::AbstractSimplifiedServiceSession<>>
-{
-public:
-    explicit TestRESTGET(Getodac::ParsedRoute &&resources, Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractRESTfulRouteGETSession<Getodac::AbstractSimplifiedServiceSession<>>(std::move(resources), serverSession)
-    {}
-
-    void writeResponse(Getodac::OStream &stream) override
-    {
-        stream << "Got " << m_parsedRoute.capturedResources.size() << " captured resources\n";
-        stream << "and " << m_parsedRoute.queryStrings.size() << " queries\n";
-        stream << "All methods but OPTIONS " << m_parsedRoute.allButOPTIONSNodeMethods << " \n";
-        for (const auto &resource : m_parsedRoute.capturedResources) {
-            stream << "Resource name: " << resource.first << "  value: " << resource.second << std::endl;
-        }
-        for (const auto &query : m_parsedRoute.queryStrings) {
-            stream << "Query name: " << query.first << "  value: " << query.second << std::endl;
-        }
-    }
-};
-
-class EchoTest : public Getodac::AbstractServiceSession
-{
-public:
-    explicit EchoTest(Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractServiceSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    // AbstractServiceSession interface
-    void appendHeaderField(const std::string &field, const std::string &value) override
-    {
-        m_headers.emplace_back(std::make_pair(field, value));
-    }
-    bool acceptContentLength(size_t length) override
-    {
-        contentLength = length;
-        return true;
-    }
-    void headersComplete() override {}
-    void appendBody(const char *data, size_t length) override
-    {
-        m_body.append(data, length);
-    }
-    void requestComplete() override
-    {
-        if (contentLength != m_body.size())
-            throw Getodac::ResponseStatusError{400, "Invaid body size"};
-    }
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        Getodac::OStreamBuffer streamBuffer{this, yield};
-        Getodac::OStream stream(streamBuffer);
-        stream << Getodac::ResponseHeaders{.contentLength = Getodac::ChunkedData};
-        stream << "~~~~ ContentLength: " << contentLength << std::endl;
-        stream << "~~~~ Headers:\n";
-        for (const auto &kv : m_headers)
-            stream << kv.first << " : " << kv.second << std::endl;
-        stream << "~~~~ Body:\n" << m_body;
-    }
-private:
-    std::vector<std::pair<std::string, std::string>> m_headers;
-    size_t contentLength = 0;
-    std::string m_body;
-};
-
-// PPP stands for post, put, patch
-class TestPPP : public Getodac::AbstractServiceSession
-{
-public:
-    explicit TestPPP(Getodac::AbstractServerSession *serverSession)
-        : Getodac::AbstractServiceSession(serverSession)
-    {}
-
-    // ServiceSession interface
-    // AbstractServiceSession interface
-    void appendHeaderField(const std::string &, const std::string &) override
-    {}
-    bool acceptContentLength(size_t length) override
-    {
-        contentLength = length;
-        return true;
-    }
-    void headersComplete() override {}
-    void appendBody(const char *data, size_t length) override
-    {
-        m_body.append(data, length);
-    }
-    void requestComplete() override
-    {
-        if (contentLength != m_body.size())
-            throw Getodac::ResponseStatusError{400, "Invaid body size"};
-        if (m_body != test50mresponse)
-            throw Getodac::ResponseStatusError{400, "Invalid body"};
-    }
-    void writeResponse(Getodac::AbstractServerSession::Yield &yield) override
-    {
-        m_serverSession->setTimeout(1s);
-        std::this_thread::sleep_for(1s);
-        Getodac::OStreamBuffer streamBuffer{this, yield};
-        Getodac::OStream stream(streamBuffer);
-        stream << Getodac::ResponseHeaders{.contentLength = test50mresponse.length()}; // 200 OK
-        stream.write(test50mresponse.c_str(), test50mresponse.length());
-    }
-private:
-    size_t contentLength = 0;
-    std::string m_body;
-};
+}
 
 } // namespace
 
-PLUGIN_EXPORT std::shared_ptr<Getodac::AbstractServiceSession> createSession(Getodac::AbstractServerSession *serverSession, const std::string &url, const std::string &method)
+PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
 {
+    auto &url = req.url();
+    if (url == "/test0")
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream << Getodac::response{200};
+        };
+
     if (url == "/test100")
-        return std::make_shared<Test100>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream << Getodac::response{200, test100response};
+        };
+
+    if (url == "/test100Chunked")
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            Getodac::chunked_stream{stream}.write(test100response);
+        };
 
     if (url == "/test50m")
-        return std::make_shared<Test50M>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream.session_timeout(30s);
+            stream << Getodac::response{200}.content_length(test50mresponse.size());
+            stream.write(test50mresponse);
+        };
 
     if (url == "/test50mChunked")
-        return std::make_shared<Test50MChunked>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream.session_timeout(30s);
+            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            Getodac::chunked_stream chuncked_stream{stream};
+            uint32_t pos = 0;
+            do {
+                uint32_t chunkSize = 1 + rand() % (1024 * 1024);
+                chunkSize = std::min<uint32_t>(chunkSize, test50mresponse.size() - pos);
+                chuncked_stream.write({test50mresponse.c_str() + pos, chunkSize});
+                pos += chunkSize;
+            } while (pos < test50mresponse.size());
+        };
 
     if (url == "/testWorker")
-        return std::make_shared<TestWorker>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            stream.session_timeout(30s);
+            auto wakeupper = stream.wakeupper();
+            auto wait = std::make_shared<std::atomic_bool>();
+            auto buffer = std::make_shared<std::string>();
+            uint32_t size = 0;
+            Getodac::chunked_stream chuncked_stream{stream};
+            do {
+                wait->store(true);
+                s_threadWorker.insertTask([=]{
+                    // simulate some heavy work
+                    std::this_thread::sleep_for(15ms);
+                    uint32_t chunkSize = 1000 + (rand() % 4) * 1000;
+                    buffer->resize(chunkSize);
+                    for (uint32_t i = 0; i < chunkSize; ++i)
+                        (*buffer)[i] = '0' + i % 10;
+                    wait->store(false);
+                    wakeupper->wake_up();
+                });
+                do {
+                    if (auto ec = stream.yield())
+                        throw ec;
+                } while (wait->load());
+                chuncked_stream.write(*buffer);
+                size += buffer->size();
+            } while (size < 100000);
+        };
 
     if (url == "/test50ms")
-        return std::make_shared<Test50MS>(serverSession);
-
-    if (url == "/test0")
-        return std::make_shared<Test0>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream.session_timeout(30s);
+            std::vector<Getodac::const_buffer> vec;
+            vec.resize(51);
+            for (int i = 1; i < 51; ++i) {
+                vec[i].ptr = (void*)(test50mresponse.c_str() + 1024 * 1024 * (i - 1));
+                vec[i].length = 1024 * 1024;
+            }
+            auto res = Getodac::response{200}.content_length(test50mresponse.size()).to_string(stream.keep_alive());
+            vec[0].ptr = res.data();
+            vec[0].length = res.length();
+            stream.write(vec);
+        };
 
     if (url == "/echoTest")
-        return std::make_shared<EchoTest>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream.session_timeout(10s);
+            std::string body;
+            req.append_body_callback([&](std::string_view buff){
+                body.append(buff);
+            });
+            stream >> req;
+            if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != body.size()) {
+                throw 400;
+            }
+            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            Getodac::chunked_stream chunked_stream{stream};
+            Getodac::ostreambuffer buff{chunked_stream};
+            std::ostream res{&buff};
+            res << "~~~~ ContentLength: " << req["Content-Length"] << std::endl;
+            res << "~~~~ Headers:\n";
+            for (const auto &kv : req)
+                res << kv.first << " : " << kv.second << std::endl;
+            res << "~~~~ Body:\n" << body;
+        };
 
     if (url == "/secureOnly")
-        return std::make_shared<TestSecureOnly>(serverSession);
-
-    if (url == "/testThowFromHeaderFieldValue")
-        return std::make_shared<TestThowFromHeaderFieldValue>(serverSession);
-
-    if (url == "/testThowFromHeadersComplete")
-        return std::make_shared<TestThowFromHeadersComplete>(serverSession);
-
-    if (url == "/testThowFromRequestComplete")
-        return std::make_shared<TestThowFromRequestComplete>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            if (!stream.is_secured_connection())
+                throw Getodac::response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
+            stream >> req;
+            stream << Getodac::response{200};
+        };
 
     if (url == "/testExpectation")
-        return std::make_shared<TestExpectation>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            if (req["Expect"] == "100-continue") {
+                if (req["X-Continue"] == "100") {
+                    stream << Getodac::response{100};
+                } else {
+                    throw Getodac::response{417};
+                }
+            }
+            req.append_body_callback([](std::string_view buff){
+                (void)buff;
+            });
+            stream >> req;
+            stream << Getodac::response{200};
+        };
+
+    if (url == "/testThowFromRequestComplete")
+        return [&](Getodac::abstract_stream&, Getodac::request&){
+            throw 412;
+        };
 
     if (url == "/testThowFromBody")
-        return std::make_shared<TestThowFromBody>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            req.append_body_callback([](std::string_view){
+                throw Getodac::response{400, "Body too big, lose some weight",
+                                        {{"BodyKey1", "Value1"},
+                        {"BodyKey2", "Value2"}}};
+            });
+            stream >> req;
+            stream << Getodac::response{200};
+        };
 
     if (url == "/testThowFromWriteResponse")
-        return std::make_shared<TestThowFromWriteResponse>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            throw Getodac::response{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
+        };
 
     if (url == "/testThowFromWriteResponseStd")
-        return std::make_shared<TestThowFromWriteResponseStd>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            throw std::runtime_error{"Throw from WriteResponseStd"};
+        };
 
     if (url == "/testThowFromWriteResponseAfterWrite")
-        return std::make_shared<TestThowFromWriteResponseAfterWrite>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
+            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            throw std::runtime_error{"Unexpected error"};
+        };
 
     if (url == "/testThrowAfterWakeup")
-        return std::make_shared<TestThrowAfterWakeup>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream >> req;
 
+            auto wakeupper = stream.wakeupper();
+            auto wait = std::make_shared<std::atomic_bool>();
+            wait->store(true);
+            s_threadWorker.insertTask([=]{
+                // simulate some heavy work
+                std::this_thread::sleep_for(100ms);
+                wait->store(false);
+                wakeupper->wake_up();
+            });
+            do {
+                if (auto ec = stream.yield())
+                    throw ec;
+            } while (wait->load());
+            throw 404;
+        };
+
+    // PPP stands for post, put, patch
     if (url == "/testPPP")
-        return std::make_shared<TestPPP>(serverSession);
+        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+            stream.session_timeout(10s);
+            std::string body;
+            req.append_body_callback([&](std::string_view buff){
+                body.append(buff);
+            });
+            stream >> req;
+            if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != test50mresponse.size())
+                throw Getodac::response{400, "Invaid body size"};
+            if (body != test50mresponse)
+                throw Getodac::response{400, "Invaid body"};
+            stream.session_timeout(30s);
+            stream << Getodac::response{200}.content_length(body.length());
+            stream.write(body);
+        };
 
-    return s_testRootRestful.createHandler(url, method, serverSession);
+    return s_testRootRestful.create_handler(url, req.method());
 }
 
-PLUGIN_EXPORT bool initPlugin(const std::string &/*confDir*/)
+PLUGIN_EXPORT bool init_plugin(const std::string &/*confDir*/)
 {
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         test50mresponse += char(33 + (i % 93));
-
-    s_testRootRestful.createRoute("customers")
-            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
-    s_testRootRestful.createRoute("customers/{customerId}")
-            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
-    s_testRootRestful.createRoute("customers/{customerId}/licenses")
-            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
-    s_testRootRestful.createRoute("customers/{customerId}/licenses/{licenseId}")
-            ->addMethodHandler("GET", Getodac::sessionHandler<TestRESTGET>());
+    s_testRootRestful.create_route("customers")
+            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+    s_testRootRestful.create_route("customers/{customerId}")
+            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+    s_testRootRestful.create_route("customers/{customerId}/licenses")
+            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+    s_testRootRestful.create_route("customers/{customerId}/licenses/{licenseId}")
+            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
     return true;
 }
 
-PLUGIN_EXPORT uint32_t pluginOrder()
+PLUGIN_EXPORT uint32_t plugin_order()
 {
     return 9999999;
 }
 
-PLUGIN_EXPORT void destoryPlugin()
-{
-}
+PLUGIN_EXPORT void destory_plugin()
+{}

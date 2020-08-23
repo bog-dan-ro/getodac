@@ -31,7 +31,7 @@ namespace Getodac {
  *
  * \param path to plugin
  */
-ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
+server_plugin::server_plugin(const std::string &path, const std::string &confDir)
 {
     TRACE(serverLogger) << "ServerPlugin loading: " << path << " confDir:" << confDir;
     int flags = RTLD_NOW | RTLD_LOCAL;
@@ -40,7 +40,7 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
 #endif
     m_handler = std::shared_ptr<void>(dlopen(path.c_str(), flags), [](void *ptr) {
         if (ptr) {
-            auto destroy = DestoryPluginType(dlsym(ptr, "destoryPlugin"));
+            auto destroy = DestoryPluginType(dlsym(ptr, "destory_plugin"));
             if (destroy)
                 destroy();
             dlclose(ptr);
@@ -50,18 +50,18 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
     if (!m_handler)
         throw std::runtime_error{dlerror()};
 
-    auto init = InitPluginType(dlsym(m_handler.get(), "initPlugin"));
+    auto init = InitPluginType(dlsym(m_handler.get(), "init_plugin"));
     if (init && !init(confDir))
         throw std::runtime_error{"initPlugin failed"};
 
-    auto order = PluginOrder(dlsym(m_handler.get(), "pluginOrder"));
-    if (!order)
-        throw std::runtime_error{"Can't find pluginOrder function"};
-    m_order = order();
-    createSession = CreateSessionType(dlsym(m_handler.get(), "createSession"));
+    create_session = CreateSessionType(dlsym(m_handler.get(), "create_session"));
+    if (!create_session)
+        throw std::runtime_error{"Can't find create_session function"};
 
-    if (!createSession)
-        throw std::runtime_error{dlerror()};
+    auto order = PluginOrder(dlsym(m_handler.get(), "plugin_order"));
+    if (!order)
+        throw std::runtime_error{"Can't find plugin_order function"};
+    m_order = order();
 }
 
 /*!
@@ -69,12 +69,11 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
  *
  * \param createSession function pointer
  */
-ServerPlugin::ServerPlugin(CreateSessionType funcPtr, uint32_t order)
- : createSession(funcPtr)
+server_plugin::server_plugin(CreateSessionType funcPtr, uint32_t order)
+ : create_session(funcPtr)
  , m_order(order)
-{
-}
+{}
 
-ServerPlugin::~ServerPlugin() = default;
+server_plugin::~server_plugin() = default;
 
 } // namespace Getodac

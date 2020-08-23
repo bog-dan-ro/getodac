@@ -26,12 +26,12 @@
 int main(int argc, char*argv[])
 {
     try {
-        return Getodac::Server::instance()->exec(argc, argv);
+        return Getodac::server::instance()->exec(argc, argv);
     } catch (const std::exception &e) {
-        FATAL(Getodac::serverLogger) << e.what();
+        FATAL(Getodac::server_logger) << e.what();
         return -1;
     } catch (...) {
-        FATAL(Getodac::serverLogger) << "Unknown exception";
+        FATAL(Getodac::server_logger) << "Unknown exception";
         return -1;
     }
 }

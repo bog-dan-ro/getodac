@@ -4,7 +4,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include http-parser ${Boost_INCLUDE_DI
 
 add_definitions(-DBOOST_LOG_DYN_LINK -DBOOST_ALL_DYN_LINK)
 
-set(SRCS staticContentPlugin.cpp)
+set(SRCS static_content_plugin.cpp)
 
 add_library(staticContent SHARED ${SRCS})
 target_compile_options(staticContent PUBLIC "-fnon-call-exceptions")

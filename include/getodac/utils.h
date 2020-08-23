@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstring>
 #include <list>
 #include <string>
 #include <string_view>
@@ -101,7 +102,7 @@ inline std::string unEscapeUrl(std::string_view in)
         switch (in[i]) {
         case '%':
             if (i + 2 < in.size()) {
-                                        // it's faster than std::stoi(in.substr(i + 1, 2)) ...
+                // it's faster than std::stoi(in.substr(i + 1, 2)) ...
                 out += static_cast<char>(fromHex(in[i + 1]) << 4 | fromHex(in[i + 2]));
                 i += 2;
             } else {
@@ -279,7 +280,7 @@ class SimpleTimer
 public:
     template<typename T>
     SimpleTimer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
-        : m_thread([=]{
+        : m_thread([callback, timeout, singleShot, this]{
         std::unique_lock<std::mutex> lock(m_lock);
         while (!m_waitCondition.wait_for(lock, timeout, [this]{return m_quit.load();})) {
             callback();
@@ -303,4 +304,130 @@ private:
     std::thread m_thread;
 };
 
+template <typename T = char>
+class buffer {
+public:
+    buffer() = default;
+    buffer(size_t size)
+        : m_buffer(std::make_unique<T[]>(size))
+        , m_size(size)
+    {}
+
+    void reset()
+    {
+        m_current = m_buffer.get();
+        m_end = m_current + m_size;
+    }
+
+    void resize(size_t size)
+    {
+        if (size == m_size) {
+            reset();
+            return;
+        }
+        auto tmp = std::make_unique<T[]>(size);
+        std::memcpy(tmp.get(), m_buffer.get(), sizeof(T) * std::min(size, m_size));
+        m_buffer = std::move(tmp);
+        m_size = size;
+        reset();
+    }
+
+    void advance(size_t size)
+    {
+        m_current += size;
+        if (m_current > m_end)
+            m_current = m_end;
+    }
+
+    void commit()
+    {
+        if (m_current == m_buffer.get())
+            return;
+        size_t size = m_end - m_current;
+        std::memmove(m_buffer.get(), m_current, size);
+        m_current = m_buffer.get();
+        m_end = m_current + size;
+    }
+
+    const T *current_data() const
+    {
+        return m_current;
+    }
+
+    T *current_data()
+    {
+        return m_current;
+    }
+    size_t current_size() const
+    {
+        return m_end - m_current;
+    }
+
+    void set_current_size(size_t size)
+    {
+        m_end = m_current + size;
+    }
+
+    void set_current_data(size_t size)
+    {
+        m_current = m_buffer.get() + size;
+    }
+
+    const T *data() const
+    {
+        return m_buffer.get();
+    }
+    T *data()
+    {
+        return m_buffer.get();
+    }
+
+    size_t size() const
+    {
+        return m_size;
+    }
+
+    std::basic_string_view<T> current_string() const
+    {
+        return {m_current, size_t(m_end - m_current)};
+    }
+
+    std::basic_string_view<T> string() const
+    {
+        return std::basic_string_view<T>{m_buffer.get(), m_size};
+    }
+
+    buffer<T>& operator=(std::string_view buff)
+    {
+        const size_t size = buff.size();
+        resize(size);
+        memcpy(m_buffer.get(), buff.data(), size);
+        set_current_size(size);
+        return *this;
+    }
+
+    buffer<T>& operator *=(std::string_view buff)
+    {
+        const size_t size = buff.size();
+        if (m_size <= size)
+            return operator=(buff);
+        reset();
+        memcpy(m_buffer.get(), buff.data(), size);
+        advance(size);
+        return *this;
+    }
+
+    void clear()
+    {
+        m_buffer.reset();
+        m_size = 0;
+        reset();
+    }
+private:
+    std::unique_ptr<T[]> m_buffer;
+    size_t m_size = 0;
+    T *m_current = nullptr;
+    T *m_end = nullptr;
+};
+using char_buffer = buffer<char>;
 } // namespace Getodac

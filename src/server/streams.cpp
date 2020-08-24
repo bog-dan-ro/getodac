@@ -66,7 +66,6 @@ basic_http_session::basic_http_session(sessions_event_loop *eventLoop, int socke
     m_settings.on_message_complete = &basic_http_session::messageComplete;
     http_parser_init(&m_parser, HTTP_REQUEST);
     session_timeout(5s);
-//    socket_write_size(32768);
 }
 
 basic_http_session::~basic_http_session() = default;
@@ -76,6 +75,7 @@ void basic_http_session::read(request &req) noexcept(false)
     if (req.state() == request::state::completed)
         return;
 
+    m_can_write_errror = true;
     auto &buffer = m_eventLoop->shared_read_buffer;
     http_parser_data data{.req = req};
     m_parser.data = &data;

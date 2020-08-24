@@ -181,9 +181,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
     if (url == "/testExpectation")
         return [&](Getodac::abstract_stream& stream, Getodac::request& req){
             if (req["Expect"] == "100-continue") {
-                if (req["X-Continue"] == "100") {
-                    stream << Getodac::response{100};
-                } else {
+                if (req["X-Continue"] != "100") {
                     throw Getodac::response{417};
                 }
             }

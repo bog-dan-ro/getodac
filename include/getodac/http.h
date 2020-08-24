@@ -220,12 +220,35 @@ public:
     bool keep_alive() const noexcept { return m_keep_alive; }
     void keep_alive(bool keep) noexcept { m_keep_alive = keep; }
 
-    void append_body_callback(const BodyCallback &callback) noexcept { m_callback = callback; }
+    void append_body_callback(const BodyCallback &callback, size_t max_size = std::numeric_limits<size_t>::max() - 1) noexcept
+    {
+        m_max_body_size = max_size;
+        m_callback = callback;
+    }
+
     void append_body(std::string_view body) noexcept(false)
     {
         if (!m_callback)
             throw response(400, std::string_view{"unexpected body"});
         m_callback(body);
+    }
+
+    size_t content_length() const
+    {
+        auto it = find("Content-Length");
+        if (it != end()) {
+            char *end;
+            auto data = it->second.data();
+            auto len = std::strtoull(it->second.data(), &end, 10);
+            if (end == data + it->second.size())
+                return len;
+        }
+        return Getodac::Chunked_Data;
+    }
+
+    size_t max_body_size() const noexcept
+    {
+        return m_max_body_size;
     }
 
 private:
@@ -234,10 +257,20 @@ private:
     std::string m_method;
     BodyCallback m_callback;
     enum state m_state = state::uninitialized;
+    size_t m_max_body_size = 0;
 };
 
 inline abstract_stream &operator >> (abstract_stream &stream, request &req)
 {
+    auto it = req.find("Expect");
+    if (it != req.end() && it->second == "100-continue") {
+        size_t content_length = req.content_length();
+        if (content_length != Chunked_Data && req.max_body_size() < content_length)
+            throw 417; // Expectation Failed
+        else
+            stream << response{100};
+    }
+
     stream.read(req);
     return stream;
 }

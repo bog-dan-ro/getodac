@@ -54,8 +54,8 @@
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
-#include <getodac/exceptions.h>
-#include <getodac/logging.h>
+#include <dracon/exceptions.h>
+#include <dracon/logging.h>
 
 #include "server.h"
 #include "server_logger.h"
@@ -158,13 +158,13 @@ namespace {
         /// Transform segmentation violations signals into exceptions
         if (sig == SIGSEGV && info->si_addr == 0) {
             unblockSignal(SIGSEGV);
-            throw Getodac::segmentation_fault_error(stackTrace(3));
+            throw dracon::segmentation_fault_error(stackTrace(3));
         }
 
         /// Transform floation-point errors signals into exceptions
         if (sig == SIGFPE && (info->si_code == FPE_INTDIV || info->si_code == FPE_FLTDIV)) {
             unblockSignal(SIGFPE);
-            throw Getodac::floating_point_error(stackTrace(3));
+            throw dracon::floating_point_error(stackTrace(3));
         }
         if (sig == SIGTERM || sig == SIGINT) {
             server::exit_signal_handler();
@@ -497,7 +497,7 @@ int server::exec(int argc, char *argv[])
 
                     uint32_t order;
                     {
-                        auto addr = addr_text(in_addr);
+                        auto addr = dracon::addr_text(in_addr);
                         std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
                         if (m_connections_per_ip[addr] > maxConnectionsPerIp) {
                             ::close(sock);
@@ -570,7 +570,7 @@ void server::server_session_deleted(basic_server_session *session)
     }
 
     {
-        auto addr = addr_text(session->peer_address());
+        auto addr = dracon::addr_text(session->peer_address());
         std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
         auto it = m_connections_per_ip.find(addr);
         assert(it != m_connections_per_ip.end());
@@ -579,7 +579,7 @@ void server::server_session_deleted(basic_server_session *session)
     }
 }
 
-std::function<void (abstract_stream &, request &)> server::create_session(const request &request)
+std::function<void (dracon::abstract_stream &, dracon::request &)> server::create_session(const dracon::request &request)
 {
     for (const auto &plugin : m_plugins) {
         if (auto service = plugin.create_session(request))

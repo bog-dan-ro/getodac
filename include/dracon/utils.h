@@ -40,7 +40,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace Getodac {
+namespace dracon {
 
 /*!
  * \brief The SpinLock class
@@ -429,5 +429,7 @@ private:
     T *m_current = nullptr;
     T *m_end = nullptr;
 };
+
 using char_buffer = buffer<char>;
-} // namespace Getodac
+
+} // namespace dracon

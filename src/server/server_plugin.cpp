@@ -40,7 +40,7 @@ server_plugin::server_plugin(const std::string &path, const std::string &confDir
 #endif
     m_handler = std::shared_ptr<void>(dlopen(path.c_str(), flags), [](void *ptr) {
         if (ptr) {
-            auto destroy = DestoryPluginType(dlsym(ptr, "destory_plugin"));
+            auto destroy = dracon::DestoryPluginType(dlsym(ptr, "destory_plugin"));
             if (destroy)
                 destroy();
             dlclose(ptr);
@@ -50,15 +50,15 @@ server_plugin::server_plugin(const std::string &path, const std::string &confDir
     if (!m_handler)
         throw std::runtime_error{dlerror()};
 
-    auto init = InitPluginType(dlsym(m_handler.get(), "init_plugin"));
+    auto init = dracon::InitPluginType(dlsym(m_handler.get(), "init_plugin"));
     if (init && !init(confDir))
         throw std::runtime_error{"initPlugin failed"};
 
-    create_session = CreateSessionType(dlsym(m_handler.get(), "create_session"));
+    create_session = dracon::CreateSessionType(dlsym(m_handler.get(), "create_session"));
     if (!create_session)
         throw std::runtime_error{"Can't find create_session function"};
 
-    auto order = PluginOrder(dlsym(m_handler.get(), "plugin_order"));
+    auto order = dracon::PluginOrder(dlsym(m_handler.get(), "plugin_order"));
     if (!order)
         throw std::runtime_error{"Can't find plugin_order function"};
     m_order = order();
@@ -69,7 +69,7 @@ server_plugin::server_plugin(const std::string &path, const std::string &confDir
  *
  * \param createSession function pointer
  */
-server_plugin::server_plugin(CreateSessionType funcPtr, uint32_t order)
+server_plugin::server_plugin(dracon::CreateSessionType funcPtr, uint32_t order)
  : create_session(funcPtr)
  , m_order(order)
 {}

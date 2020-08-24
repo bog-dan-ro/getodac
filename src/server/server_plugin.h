@@ -18,7 +18,7 @@
 #pragma once
 
 #include <memory>
-#include <getodac/plugin.h>
+#include <dracon/plugin.h>
 
 namespace Getodac {
 
@@ -31,9 +31,9 @@ class server_plugin
 {
 public:
     explicit server_plugin(const std::string &path, const std::string &confDir);
-    explicit server_plugin(CreateSessionType funcPtr, uint32_t order);
+    explicit server_plugin(dracon::CreateSessionType funcPtr, uint32_t order);
     ~server_plugin();
-    CreateSessionType create_session;
+    dracon::CreateSessionType create_session;
     uint32_t order() const { return m_order; }
 
 private:

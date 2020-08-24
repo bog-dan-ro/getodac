@@ -34,9 +34,9 @@
 
 #include <sys/socket.h>
 
-#include <getodac/utils.h>
+#include <dracon/utils.h>
 
-namespace Getodac {
+namespace dracon {
 
 namespace {
     static const std::string_view end_of_chuncked_stream{"0\r\n\r\n"};
@@ -382,4 +382,4 @@ private:
     std::string m_buffer;
 };
 
-} // namespace Getodac
+} // namespace dracon

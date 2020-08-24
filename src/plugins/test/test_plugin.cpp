@@ -15,11 +15,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <getodac/http.h>
-#include <getodac/plugin.h>
-#include <getodac/restful.h>
-#include <getodac/logging.h>
-#include <getodac/thread_worker.h>
+#include <dracon/http.h>
+#include <dracon/plugin.h>
+#include <dracon/restful.h>
+#include <dracon/logging.h>
+#include <dracon/thread_worker.h>
 
 #include <cassert>
 #include <iostream>
@@ -32,16 +32,16 @@ namespace {
 const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"};
 std::string test50mresponse;
 
-Getodac::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
-Getodac::thread_worker s_threadWorker{10};
+dracon::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
+dracon::thread_worker s_threadWorker{10};
 
 TaggedLogger<> logger{"test"};
 
-void TestRESTGET(Getodac::parsed_route parsed_route, Getodac::abstract_stream& stream, Getodac::request& req){
+void TestRESTGET(dracon::parsed_route parsed_route, dracon::abstract_stream& stream, dracon::request& req){
     stream >> req;
-    stream << Getodac::response{200, {}, {{"Content-Type","text/plain"}}}.content_length(Getodac::Chunked_Data);
-    Getodac::chunked_stream chunked_stream{stream};
-    Getodac::ostreambuffer buff{chunked_stream};
+    stream << dracon::response{200, {}, {{"Content-Type","text/plain"}}}.content_length(dracon::Chunked_Data);
+    dracon::chunked_stream chunked_stream{stream};
+    dracon::ostreambuffer buff{chunked_stream};
     std::ostream str{&buff};
     str << "Got " << parsed_route.capturedResources.size() << " captured resources\n";
     str << "and " << parsed_route.queryStrings.size() << " queries\n";
@@ -56,43 +56,43 @@ void TestRESTGET(Getodac::parsed_route parsed_route, Getodac::abstract_stream& s
 
 } // namespace
 
-PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
+PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
 {
-    using namespace Getodac::literals;
+    using namespace dracon::literals;
     auto &url = req.url();
     if (url == "/test0")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             stream << 200_http;
         };
 
     if (url == "/test100")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream << Getodac::response{200, test100response};
+            stream << dracon::response{200, test100response};
         };
 
     if (url == "/test100Chunked")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
-            Getodac::chunked_stream{stream}.write(test100response);
+            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
+            dracon::chunked_stream{stream}.write(test100response);
         };
 
     if (url == "/test50m")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             stream.session_timeout(30s);
-            stream << Getodac::response{200}.content_length(test50mresponse.size())
+            stream << dracon::response{200}.content_length(test50mresponse.size())
                    << test50mresponse;
         };
 
     if (url == "/test50mChunked")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             stream.session_timeout(30s);
-            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
-            Getodac::chunked_stream chuncked_stream{stream};
+            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
+            dracon::chunked_stream chuncked_stream{stream};
             uint32_t pos = 0;
             do {
                 uint32_t chunkSize = 1 + rand() % (1024 * 1024);
@@ -103,15 +103,15 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         };
 
     if (url == "/testWorker")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
             stream.session_timeout(30s);
             auto wakeupper = stream.wakeupper();
             auto wait = std::make_shared<std::atomic_bool>();
             auto buffer = std::make_shared<std::string>();
             uint32_t size = 0;
-            Getodac::chunked_stream chuncked_stream{stream};
+            dracon::chunked_stream chuncked_stream{stream};
             do {
                 wait->store(true);
                 s_threadWorker.insertTask([=]{
@@ -134,23 +134,23 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         };
 
     if (url == "/test50ms")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             stream.session_timeout(30s);
-            std::vector<Getodac::const_buffer> vec;
+            std::vector<dracon::const_buffer> vec;
             vec.resize(51);
             for (int i = 1; i < 51; ++i) {
                 vec[i].ptr = (void*)(test50mresponse.c_str() + 1024 * 1024 * (i - 1));
                 vec[i].length = 1024 * 1024;
             }
-            auto res = Getodac::response{200}.content_length(test50mresponse.size()).to_string(stream.keep_alive());
+            auto res = dracon::response{200}.content_length(test50mresponse.size()).to_string(stream.keep_alive());
             vec[0].ptr = res.data();
             vec[0].length = res.length();
             stream.write(vec);
         };
 
     if (url == "/echoTest")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream.session_timeout(10s);
             std::string body;
             req.append_body_callback([&](std::string_view buff){
@@ -160,9 +160,9 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
             if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != body.size()) {
                 throw 400;
             }
-            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
-            Getodac::chunked_stream chunked_stream{stream};
-            Getodac::ostreambuffer buff{chunked_stream};
+            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
+            dracon::chunked_stream chunked_stream{stream};
+            dracon::ostreambuffer buff{chunked_stream};
             std::ostream res{&buff};
             res << "~~~~ ContentLength: " << req["Content-Length"] << std::endl;
             res << "~~~~ Headers:\n";
@@ -172,18 +172,18 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         };
 
     if (url == "/secureOnly")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             if (!stream.is_secured_connection())
-                throw Getodac::response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
+                throw dracon::response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
             stream >> req;
             stream << 200_http;
         };
 
     if (url == "/testExpectation")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             if (req["Expect"] == "100-continue") {
                 if (req["X-Continue"] != "100") {
-                    throw Getodac::response{417};
+                    throw dracon::response{417};
                 }
             }
             req.append_body_callback([](std::string_view buff){
@@ -194,14 +194,14 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         };
 
     if (url == "/testThowFromRequestComplete")
-        return [&](Getodac::abstract_stream&, Getodac::request&){
+        return [&](dracon::abstract_stream&, dracon::request&){
             throw 412;
         };
 
     if (url == "/testThowFromBody")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             req.append_body_callback([](std::string_view){
-                throw Getodac::response{400, "Body too big, lose some weight",
+                throw dracon::response{400, "Body too big, lose some weight",
                                         {{"BodyKey1", "Value1"},
                         {"BodyKey2", "Value2"}}};
             });
@@ -210,26 +210,26 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         };
 
     if (url == "/testThowFromWriteResponse")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            throw Getodac::response{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
+            throw dracon::response{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
         };
 
     if (url == "/testThowFromWriteResponseStd")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             throw std::runtime_error{"Throw from WriteResponseStd"};
         };
 
     if (url == "/testThowFromWriteResponseAfterWrite")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream << Getodac::response{200}.content_length(Getodac::Chunked_Data);
+            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
             throw std::runtime_error{"Unexpected error"};
         };
 
     if (url == "/testThrowAfterWakeup")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
 
             auto wakeupper = stream.wakeupper();
@@ -250,7 +250,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
 
     // PPP stands for post, put, patch
     if (url == "/testPPP")
-        return [&](Getodac::abstract_stream& stream, Getodac::request& req){
+        return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream.session_timeout(10s);
             std::string body;
             req.append_body_callback([&](std::string_view buff){
@@ -258,11 +258,11 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
             });
             stream >> req;
             if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != test50mresponse.size())
-                throw Getodac::response{400, "Invaid body size"};
+                throw dracon::response{400, "Invaid body size"};
             if (body != test50mresponse)
-                throw Getodac::response{400, "Invaid body"};
+                throw dracon::response{400, "Invaid body"};
             stream.session_timeout(30s);
-            stream << Getodac::response{200}.content_length(body.length()) << body;
+            stream << dracon::response{200}.content_length(body.length()) << body;
         };
 
     return s_testRootRestful.create_handler(url, req.method());
@@ -273,13 +273,13 @@ PLUGIN_EXPORT bool init_plugin(const std::string &/*confDir*/)
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         test50mresponse += char(33 + (i % 93));
     s_testRootRestful.create_route("customers")
-            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
     s_testRootRestful.create_route("customers/{customerId}")
-            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
     s_testRootRestful.create_route("customers/{customerId}/licenses")
-            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
     s_testRootRestful.create_route("customers/{customerId}/licenses/{licenseId}")
-            ->add_method_handler("GET", Getodac::session_handler(TestRESTGET));
+            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
     return true;
 }
 

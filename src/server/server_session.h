@@ -45,7 +45,7 @@ namespace Getodac {
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
-struct wakeupper : abstract_stream::abstract_wakeupper
+struct wakeupper : dracon::abstract_stream::abstract_wakeupper
 {
     wakeupper(int fd, uint64_t ptr)
         : m_fd(fd)
@@ -155,10 +155,10 @@ public:
                 m_event_loop->delete_later(this);
             }
         } catch (const std::exception &e) {
-            DEBUG(server_logger) << addr_text(m_peer_addr) << e.what();
+            DEBUG(server_logger) << dracon::addr_text(m_peer_addr) << e.what();
             m_event_loop->delete_later(this);
         } catch (...) {
-            DEBUG(server_logger) << addr_text(m_peer_addr) << "Unkown exception, terminating the session";
+            DEBUG(server_logger) << dracon::addr_text(m_peer_addr) << "Unkown exception, terminating the session";
             m_event_loop->delete_later(this);
         }
     }

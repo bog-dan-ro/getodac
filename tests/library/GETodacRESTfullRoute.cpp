@@ -16,12 +16,12 @@
 */
 
 #include <gtest/gtest.h>
-#include <getodac/restful.h>
+#include <dracon/restful.h>
 #include <optional>
 
 namespace {
     using namespace std;
-    using namespace Getodac;
+    using namespace dracon;
 
     class TestRouter : public restful_router<std::optional<int>, int>
     {

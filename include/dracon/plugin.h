@@ -29,7 +29,7 @@
 #include <functional>
 #include <string>
 
-namespace Getodac {
+namespace dracon {
 class abstract_stream;
 class request;
 
@@ -49,7 +49,7 @@ PLUGIN_EXPORT uint32_t plugin_order()
     // The server calls this function to get the plugin order
 }
 
-PLUGIN_EXPORT HttpSession create_session(const Getodac::request& req)
+PLUGIN_EXPORT HttpSession create_session(const dracon::request& req)
 {
     // The server will call this function to create a session for the provided request object
     // If the plugin can handle them it should return an HttpSession object, otherwise {}
@@ -71,10 +71,10 @@ using InitPluginType = bool (*)(const std::string &);
 using PluginOrder = uint32_t (*)();
 
 /// The server calls this function when it needs to create a new session
-using HttpSession = std::function<void(Getodac::abstract_stream&, Getodac::request&)>;
-using CreateSessionType = HttpSession (*)(const Getodac::request&);
+using HttpSession = std::function<void(dracon::abstract_stream&, dracon::request&)>;
+using CreateSessionType = HttpSession (*)(const dracon::request&);
 
 /// The server calls this function when it destoyes the plugins
 using DestoryPluginType = void (*)();
 
-} // namespace Getodac
+} // namespace dracon

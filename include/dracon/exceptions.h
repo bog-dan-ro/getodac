@@ -28,7 +28,7 @@
 
 #include <stdexcept>
 
-namespace Getodac {
+namespace dracon {
 
 /*!
  * \brief The segmentation_fault_error class
@@ -58,4 +58,4 @@ public:
         : std::runtime_error(__arg){}
 };
 
-} // namespace Getodac
+} // namespace dracon

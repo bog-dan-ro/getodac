@@ -24,7 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <getodac/utils.h>
+#include <dracon/utils.h>
 
 namespace Getodac {
 
@@ -51,8 +51,8 @@ public:
     inline int active_sessions() const noexcept { return m_active_sessions.load(); }
     void shutdown() noexcept;
 
-    char_buffer shared_read_buffer;
-    std::shared_ptr<char_buffer> shared_write_buffer(size_t size) const;
+    dracon::char_buffer shared_read_buffer;
+    std::shared_ptr<dracon::char_buffer> shared_write_buffer(size_t size) const;
     void setWorkloadBalancing(bool on);
 
     inline int event_fd() const { return m_event_fd; }
@@ -60,7 +60,7 @@ private:
     void loop();
 
 private:
-    std::shared_ptr<char_buffer> m_shared_write_buffer;
+    std::shared_ptr<dracon::char_buffer> m_shared_write_buffer;
     int m_epoll_handler;
     bool m_workload_balancing = false;
     int m_event_fd;
@@ -69,7 +69,7 @@ private:
     std::thread m_loop_thread;
     std::mutex m_sessions_mutex;
     std::set<basic_server_session *> m_sessions;
-    spin_lock m_deleteLater_mutex;
+    dracon::spin_lock m_deleteLater_mutex;
     std::unordered_set<basic_server_session *> m_delete_later_objects;
 };
 

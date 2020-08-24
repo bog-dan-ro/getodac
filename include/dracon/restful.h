@@ -33,12 +33,12 @@
 #include <unordered_set>
 #include <vector>
 
-#include <getodac/exceptions.h>
-#include <getodac/http.h>
-#include <getodac/plugin.h>
-#include <getodac/utils.h>
+#include <dracon/exceptions.h>
+#include <dracon/http.h>
+#include <dracon/plugin.h>
+#include <dracon/utils.h>
 
-namespace Getodac {
+namespace dracon {
 class AbstractServerSession;
 
 using QueryStrings = std::vector<std::pair<std::string, std::string>>;
@@ -251,4 +251,4 @@ RESTfulRouteMethodHandler<HttpSession> session_handler(T && function)
     };
 }
 
-} // namespace Getodac
+} // namespace dracon

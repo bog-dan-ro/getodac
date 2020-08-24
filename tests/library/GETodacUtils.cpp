@@ -16,11 +16,11 @@
 */
 
 #include <gtest/gtest.h>
-#include <getodac/utils.h>
+#include <dracon/utils.h>
 #include <memory>
 
 namespace {
-using namespace Getodac;
+using namespace dracon;
 using namespace std;
 
     TEST(Utils, fromHex)
@@ -64,7 +64,7 @@ using namespace std;
     TEST(Utils, lru_cache)
     {
         using ptr = std::shared_ptr<int>;
-        Getodac::lru_cache<int, ptr> cache{2};
+        dracon::lru_cache<int, ptr> cache{2};
         std::vector<ptr> all{10};
         for (auto & p : all)
             p = std::make_shared<int>();

@@ -33,7 +33,7 @@
 #include <thread>
 #include <vector>
 
-namespace Getodac {
+namespace dracon {
 
 /*!
  * \brief The ThreadWorker class
@@ -117,4 +117,4 @@ private:
     std::vector<std::thread> m_workers;
 };
 
-} // namespace Getodac
+} // namespace dracon

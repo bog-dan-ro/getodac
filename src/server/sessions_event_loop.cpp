@@ -64,7 +64,7 @@ sessions_event_loop::sessions_event_loop()
     // by this event loop to read the incoming data without
     // allocating any memory
     shared_read_buffer.resize(rmem_max);
-    m_shared_write_buffer = std::make_shared<char_buffer>(readProc("/proc/sys/net/core/wmem_max"));
+    m_shared_write_buffer = std::make_shared<dracon::char_buffer>(readProc("/proc/sys/net/core/wmem_max"));
 
     m_epoll_handler = epoll_create1(EPOLL_CLOEXEC);
     if (m_epoll_handler == -1)
@@ -180,7 +180,7 @@ void sessions_event_loop::delete_later(basic_server_session *session) noexcept
 {
     unregister_session(session);
     // Idea "stolen" from Qt :)
-    std::unique_lock<spin_lock> lock{m_deleteLater_mutex};
+    std::unique_lock<dracon::spin_lock> lock{m_deleteLater_mutex};
     try {
         m_delete_later_objects.insert(session);
     } catch (...) {}
@@ -192,11 +192,11 @@ void sessions_event_loop::shutdown() noexcept
     eventfd_write(m_event_fd, 1);
 }
 
-std::shared_ptr<char_buffer> sessions_event_loop::shared_write_buffer(size_t size) const
+std::shared_ptr<dracon::char_buffer> sessions_event_loop::shared_write_buffer(size_t size) const
 {
     if (m_loop_thread.get_id() == std::this_thread::get_id() && size <= m_shared_write_buffer->size())
         return m_shared_write_buffer;
-    return std::make_shared<char_buffer>(size);
+    return std::make_shared<dracon::char_buffer>(size);
 }
 
 void sessions_event_loop::setWorkloadBalancing(bool on)
@@ -302,7 +302,7 @@ void sessions_event_loop::loop()
         }
 
         // Delete all deleteLater pending sessions
-        std::unique_lock<spin_lock> lock1{m_deleteLater_mutex};
+        std::unique_lock<dracon::spin_lock> lock1{m_deleteLater_mutex};
         for (auto &obj : m_delete_later_objects)
             delete obj;
         m_delete_later_objects.clear();

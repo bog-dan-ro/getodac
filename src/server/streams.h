@@ -27,8 +27,8 @@
 
 #include <boost/coroutine2/coroutine.hpp>
 
-#include <getodac/stream.h>
-#include <getodac/utils.h>
+#include <dracon/stream.h>
+#include <dracon/utils.h>
 #include <http_parser.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -57,16 +57,16 @@ struct mutable_buffer
     size_t length = 0;
 };
 
-class basic_http_session : public abstract_stream
+class basic_http_session : public dracon::abstract_stream
 {
 public:
     basic_http_session(sessions_event_loop *eventLoop, int socket, YieldType &yield, const sockaddr_storage& peer_address, const std::shared_ptr<abstract_wakeupper> &wakeupper);
     ~basic_http_session() override;
 
     // abstract_stream interface
-    void read(request &req) noexcept(false) override;
-    void write(const_buffer buffer) noexcept(false) override;
-    void write(std::vector<const_buffer> buffers) noexcept(false) override;
+    void read(dracon::request &req) noexcept(false) override;
+    void write(dracon::const_buffer buffer) noexcept(false) override;
+    void write(std::vector<dracon::const_buffer> buffers) noexcept(false) override;
 
     std::error_code yield() noexcept override;
     std::shared_ptr<abstract_wakeupper> wakeupper() const noexcept override;
@@ -99,10 +99,10 @@ protected:
     static int messageComplete(http_parser *parser);
     virtual void shutdown() noexcept = 0;
     virtual ssize_t read_some(mutable_buffer buff, std::error_code &ec) noexcept = 0;
-    virtual ssize_t write_some(const_buffer buff, std::error_code &ec) noexcept = 0;
-    virtual ssize_t write_some(std::vector<const_buffer> buff, std::error_code &ec) noexcept = 0;
+    virtual ssize_t write_some(dracon::const_buffer buff, std::error_code &ec) noexcept = 0;
+    virtual ssize_t write_some(std::vector<dracon::const_buffer> buff, std::error_code &ec) noexcept = 0;
 
-    request read_headers();
+    dracon::request read_headers();
 
 protected:
     YieldType &m_yield;
@@ -117,7 +117,7 @@ protected:
     http_parser_settings m_settings;
     bool m_can_write_errror = false;
     std::shared_ptr<abstract_wakeupper> m_wakeupper;
-    char_buffer m_http_parser_buffer;
+    dracon::char_buffer m_http_parser_buffer;
 };
 
 class socket_session : public basic_http_session
@@ -129,8 +129,8 @@ protected:
     // basic_http_session interface
     void shutdown() noexcept override;
     ssize_t read_some(mutable_buffer buff, std::error_code &ec) noexcept override;
-    ssize_t write_some(const_buffer buff, std::error_code &ec) noexcept override;
-    ssize_t write_some(std::vector<const_buffer> buff, std::error_code &ec) noexcept override;
+    ssize_t write_some(dracon::const_buffer buff, std::error_code &ec) noexcept override;
+    ssize_t write_some(std::vector<dracon::const_buffer> buff, std::error_code &ec) noexcept override;
 };
 
 class ssl_socket_session: public basic_http_session
@@ -142,8 +142,8 @@ protected:
     // basic_http_session interface
     void shutdown() noexcept override;
     ssize_t read_some(mutable_buffer buff, std::error_code &ec) noexcept override;
-    ssize_t write_some(const_buffer buff, std::error_code &ec) noexcept override;
-    ssize_t write_some(std::vector<const_buffer> buffers, std::error_code &ec) noexcept override;
+    ssize_t write_some(dracon::const_buffer buff, std::error_code &ec) noexcept override;
+    ssize_t write_some(std::vector<dracon::const_buffer> buffers, std::error_code &ec) noexcept override;
     bool is_secured_connection() const noexcept final { return true; }
 
 private:

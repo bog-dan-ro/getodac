@@ -27,8 +27,8 @@
 
 #include <sys/uio.h>
 
-#include <getodac/http.h>
-#include <getodac/logging.h>
+#include <dracon/http.h>
+#include <dracon/logging.h>
 
 #include "server.h"
 #include "server_logger.h"
@@ -44,7 +44,7 @@ using namespace std::chrono_literals;
 
 struct http_parser_data
 {
-    request &req;
+    dracon::request &req;
     std::string header_field;
 };
 
@@ -70,9 +70,9 @@ basic_http_session::basic_http_session(sessions_event_loop *eventLoop, int socke
 
 basic_http_session::~basic_http_session() = default;
 
-void basic_http_session::read(request &req) noexcept(false)
+void basic_http_session::read(dracon::request &req) noexcept(false)
 {
-    if (req.state() == request::state::completed)
+    if (req.state() == dracon::request::state::completed)
         return;
 
     m_can_write_errror = true;
@@ -82,12 +82,12 @@ void basic_http_session::read(request &req) noexcept(false)
     if (m_http_parser_buffer.current_size()) {
         auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, m_http_parser_buffer.current_data(), m_http_parser_buffer.current_size());
         if (m_parser.http_errno) {
-            INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
         m_http_parser_buffer.advance(parsed_bytes);
     }
-    while (req.state() != request::state::completed) {
+    while (req.state() != dracon::request::state::completed) {
         buffer.reset();
         std::error_code ec;
         auto temp_size = m_http_parser_buffer.current_size();
@@ -107,10 +107,10 @@ void basic_http_session::read(request &req) noexcept(false)
                                                 buffer.current_data(),
                                                 buffer.current_size());
         if (m_parser.http_errno) {
-            INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
-        if (req.state() == request::state::completed)
+        if (req.state() == dracon::request::state::completed)
             break;
         buffer.advance(parsed_bytes);
         if (buffer.current_size())
@@ -121,7 +121,7 @@ void basic_http_session::read(request &req) noexcept(false)
     m_http_parser_buffer.clear();
 }
 
-void basic_http_session::write(const_buffer buffer) noexcept(false)
+void basic_http_session::write(dracon::const_buffer buffer) noexcept(false)
 {
     while (buffer.length) {
         std::error_code ec;
@@ -138,7 +138,7 @@ void basic_http_session::write(const_buffer buffer) noexcept(false)
     }
 }
 
-void basic_http_session::write(std::vector<const_buffer> buffers) noexcept(false)
+void basic_http_session::write(std::vector<dracon::const_buffer> buffers) noexcept(false)
 {
     for(;;) {
         std::error_code ec;
@@ -174,7 +174,7 @@ std::error_code Getodac::basic_http_session::yield() noexcept
     return m_yield().get();
 }
 
-std::shared_ptr<abstract_stream::abstract_wakeupper> basic_http_session::wakeupper() const noexcept
+std::shared_ptr<dracon::abstract_stream::abstract_wakeupper> basic_http_session::wakeupper() const noexcept
 {
     return m_wakeupper;
 }
@@ -246,12 +246,12 @@ void basic_http_session::io_loop()
     try {
         session_timeout(5s); // 5 seconds to read the headers
         do {
-            request req = read_headers();
+            dracon::request req = read_headers();
             keep_alive(req.keep_alive() * 10s);
             auto session = server::instance()->create_session(req);
             if (!session) {
-                INFO(Getodac::server_logger) << addr_text(peer_address()) << " invalid url " << req.method() << " " << req.url();
-                write(response{503}.to_string());
+                INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " invalid url " << req.method() << " " << req.url();
+                write(dracon::response{503}.to_string());
                 break;
             }
             session(*this, req);
@@ -259,28 +259,28 @@ void basic_http_session::io_loop()
             server::instance()->session_served();
         } while (!m_yield.get() && m_keep_alive.count());
     } catch (int error) {
-        INFO(Getodac::server_logger) << addr_text(peer_address()) << " status code " << error;
+        INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " status code " << error;
         if (m_can_write_errror) {
-            write(response{error > 0 && error < std::numeric_limits<uint16_t>::max()
+            write(dracon::response{error > 0 && error < std::numeric_limits<uint16_t>::max()
                            ? uint16_t(error)
                            : uint16_t(500)}.to_string());
         }
-    } catch (const response &res) {
-        INFO(Getodac::server_logger) << addr_text(peer_address()) << " status code " << res.status_code() << " body " << res.body();
+    } catch (const dracon::response &res) {
+        INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " status code " << res.status_code() << " body " << res.body();
         if (m_can_write_errror)
             write(res.to_string());
     } catch (const std::exception &e) {
-        INFO(Getodac::server_logger) << addr_text(peer_address()) << " std message " << e.what();
+        INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " std message " << e.what();
         if (m_can_write_errror)
-            write(response{500, e.what()}.to_string());
+            write(dracon::response{500, e.what()}.to_string());
     } catch (const std::error_code &ec) {
-        INFO(Getodac::server_logger) <<  addr_text(peer_address()) << " error code " << ec.message();
+        INFO(Getodac::server_logger) <<  dracon::addr_text(peer_address()) << " error code " << ec.message();
         if (m_can_write_errror)
-            write(response{500, ec.message()}.to_string());
+            write(dracon::response{500, ec.message()}.to_string());
     } catch (...) {
-        INFO(Getodac::server_logger) << addr_text(peer_address()) << " Unknown error";
+        INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " Unknown error";
         if (m_can_write_errror)
-            write(response{}.to_string());
+            write(dracon::response{}.to_string());
     }
     shutdown();
 }
@@ -288,7 +288,7 @@ void basic_http_session::io_loop()
 int basic_http_session::messageBegin(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.state(request::state::processing_url);
+    data->req.state(dracon::request::state::processing_url);
     return 0;
 }
 
@@ -297,7 +297,7 @@ int basic_http_session::url(http_parser *parser, const char *at, size_t length)
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
     data->req.url(std::string{at, length});
     data->req.method(http_method_str(http_method(parser->method)));
-    data->req.state(request::state::processing_header);
+    data->req.state(dracon::request::state::processing_header);
     return 0;
 }
 
@@ -318,7 +318,7 @@ int basic_http_session::headerValue(http_parser *parser, const char *at, size_t 
 int basic_http_session::headersComplete(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.state(request::state::headers_completed);
+    data->req.state(dracon::request::state::headers_completed);
     data->req.keep_alive(http_should_keep_alive(parser));
     return 0;
 }
@@ -333,21 +333,21 @@ int basic_http_session::body(http_parser *parser, const char *at, size_t length)
 int basic_http_session::messageComplete(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.state(request::state::completed);
+    data->req.state(dracon::request::state::completed);
     return 0;
 }
 
-request basic_http_session::read_headers()
+dracon::request basic_http_session::read_headers()
 {
-    request req;
+    dracon::request req;
     http_parser_data data{.req = req};
 
     m_parser.data = &data;
     http_parser_init(&m_parser, HTTP_REQUEST);
 
     auto &buffer = m_eventLoop->shared_read_buffer;
-    while(req.state() != request::state::headers_completed &&
-        req.state() != request::state::completed) {
+    while(req.state() != dracon::request::state::headers_completed &&
+        req.state() != dracon::request::state::completed) {
         buffer.reset();
         std::error_code ec;
         auto temp_size = m_http_parser_buffer.current_size();
@@ -365,18 +365,18 @@ request basic_http_session::read_headers()
         m_can_write_errror = true;
         buffer.reset();
         buffer.set_current_size(sz + temp_size);
-        while ((req.state() != request::state::headers_completed &&
-                req.state() != request::state::completed) &&
+        while ((req.state() != dracon::request::state::headers_completed &&
+                req.state() != dracon::request::state::completed) &&
                buffer.current_size()) {
             // find next crlf
-            auto next = buffer.current_string().find(crlf_string);
+            auto next = buffer.current_string().find(dracon::crlf_string);
             if (next == std::string::npos)
                 next = buffer.current_size();
             else
                 next += 2;
             auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, buffer.current_data(), next);
             if (m_parser.http_errno) {
-                INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+                INFO(Getodac::server_logger) << dracon::addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
                 throw std::make_error_code(std::errc::bad_message);
             }
             buffer.advance(next);
@@ -417,7 +417,7 @@ ssize_t socket_session::read_some(mutable_buffer buff, std::error_code &ec) noex
     return res;
 }
 
-ssize_t socket_session::write_some(const_buffer buff, std::error_code &ec) noexcept
+ssize_t socket_session::write_some(dracon::const_buffer buff, std::error_code &ec) noexcept
 {
     ssize_t res = ::write(m_socket, buff.ptr, buff.length);
     if (res < 0) {
@@ -434,7 +434,7 @@ ssize_t socket_session::write_some(const_buffer buff, std::error_code &ec) noexc
     return res;
 }
 
-ssize_t socket_session::write_some(std::vector<const_buffer> buff, std::error_code &ec) noexcept
+ssize_t socket_session::write_some(std::vector<dracon::const_buffer> buff, std::error_code &ec) noexcept
 {
     ssize_t res = ::writev(m_socket, reinterpret_cast<iovec*>(&buff[0]), buff.size());
     if (res < 0) {
@@ -514,7 +514,7 @@ ssize_t ssl_socket_session::read_some(mutable_buffer buff, std::error_code &ec) 
     return sz;
 }
 
-ssize_t ssl_socket_session::write_some(const_buffer buff, std::error_code &ec) noexcept
+ssize_t ssl_socket_session::write_some(dracon::const_buffer buff, std::error_code &ec) noexcept
 {
     // make sure we start writing with no pending errors
     ERR_clear_error();
@@ -535,7 +535,7 @@ ssize_t ssl_socket_session::write_some(const_buffer buff, std::error_code &ec) n
     return sz;
 }
 
-ssize_t ssl_socket_session::write_some(std::vector<const_buffer> buffers, std::error_code &ec) noexcept
+ssize_t ssl_socket_session::write_some(std::vector<dracon::const_buffer> buffers, std::error_code &ec) noexcept
 {
     // Don't copy the buffers if the first piece is bigger than the socket write buffer size,
     // or we have only one buffer

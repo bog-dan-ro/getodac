@@ -23,18 +23,18 @@
 #include <iostream>
 #include <sstream>
 
-#include <getodac/http.h>
+#include <dracon/http.h>
 
 using namespace std::chrono_literals;
 namespace server_sessions {
 
 
-static void write_response(Getodac::abstract_stream& stream, Getodac::request& req)
+static void write_response(dracon::abstract_stream& stream, dracon::request& req)
 {
     bool can_write_error = true;
     try {
         stream >> req;
-        Getodac::response res{200};
+        dracon::response res{200};
         {
             res["Refresh"] = "5";
             std::ostringstream response;
@@ -62,26 +62,26 @@ static void write_response(Getodac::abstract_stream& stream, Getodac::request& r
         }
         can_write_error = false;
         stream << res;
-    } catch (const Getodac::response &res) {
+    } catch (const dracon::response &res) {
         if (can_write_error)
             stream << res;
         WARNING(Getodac::server_logger) << res.status_code() << " " << res.body();
     } catch (const std::error_code &ec) {
         if (can_write_error)
-            stream << Getodac::response{500, ec.message()};
+            stream << dracon::response{500, ec.message()};
         WARNING(Getodac::server_logger) << ec.message();
     } catch (const std::exception &e) {
         if (can_write_error)
-            stream << Getodac::response{500, e.what()};
+            stream << dracon::response{500, e.what()};
         WARNING(Getodac::server_logger) << e.what();
     } catch (...) {
         if (can_write_error)
-            stream << Getodac::response{500};
+            stream << dracon::response{500};
         WARNING(Getodac::server_logger) << "Unkown error";
     }
 }
 
-Getodac::HttpSession create_session(const Getodac::request &req)
+dracon::HttpSession create_session(const dracon::request &req)
 {
     if (req.url() == "/server_status" && req.method() == "GET")
         return &server_sessions::write_response;

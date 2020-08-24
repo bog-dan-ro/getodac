@@ -29,16 +29,19 @@
 
 #include <openssl/ssl.h>
 
-#include <getodac/logging.h>
-#include <getodac/utils.h>
+#include <dracon/logging.h>
+#include <dracon/utils.h>
 
 #include "server_plugin.h"
 
+namespace dracon {
+class abstract_stream;
+class request;
+}
+
 namespace Getodac {
 
-class abstract_stream;
 class basic_server_session;
-class request;
 class sessions_event_loop;
 
 class server
@@ -48,7 +51,7 @@ public:
     int exec(int argc, char *argv[]);
     void server_session_created(basic_server_session *session);
     void server_session_deleted(basic_server_session *session);
-    std::function<void(abstract_stream &, request &)> create_session(const request &request);
+    std::function<void(dracon::abstract_stream &, dracon::request &)> create_session(const dracon::request &request);
     uint32_t peak_sessions();
     uint32_t active_sessions();
     std::chrono::seconds uptime() const;

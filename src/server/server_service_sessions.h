@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include <getodac/plugin.h>
+#include <dracon/plugin.h>
 
 namespace server_sessions {
-    Getodac::HttpSession create_session(const Getodac::request&);
+    dracon::HttpSession create_session(const dracon::request&);
 } // namespace Server

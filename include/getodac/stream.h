@@ -306,6 +306,12 @@ public:
     }
 };
 
+inline abstract_stream& operator<<(abstract_stream &stream, const_buffer buff)
+{
+    stream.write(buff);
+    return stream;
+}
+
 class ostreambuffer : public std::streambuf
 {
 public:

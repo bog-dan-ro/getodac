@@ -82,8 +82,8 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
         return [&](Getodac::abstract_stream& stream, Getodac::request& req){
             stream >> req;
             stream.session_timeout(30s);
-            stream << Getodac::response{200}.content_length(test50mresponse.size());
-            stream.write(test50mresponse);
+            stream << Getodac::response{200}.content_length(test50mresponse.size())
+                   << test50mresponse;
         };
 
     if (url == "/test50mChunked")
@@ -127,7 +127,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
                     if (auto ec = stream.yield())
                         throw ec;
                 } while (wait->load());
-                chuncked_stream.write(*buffer);
+                chuncked_stream << *buffer;
                 size += buffer->size();
             } while (size < 100000);
         };
@@ -263,8 +263,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
             if (body != test50mresponse)
                 throw Getodac::response{400, "Invaid body"};
             stream.session_timeout(30s);
-            stream << Getodac::response{200}.content_length(body.length());
-            stream.write(body);
+            stream << Getodac::response{200}.content_length(body.length()) << body;
         };
 
     return s_testRootRestful.create_handler(url, req.method());

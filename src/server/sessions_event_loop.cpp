@@ -180,7 +180,7 @@ void sessions_event_loop::delete_later(basic_server_session *session) noexcept
 {
     unregister_session(session);
     // Idea "stolen" from Qt :)
-    std::unique_lock<SpinLock> lock{m_deleteLater_mutex};
+    std::unique_lock<spin_lock> lock{m_deleteLater_mutex};
     try {
         m_delete_later_objects.insert(session);
     } catch (...) {}
@@ -302,7 +302,7 @@ void sessions_event_loop::loop()
         }
 
         // Delete all deleteLater pending sessions
-        std::unique_lock<SpinLock> lock1{m_deleteLater_mutex};
+        std::unique_lock<spin_lock> lock1{m_deleteLater_mutex};
         for (auto &obj : m_delete_later_objects)
             delete obj;
         m_delete_later_objects.clear();

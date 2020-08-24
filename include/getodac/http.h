@@ -275,4 +275,11 @@ inline abstract_stream &operator >> (abstract_stream &stream, request &req)
     return stream;
 }
 
+namespace literals {
+    inline response operator "" _http(unsigned long long int status)
+    {
+        return response{uint16_t(status)};
+    }
+}
+
 } // namespace Getodac

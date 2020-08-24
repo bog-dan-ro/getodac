@@ -69,7 +69,7 @@ private:
     std::thread m_loop_thread;
     std::mutex m_sessions_mutex;
     std::set<basic_server_session *> m_sessions;
-    SpinLock m_deleteLater_mutex;
+    spin_lock m_deleteLater_mutex;
     std::unordered_set<basic_server_session *> m_delete_later_objects;
 };
 

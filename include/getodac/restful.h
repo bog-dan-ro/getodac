@@ -219,11 +219,11 @@ public:
                         auto kv = split(kvPair, '=');
                         switch (kv.size()) {
                         case 1:
-                            queryStrings.emplace_back(std::make_pair(unEscapeUrl(kv[0]), ""));
+                            queryStrings.emplace_back(std::make_pair(unescape_url(kv[0]), ""));
                             break;
                         case 2:
-                            queryStrings.emplace_back(std::make_pair(unEscapeUrl(kv[0]),
-                                                      unEscapeUrl(kv[1])));
+                            queryStrings.emplace_back(std::make_pair(unescape_url(kv[0]),
+                                                      unescape_url(kv[1])));
                             break;
                         default:
                             throw response{400, "Invalid query strings"};

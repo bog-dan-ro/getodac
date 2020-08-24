@@ -82,7 +82,7 @@ void basic_http_session::read(request &req) noexcept(false)
     if (m_http_parser_buffer.current_size()) {
         auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, m_http_parser_buffer.current_data(), m_http_parser_buffer.current_size());
         if (m_parser.http_errno) {
-            INFO(Getodac::server_logger) << addrText(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
         m_http_parser_buffer.advance(parsed_bytes);
@@ -107,7 +107,7 @@ void basic_http_session::read(request &req) noexcept(false)
                                                 buffer.current_data(),
                                                 buffer.current_size());
         if (m_parser.http_errno) {
-            INFO(Getodac::server_logger) << addrText(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
         if (req.state() == request::state::completed)
@@ -250,7 +250,7 @@ void basic_http_session::io_loop()
             keep_alive(req.keep_alive() * 10s);
             auto session = server::instance()->create_session(req);
             if (!session) {
-                INFO(Getodac::server_logger) << addrText(peer_address()) << " invalid url " << req.method() << " " << req.url();
+                INFO(Getodac::server_logger) << addr_text(peer_address()) << " invalid url " << req.method() << " " << req.url();
                 write(response{503}.to_string());
                 break;
             }
@@ -259,26 +259,26 @@ void basic_http_session::io_loop()
             server::instance()->session_served();
         } while (!m_yield.get() && m_keep_alive.count());
     } catch (int error) {
-        INFO(Getodac::server_logger) << addrText(peer_address()) << " status code " << error;
+        INFO(Getodac::server_logger) << addr_text(peer_address()) << " status code " << error;
         if (m_can_write_errror) {
             write(response{error > 0 && error < std::numeric_limits<uint16_t>::max()
                            ? uint16_t(error)
                            : uint16_t(500)}.to_string());
         }
     } catch (const response &res) {
-        INFO(Getodac::server_logger) << addrText(peer_address()) << " status code " << res.status_code() << " body " << res.body();
+        INFO(Getodac::server_logger) << addr_text(peer_address()) << " status code " << res.status_code() << " body " << res.body();
         if (m_can_write_errror)
             write(res.to_string());
     } catch (const std::exception &e) {
-        INFO(Getodac::server_logger) << addrText(peer_address()) << " std message " << e.what();
+        INFO(Getodac::server_logger) << addr_text(peer_address()) << " std message " << e.what();
         if (m_can_write_errror)
             write(response{500, e.what()}.to_string());
     } catch (const std::error_code &ec) {
-        INFO(Getodac::server_logger) <<  addrText(peer_address()) << " error code " << ec.message();
+        INFO(Getodac::server_logger) <<  addr_text(peer_address()) << " error code " << ec.message();
         if (m_can_write_errror)
             write(response{500, ec.message()}.to_string());
     } catch (...) {
-        INFO(Getodac::server_logger) << addrText(peer_address()) << " Unknown error";
+        INFO(Getodac::server_logger) << addr_text(peer_address()) << " Unknown error";
         if (m_can_write_errror)
             write(response{}.to_string());
     }
@@ -376,7 +376,7 @@ request basic_http_session::read_headers()
                 next += 2;
             auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, buffer.current_data(), next);
             if (m_parser.http_errno) {
-                INFO(Getodac::server_logger) << addrText(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+                INFO(Getodac::server_logger) << addr_text(peer_address()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
                 throw std::make_error_code(std::errc::bad_message);
             }
             buffer.advance(next);

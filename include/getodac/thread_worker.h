@@ -40,7 +40,7 @@ namespace Getodac {
  *
  * Helper class to sync run tasks on worker thread(s)
  */
-class ThreadWorker
+class thread_worker
 {
 public:
     /*!
@@ -48,7 +48,7 @@ public:
      *
      * \param workers the number of threads that will be used to run the tasks
      */
-    ThreadWorker(uint32_t workers = 1)
+    thread_worker(uint32_t workers = 1)
     {
         workers = std::max(uint32_t(1), workers);
         m_quit.store(false);
@@ -64,7 +64,7 @@ public:
             });
     }
 
-    ~ThreadWorker()
+    ~thread_worker()
     {
         try {
             m_quit.store(true);

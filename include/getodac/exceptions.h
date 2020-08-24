@@ -27,64 +27,20 @@
 #pragma once
 
 #include <stdexcept>
-#include <unordered_map>
 
 namespace Getodac {
-
-class SoketTimeout : public std::runtime_error
-{
-public:
-    SoketTimeout() : std::runtime_error({}){}
-};
-
-class SoketQuit : public std::runtime_error
-{
-public:
-    SoketQuit() : std::runtime_error({}){}
-};
-
-/*!
- * \brief The response_error class
- */
-class ResponseStatusError : public std::runtime_error
-{
-public:
-    using HeadersData = std::unordered_map<std::string, std::string>;
-    ResponseStatusError(int statusCode, const std::string &errorMessage = {}, HeadersData headers = {})
-        : std::runtime_error(errorMessage)
-        , m_statusCode(statusCode)
-        , m_headers(std::move(headers))
-    {}
-
-    /*!
-     * \brief statusCode
-     * \return returns the http status code
-     */
-    int statusCode() const { return m_statusCode; }
-
-    /*!
-     * \brief headers
-     * \return returns the headers
-     */
-    const HeadersData headers() const {return m_headers; }
-
-private:
-    int m_statusCode;
-    HeadersData m_headers;
-};
-
 
 /*!
  * \brief The segmentation_fault_error class
  *
  * The server converts any SIGSEGV signals into an exception
  */
-class SegmentationFaultError : public std::runtime_error
+class segmentation_fault_error : public std::runtime_error
 {
 public:
-  explicit SegmentationFaultError(const std::string& __arg)
+  explicit segmentation_fault_error(const std::string& __arg)
         : std::runtime_error(__arg){}
-  explicit SegmentationFaultError(const char* __arg)
+  explicit segmentation_fault_error(const char* __arg)
         : std::runtime_error(__arg){}
 };
 
@@ -93,12 +49,12 @@ public:
  *
  * The server converts any SIGFPE signals into an exception
  */
-class FloatingPointError : public std::runtime_error
+class floating_point_error : public std::runtime_error
 {
 public:
-  explicit FloatingPointError(const std::string& __arg)
+  explicit floating_point_error(const std::string& __arg)
         : std::runtime_error(__arg){}
-  explicit FloatingPointError(const char* __arg)
+  explicit floating_point_error(const char* __arg)
         : std::runtime_error(__arg){}
 };
 

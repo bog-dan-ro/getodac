@@ -33,7 +33,7 @@ const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 std::string test50mresponse;
 
 Getodac::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
-Getodac::ThreadWorker s_threadWorker{10};
+Getodac::thread_worker s_threadWorker{10};
 
 TaggedLogger<> logger{"test"};
 
@@ -58,11 +58,12 @@ void TestRESTGET(Getodac::parsed_route parsed_route, Getodac::abstract_stream& s
 
 PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
 {
+    using namespace Getodac::literals;
     auto &url = req.url();
     if (url == "/test0")
         return [&](Getodac::abstract_stream& stream, Getodac::request& req){
             stream >> req;
-            stream << Getodac::response{200};
+            stream << 200_http;
         };
 
     if (url == "/test100")
@@ -175,7 +176,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
             if (!stream.is_secured_connection())
                 throw Getodac::response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
             stream >> req;
-            stream << Getodac::response{200};
+            stream << 200_http;
         };
 
     if (url == "/testExpectation")
@@ -189,7 +190,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
                 (void)buff;
             });
             stream >> req;
-            stream << Getodac::response{200};
+            stream << 200_http;
         };
 
     if (url == "/testThowFromRequestComplete")
@@ -205,7 +206,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req)
                         {"BodyKey2", "Value2"}}};
             });
             stream >> req;
-            stream << Getodac::response{200};
+            stream << 200_http;
         };
 
     if (url == "/testThowFromWriteResponse")

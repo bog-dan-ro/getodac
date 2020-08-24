@@ -155,10 +155,10 @@ public:
                 m_event_loop->delete_later(this);
             }
         } catch (const std::exception &e) {
-            DEBUG(server_logger) << addrText(m_peer_addr) << e.what();
+            DEBUG(server_logger) << addr_text(m_peer_addr) << e.what();
             m_event_loop->delete_later(this);
         } catch (...) {
-            DEBUG(server_logger) << addrText(m_peer_addr) << "Unkown exception, terminating the session";
+            DEBUG(server_logger) << addr_text(m_peer_addr) << "Unkown exception, terminating the session";
             m_event_loop->delete_later(this);
         }
     }

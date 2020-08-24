@@ -39,14 +39,14 @@ private:
     std::time_t m_lastWriteTime;
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
-Getodac::LRUCache<std::string, FileMapPtr> s_filesCache{100};
+Getodac::lru_cache<std::string, FileMapPtr> s_filesCache{100};
 
 std::mutex s_filesCacheMutex;
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
 TaggedLogger<> logger{"staticContent"};
-std::unique_ptr<Getodac::SimpleTimer> g_timer;
+std::unique_ptr<Getodac::simple_timer> g_timer;
 
 inline std::string mimeType(boost::string_view ext)
 {
@@ -90,7 +90,7 @@ void static_content_session(boost::filesystem::path root, boost::filesystem::pat
         p /= s_default_file;
     TRACE(logger) << "Serving " << p.string();
     std::unique_lock lock{s_filesCacheMutex};
-    auto file = s_filesCache.getValue(p.string());
+    auto file = s_filesCache.value(p.string());
     auto lastWriteTime = boost::filesystem::last_write_time(p);
     if (!file || file->lastWriteTime() != lastWriteTime) {
         file = std::make_shared<FileMap>(p, lastWriteTime);
@@ -119,7 +119,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req) {
                 if (pos == std::string::npos)
                     pos = url.size();
                 boost::filesystem::path root_path{pair.second};
-                auto user = Getodac::unEscapeUrl(url.substr(2, pos - 2));
+                auto user = Getodac::unescape_url(url.substr(2, pos - 2));
                 if (user == "." || user == "..")
                     break; // avoid GET /~../../etc/passwd HTTP/1.0 requests
 
@@ -127,7 +127,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req) {
                 root_path /= "public_html";
                 boost::filesystem::path file_path;
                 if (url.size() - pos > 1)
-                    file_path /= Getodac::unEscapeUrl(url.substr(pos + 1, url.size() - pos - 1));
+                    file_path /= Getodac::unescape_url(url.substr(pos + 1, url.size() - pos - 1));
                 return std::bind<void>(static_content_session,
                                        root_path,
                                        file_path.lexically_normal(),
@@ -136,7 +136,7 @@ PLUGIN_EXPORT Getodac::HttpSession create_session(const Getodac::request &req) {
             } else {
                 return std::bind<void>(static_content_session,
                                        boost::filesystem::path{pair.second},
-                                       boost::filesystem::path{Getodac::unEscapeUrl(url.c_str() + pair.first.size())}.lexically_normal(),
+                                       boost::filesystem::path{Getodac::unescape_url(url.c_str() + pair.first.size())}.lexically_normal(),
                                        std::placeholders::_1,
                                        std::placeholders::_2);
             }
@@ -158,7 +158,7 @@ PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
     }
     s_default_file = properties.get("default_file", "");
     s_allow_symlinks = properties.get("allow_symlinks", false);
-    g_timer = std::make_unique<Getodac::SimpleTimer>([]{
+    g_timer = std::make_unique<Getodac::simple_timer>([]{
         std::unique_lock lock(s_filesCacheMutex);
         for (auto it = s_filesCache.begin(); it != s_filesCache.end();) {
             if (it->second.use_count() == 1)

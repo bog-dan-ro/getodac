@@ -47,7 +47,7 @@ namespace Getodac {
  *
  * Spin lock mutex
  */
-class SpinLock
+class spin_lock
 {
 public:
     inline void lock() noexcept
@@ -86,7 +86,7 @@ inline char fromHex(char ch)
     if (ch >= 'A' && ch <= 'F')
         return 10 + ch -'A';
 
-    throw std::runtime_error{"Bad hex value"};
+    throw std::invalid_argument{"Bad hex value"};
 }
 
 /*!
@@ -94,7 +94,7 @@ inline char fromHex(char ch)
  * \param in
  * \return
  */
-inline std::string unEscapeUrl(std::string_view in)
+inline std::string unescape_url(std::string_view in)
 {
     std::string out;
     out.reserve(in.size());
@@ -106,7 +106,7 @@ inline std::string unEscapeUrl(std::string_view in)
                 out += static_cast<char>(fromHex(in[i + 1]) << 4 | fromHex(in[i + 2]));
                 i += 2;
             } else {
-                throw std::runtime_error{"Malformated URL"};
+                throw std::invalid_argument{"Malformated URL"};
             }
             break;
         case '+':
@@ -155,106 +155,106 @@ inline SplitVector split(std::string_view str, char ch)
 }
 
 template <typename K, typename V>
-class LRUCache
+class lru_cache
 {
     using KeyValue = std::pair<K, V>;
     using List = std::list<KeyValue>;
     using Iterator = typename List::iterator;
 
 public:
-    explicit LRUCache(size_t cacheSize)
-        : m_cacheSize(cacheSize) {}
+    explicit lru_cache(size_t cacheSize)
+        : m_cache_size(cacheSize) {}
 
     inline void put(const K &key, const V &value)
     {
-        auto it = m_cacheHash.find(key);
-        if (it != m_cacheHash.end())
-            m_cacheItems.erase(it->second);
-        m_cacheItems.emplace_front(key, value);
-        m_cacheHash[key] = m_cacheItems.begin();
-        cleanCache();
+        auto it = m_cache_hash.find(key);
+        if (it != m_cache_hash.end())
+            m_cache_items.erase(it->second);
+        m_cache_items.emplace_front(key, value);
+        m_cache_hash[key] = m_cache_items.begin();
+        clean_cache();
     }
 
-    inline V &getReference(const K &key)
+    inline V &reference(const K &key)
     {
-        auto it = m_cacheHash.find(key);
-        if (it == m_cacheHash.end())
+        auto it = m_cache_hash.find(key);
+        if (it == m_cache_hash.end())
             throw std::range_error{"Invalid key"};
-        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
+        m_cache_items.splice(m_cache_items.begin(), m_cache_items, it->second);
         return it->second->second;
     }
 
-    inline V getValue(const K &key)
+    inline V value(const K &key)
     {
-        auto it = m_cacheHash.find(key);
-        if (it == m_cacheHash.end())
+        auto it = m_cache_hash.find(key);
+        if (it == m_cache_hash.end())
             return V{};
-        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
+        m_cache_items.splice(m_cache_items.begin(), m_cache_items, it->second);
         return it->second->second;
     }
 
     inline bool exists(const K &key)
     {
-        return m_cacheHash.find(key) != m_cacheHash.end();
+        return m_cache_hash.find(key) != m_cache_hash.end();
     }
 
-    void setCacheSize(size_t size)
+    void cache_size(size_t size)
     {
-        m_cacheSize = size;
-        cleanCache();
+        m_cache_size = size;
+        clean_cache();
     }
 
     void clear()
     {
-        m_cacheItems.clear();
-        m_cacheHash.clear();
+        m_cache_items.clear();
+        m_cache_hash.clear();
     }
 
     Iterator begin()
     {
-        return m_cacheItems.begin();
+        return m_cache_items.begin();
     }
 
     Iterator end()
     {
-        return m_cacheItems.end();
+        return m_cache_items.end();
     }
 
     Iterator begin() const
     {
-        return m_cacheItems.begin();
+        return m_cache_items.begin();
     }
 
     Iterator end() const
     {
-        return m_cacheItems.end();
+        return m_cache_items.end();
     }
 
     Iterator erase(Iterator it)
     {
-        m_cacheHash.erase(it->first);
-        return m_cacheItems.erase(it);
+        m_cache_hash.erase(it->first);
+        return m_cache_items.erase(it);
     }
 
     size_t size() const
     {
-        assert(m_cacheItems.size() == m_cacheHash.size());
-        return m_cacheHash.size();
+        assert(m_cache_items.size() == m_cache_hash.size());
+        return m_cache_hash.size();
     }
 private:
-    inline void cleanCache()
+    inline void clean_cache()
     {
-        while (m_cacheHash.size() > m_cacheSize) {
-            auto it = m_cacheItems.rbegin();
-            m_cacheHash.erase(it->first);
-            m_cacheItems.pop_back();
+        while (m_cache_hash.size() > m_cache_size) {
+            auto it = m_cache_items.rbegin();
+            m_cache_hash.erase(it->first);
+            m_cache_items.pop_back();
         }
     }
 
 private:
-    List m_cacheItems;
-    std::unordered_map<K, Iterator> m_cacheHash;
-    size_t m_cacheSize;
+    List m_cache_items;
+    std::unordered_map<K, Iterator> m_cache_hash;
+    size_t m_cache_size;
 };
 
 /*!
@@ -262,7 +262,7 @@ private:
  *
  * Transforms \a addr sockaddr_storage struct to string
  */
-inline std::string addrText(const sockaddr_storage &addr)
+inline std::string addr_text(const sockaddr_storage &addr)
 {
     char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
     if (getnameinfo((const sockaddr *)&addr, sizeof(sockaddr_storage),
@@ -275,11 +275,11 @@ inline std::string addrText(const sockaddr_storage &addr)
 /*!
  * \brief The SimpleTimer class
  */
-class SimpleTimer
+class simple_timer
 {
 public:
     template<typename T>
-    SimpleTimer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
+    simple_timer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
         : m_thread([callback, timeout, singleShot, this]{
         std::unique_lock<std::mutex> lock(m_lock);
         while (!m_waitCondition.wait_for(lock, timeout, [this]{return m_quit.load();})) {
@@ -290,7 +290,7 @@ public:
     })
     {};
 
-    ~SimpleTimer()
+    ~simple_timer()
     {
         m_quit.store(true);
         m_waitCondition.notify_one();

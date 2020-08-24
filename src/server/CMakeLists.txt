@@ -13,8 +13,8 @@ target_compile_options(GETodac PUBLIC "-fnon-call-exceptions")
 target_link_libraries(GETodac ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${CMAKE_DL_LIBS})
 add_sanitizers(GETodac)
 
-file(GLOB includeFiles "${PROJECT_SOURCE_DIR}/include/getodac/*.h")
+file(GLOB includeFiles "${PROJECT_SOURCE_DIR}/include/dracon/*.h")
 set_target_properties(GETodac PROPERTIES PUBLIC_HEADER "${includeFiles}")
 install(TARGETS GETodac
         RUNTIME DESTINATION bin
-        PUBLIC_HEADER DESTINATION include/getodac)
+        PUBLIC_HEADER DESTINATION include/dracon)

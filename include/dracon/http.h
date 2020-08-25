@@ -187,8 +187,12 @@ private:
 
 inline abstract_stream &operator << (abstract_stream &stream, const response &res)
 {
+    using namespace std::chrono_literals;
     if (res.keep_alive().count() != -1)
         stream.keep_alive(res.keep_alive());
+    if (res.content_length())
+        stream.session_timeout(std::max(stream.session_timeout(),
+                                        10s + 1s * (res.content_length() / 512 * 1024)));
     stream.write(res.to_string(stream.keep_alive()));
     return stream;
 }

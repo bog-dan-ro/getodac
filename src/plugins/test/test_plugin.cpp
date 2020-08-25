@@ -82,7 +82,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
     if (url == "/test50m")
         return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream.session_timeout(30s);
             stream << dracon::response{200}.content_length(test50mresponse.size())
                    << test50mresponse;
         };
@@ -90,7 +89,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
     if (url == "/test50mChunked")
         return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream.session_timeout(30s);
             stream << dracon::response{200}.content_length(dracon::Chunked_Data);
             dracon::chunked_stream chuncked_stream{stream};
             uint32_t pos = 0;
@@ -106,7 +104,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
             stream << dracon::response{200}.content_length(dracon::Chunked_Data);
-            stream.session_timeout(30s);
             auto wakeupper = stream.wakeupper();
             auto wait = std::make_shared<std::atomic_bool>();
             auto buffer = std::make_shared<std::string>();
@@ -136,7 +133,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
     if (url == "/test50ms")
         return [&](dracon::abstract_stream& stream, dracon::request& req){
             stream >> req;
-            stream.session_timeout(30s);
             std::vector<dracon::const_buffer> vec;
             vec.resize(51);
             for (int i = 1; i < 51; ++i) {
@@ -251,7 +247,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
     // PPP stands for post, put, patch
     if (url == "/testPPP")
         return [&](dracon::abstract_stream& stream, dracon::request& req){
-            stream.session_timeout(10s);
             std::string body;
             req.append_body_callback([&](std::string_view buff){
                 body.append(buff);
@@ -261,7 +256,6 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
                 throw dracon::response{400, "Invaid body size"};
             if (body != test50mresponse)
                 throw dracon::response{400, "Invaid body"};
-            stream.session_timeout(30s);
             stream << dracon::response{200}.content_length(body.length()) << body;
         };
 

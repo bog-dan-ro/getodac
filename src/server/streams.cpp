@@ -254,6 +254,11 @@ void basic_http_session::io_loop()
                 write(dracon::response{503}.to_string());
                 break;
             }
+            size_t content_length = req.content_length();
+            if (content_length != dracon::Chunked_Data)
+                session_timeout(10s + 1s* (content_length / (512 * 1024)));
+            else
+                session_timeout(5min); // In this case the session should set a proper timeout
             session(*this, req);
             session_timeout(keep_alive());
             server::instance()->session_served();

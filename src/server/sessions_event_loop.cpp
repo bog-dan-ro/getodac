@@ -56,9 +56,6 @@ static unsigned long readProc(const char *path)
 sessions_event_loop::sessions_event_loop()
 {
     unsigned long rmem_max = readProc("/proc/sys/net/core/rmem_max");
-#ifdef ENABLE_STRESS_TEST
-    rmem_max = 13; // super small bufer needed to test the partial parsing
-#endif
 
     // This buffer is shared by all basic_server_sessions which are server
     // by this event loop to read the incoming data without

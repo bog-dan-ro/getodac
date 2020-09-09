@@ -28,7 +28,7 @@ function build_test {
 # - https://github.com/boostorg/coroutine2/issues/12
 # - https://github.com/google/sanitizers/issues/189#issuecomment-312914329
 
-for cp in "" "-DSANITIZE_UNDEFINED=ON -DENABLE_STRESS_TEST=ON"
+for cp in "" "-DSANITIZE_UNDEFINED=ON"
 do
     build_test "$cp"
 done

@@ -5,7 +5,7 @@ language: minimal
 branches:
   only:
   - master
-  - c++-17
+  - dracon
 
 services:
   - docker

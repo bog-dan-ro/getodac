@@ -10,7 +10,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR} ${CMAKE_MODULE_PATH})
 
 option(ENABLE_TRACE_LOG "Enabe tracing log" OFF)
 option(ENABLE_DEBUG_LOG "Enable debugging log" OFF)
-option(ENABLE_STRESS_TEST "Enable server stress" OFF)
 
 set(Boost_USE_MULTITHREADED ON)
 
@@ -21,10 +20,6 @@ if (ENABLE_TRACE_LOG)
 endif ()
 if (ENABLE_DEBUG_LOG)
     add_definitions(-DENABLE_DEBUG_LOG)
-endif ()
-
-if (ENABLE_STRESS_TEST)
-    add_definitions(-DENABLE_STRESS_TEST)
 endif ()
 
 set(CMAKE_CXX_STANDARD 17)

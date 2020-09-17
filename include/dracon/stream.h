@@ -259,7 +259,7 @@ protected:
 };
 
 
-class chunked_stream : public next_layer_stream
+class chunked_stream final : public next_layer_stream
 {
 public:
     chunked_stream(abstract_stream &next_layer)
@@ -274,7 +274,7 @@ public:
     }
 
     // abstract_stream interface
-    void write(const_buffer buff) override
+    void write(const_buffer buff) final
     {
         if (!buff.length)
             return;
@@ -286,7 +286,7 @@ public:
         m_next_layer.write({chunkHeader, buff, crlf_string});
     }
 
-    void write(std::vector<const_buffer> buffers) override
+    void write(std::vector<const_buffer> buffers) final
     {
         std::vector<const_buffer> _buffers{1};
         size_t size = 0;
@@ -372,7 +372,7 @@ protected:
             m_buffer.append(__s, len);
             sz -= len;
             __s += len;
-        };
+        }
         return __n;
     }
 

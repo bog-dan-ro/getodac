@@ -48,7 +48,7 @@ public:
 
     void delete_later(basic_server_session *session) noexcept;
 
-    inline int active_sessions() const noexcept { return m_active_sessions.load(); }
+    inline uint32_t active_sessions() const noexcept { return m_active_sessions.load(); }
     void shutdown() noexcept;
 
     dracon::char_buffer shared_read_buffer;
@@ -64,7 +64,7 @@ private:
     int m_epoll_handler;
     bool m_workload_balancing = false;
     int m_event_fd;
-    std::atomic_uint m_active_sessions{0};
+    std::atomic<uint32_t> m_active_sessions{0};
     std::atomic_bool m_quit{false};
     std::thread m_loop_thread;
     std::mutex m_sessions_mutex;

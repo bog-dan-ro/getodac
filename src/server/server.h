@@ -52,8 +52,8 @@ public:
     void server_session_created(basic_server_session *session);
     void server_session_deleted(basic_server_session *session);
     std::function<void(dracon::abstract_stream &, dracon::request &)> create_session(const dracon::request &request);
-    uint32_t peak_sessions();
-    uint32_t active_sessions();
+    size_t peak_sessions();
+    size_t active_sessions();
     std::chrono::seconds uptime() const;
     inline void session_served() { ++m_served_sessions; }
     uint64_t served_sessions() const { return m_served_sessions; }
@@ -72,7 +72,7 @@ private:
 
 private:
     std::atomic_bool m_shutdown{false};
-    std::atomic<uint32_t> m_peak_sessions{0};
+    std::atomic<size_t> m_peak_sessions{0};
     std::atomic<size_t> m_served_sessions{0};
     int m_events_size = 0;
     int m_epoll_handler;

@@ -286,9 +286,9 @@ public:
             callback();
             if (__builtin_expect(singleShot, 0))
                 m_quit.store(true);
-        };
+        }
     })
-    {};
+    {}
 
     ~simple_timer()
     {

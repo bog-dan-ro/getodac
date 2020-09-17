@@ -102,7 +102,7 @@ public:
         auto other = route_parts(route);
         if (other.size() != m_route_parts.size())
             return false;
-        for (int i = 0; i < other.size(); ++i) {
+        for (size_t i = 0; i < other.size(); ++i) {
             if (other[i].first != m_route_parts[i].first ||
                     other[i].second != m_route_parts[i].second) {
                 return false;
@@ -175,7 +175,7 @@ class restful_router
 {
     using RESTfulRoutePtr = std::shared_ptr<restfull_route<ReturnType, Args...>>;
 public:
-    restful_router(std::string baseUrl = {})
+    restful_router(std::string_view baseUrl = {})
     {
         auto baseUrlParts = split(baseUrl, '/');
         for (const auto &part : baseUrlParts)

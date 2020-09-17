@@ -133,7 +133,7 @@ void basic_http_session::write(dracon::const_buffer buffer) noexcept(false)
         }
         if (ec)
             throw ec;
-        *reinterpret_cast<const char**>(&buffer.ptr) += written;
+        buffer.c_ptr += written;
         buffer.length -= written;
     }
 }
@@ -487,8 +487,8 @@ ssl_socket_session::ssl_socket_session(sessions_event_loop *eventLoop, int socke
 void ssl_socket_session::shutdown() noexcept
 {
     session_timeout(2s);
-    int count = 5;
     if (SSL_is_init_finished(m_SSL.get()) == 1) {
+        int count = 5;
         while (count--) {
             int res = SSL_shutdown(m_SSL.get());
             if (!res && !m_yield().get())

@@ -138,7 +138,7 @@ namespace {
                 break;
             const char * symbol = dlinfo.dli_sname;
             int status;
-            auto demangled = abi::__cxa_demangle(symbol, NULL, 0, &status);
+            auto demangled = abi::__cxa_demangle(symbol, nullptr, nullptr, &status);
             if (demangled && !status)
                 symbol = demangled;
             if (symbol)
@@ -156,7 +156,7 @@ namespace {
     static void signalHandler(int sig, siginfo_t *info, void *)
     {
         /// Transform segmentation violations signals into exceptions
-        if (sig == SIGSEGV && info->si_addr == 0) {
+        if (sig == SIGSEGV && info->si_addr == nullptr) {
             unblockSignal(SIGSEGV);
             throw dracon::segmentation_fault_error(stackTrace(3));
         }
@@ -592,7 +592,7 @@ std::function<void (dracon::abstract_stream &, dracon::request &)> server::creat
  * \brief Server::peakSessions
  * \return the peak of simulatneous connections since the beginning
  */
-uint32_t server::peak_sessions()
+size_t server::peak_sessions()
 {
     return m_peak_sessions;
 }
@@ -601,7 +601,7 @@ uint32_t server::peak_sessions()
  * \brief Server::activeSessions
  * \return the number of active connections
  */
-uint32_t server::active_sessions()
+size_t server::active_sessions()
 {
     std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
     return m_active_sessions.size();

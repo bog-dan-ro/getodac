@@ -76,7 +76,7 @@ inline std::string mimeType(boost::string_view ext)
     return "application/octet-stream";
 }
 
-void static_content_session(boost::filesystem::path root, boost::filesystem::path path, dracon::abstract_stream& stream, dracon::request& req)
+void static_content_session(const boost::filesystem::path &root, const boost::filesystem::path &path, dracon::abstract_stream& stream, dracon::request& req)
 {
     stream >> req;
     auto p = (root / path).lexically_normal();
@@ -89,7 +89,7 @@ void static_content_session(boost::filesystem::path root, boost::filesystem::pat
     if (boost::filesystem::is_directory(p))
         p /= s_default_file;
     TRACE(logger) << "Serving " << p.string();
-    std::unique_lock lock{s_filesCacheMutex};
+    std::unique_lock<std::mutex> lock{s_filesCacheMutex};
     auto file = s_filesCache.value(p.string());
     auto lastWriteTime = boost::filesystem::last_write_time(p);
     if (!file || file->lastWriteTime() != lastWriteTime) {
@@ -159,7 +159,7 @@ PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
     s_default_file = properties.get("default_file", "");
     s_allow_symlinks = properties.get("allow_symlinks", false);
     g_timer = std::make_unique<dracon::simple_timer>([]{
-        std::unique_lock lock(s_filesCacheMutex);
+        std::unique_lock<std::mutex> lock(s_filesCacheMutex);
         for (auto it = s_filesCache.begin(); it != s_filesCache.end();) {
             if (it->second.use_count() == 1)
                 it = s_filesCache.erase(it);

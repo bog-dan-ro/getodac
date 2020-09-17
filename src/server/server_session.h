@@ -38,8 +38,6 @@
 #include "server.h"
 #include "streams.h"
 
-using namespace std::chrono_literals;
-
 namespace Getodac {
 
 using Clock = std::chrono::high_resolution_clock;
@@ -90,7 +88,7 @@ public:
 
 protected:
     int m_sock;
-    int m_order;
+    uint32_t m_order;
     struct sockaddr_storage m_peer_addr;
     sessions_event_loop *m_event_loop;
     mutable std::mutex m_stream_mutex;

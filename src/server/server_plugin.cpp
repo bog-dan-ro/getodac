@@ -74,6 +74,4 @@ server_plugin::server_plugin(dracon::CreateSessionType funcPtr, uint32_t order)
  , m_order(order)
 {}
 
-server_plugin::~server_plugin() = default;
-
 } // namespace Getodac

@@ -37,7 +37,7 @@ dracon::thread_worker s_threadWorker{10};
 
 TaggedLogger<> logger{"test"};
 
-void TestRESTGET(dracon::parsed_route parsed_route, dracon::abstract_stream& stream, dracon::request& req){
+void TestRESTGET(const dracon::parsed_route& parsed_route, dracon::abstract_stream& stream, dracon::request& req){
     stream >> req;
     stream << dracon::response{200, {}, {{"Content-Type","text/plain"}}}.content_length(dracon::Chunked_Data);
     dracon::chunked_stream chunked_stream{stream};

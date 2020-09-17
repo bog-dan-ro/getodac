@@ -175,7 +175,9 @@ void sessions_event_loop::unregister_session(basic_server_session *session)
  */
 void sessions_event_loop::delete_later(basic_server_session *session) noexcept
 {
-    unregister_session(session);
+    try {
+        unregister_session(session);
+    } catch (...) {}
     // Idea "stolen" from Qt :)
     std::unique_lock<dracon::spin_lock> lock{m_deleteLater_mutex};
     try {
@@ -250,14 +252,14 @@ void sessions_event_loop::loop()
                 if (event.data.fd != m_event_fd) {
                     auto ptr = reinterpret_cast<basic_server_session *>(event.data.ptr);
                     auto evs = event.events;
-                    std::pair<basic_server_session *, uint32_t> event{ptr, evs};
+                    std::pair<basic_server_session *, uint32_t> ev{ptr, evs};
                     sessionEvents.insert(std::upper_bound(sessionEvents.begin(),
                                                           sessionEvents.end(),
-                                                          event,
+                                                          ev,
                                                           [](auto a, auto b) {
                                                                 return a.first->order() < b.first->order();
                                                           }),
-                                         event);
+                                         ev);
                 } else {
                     wokeup = true;
                 }

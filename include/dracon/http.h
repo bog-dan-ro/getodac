@@ -192,7 +192,7 @@ inline abstract_stream &operator << (abstract_stream &stream, const response &re
         stream.keep_alive(res.keep_alive());
     if (res.content_length())
         stream.session_timeout(std::max(stream.session_timeout(),
-                                        10s + std::chrono::seconds(res.content_length() / 512 * 1024)));
+                                        10s + std::chrono::seconds(res.content_length() / (512 * 1024))));
     stream.write(res.to_string(stream.keep_alive()));
     return stream;
 }

@@ -156,7 +156,7 @@ void basic_http_session::write(std::vector<dracon::const_buffer> buffers) noexce
                 written -= buffers[i].length;
             } else {
                 // TODO use std::span
-                auto tmp = std::vector(buffers.begin() + i, buffers.end());
+                auto tmp = std::vector<dracon::const_buffer>(buffers.begin() + i, buffers.end());
                 buffers = std::move(tmp);
                 buffers[0].c_ptr += written;
                 buffers[0].length -= written;

@@ -33,7 +33,7 @@ namespace Getodac {
  */
 server_plugin::server_plugin(const std::string &path, const std::string &confDir)
 {
-    TRACE(serverLogger) << "ServerPlugin loading: " << path << " confDir:" << confDir;
+    TRACE(server_logger) << "ServerPlugin loading: " << path << " confDir:" << confDir;
     int flags = RTLD_NOW | RTLD_LOCAL;
 #if !defined(__SANITIZE_THREAD__) && !defined(__SANITIZE_ADDRESS__)
     flags |= RTLD_DEEPBIND;

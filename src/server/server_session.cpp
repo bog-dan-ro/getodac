@@ -30,7 +30,7 @@ basic_server_session::basic_server_session(Getodac::sessions_event_loop *event_l
 
 basic_server_session::~basic_server_session()
 {
-    TRACE(serverLogger) << this << " socket " << m_sock;
+    TRACE(server_logger) << this << " socket " << m_sock;
     server::instance()->server_session_deleted(this);
 }
 

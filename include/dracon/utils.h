@@ -264,9 +264,9 @@ private:
  */
 inline std::string addr_text(const sockaddr_storage &addr)
 {
-    char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+    char hbuf[NI_MAXHOST];
     if (getnameinfo((const sockaddr *)&addr, sizeof(sockaddr_storage),
-                    hbuf, sizeof(hbuf), sbuf, sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+                    hbuf, sizeof(hbuf), nullptr, 0, NI_NUMERICHOST) == 0) {
         return hbuf;
     }
     return {};

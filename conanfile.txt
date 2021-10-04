@@ -1,5 +1,8 @@
 [requires]
 boost/[>1.57.0]
 
+[options]
+boost:shared=True
+
 [generators]
 cmake_find_package

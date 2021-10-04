@@ -53,12 +53,18 @@ using namespace std;
 
     TEST(Utils, split)
     {
-        string str = unescape_url("///api/v1/parents/123/children/");
+        const string str = unescape_url("///api/v1/parents/123/children/");
         SplitVector expected = {"api", "v1", "parents", "123", "children"};
         auto splitted = split(str, '/');
         EXPECT_EQ(splitted.size(), expected.size());
         for (size_t i = 0; i < splitted.size(); ++i)
             EXPECT_EQ(expected[i], splitted[i]);
+        const string str1 = "user:pass,:@!%^\":><?><<<";
+        SplitVector expected1 = {"user", "pass,:@!%^\":><?><<<"};
+        splitted = split(str1, ':', 1);
+        EXPECT_EQ(splitted.size(), expected1.size());
+        for (size_t i = 0; i < splitted.size(); ++i)
+            EXPECT_EQ(expected1[i], splitted[i]);
     }
 
     TEST(Utils, lru_cache)

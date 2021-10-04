@@ -128,20 +128,19 @@ inline std::string unescape_url(std::string_view in)
  *
  * \param str string to search in
  * \param ch to search for
- * \param pos in str to sart search
- * \param nchars nchars in str to search for
+ * \param count max items to return
  *
  * \return a vector of pair<pos, nchars> substr chunks
  */
 using SplitVector = std::vector<std::string_view>;
-inline SplitVector split(std::string_view str, char ch)
+inline SplitVector split(std::string_view str, char ch, std::string::size_type count = std::string::npos)
 {
     if (!str.size())
         return {};
 
     SplitVector ret;
     std::string::size_type pos = 0;
-    for (auto nextPos = str.find(ch, pos); nextPos != std::string::npos; nextPos = str.find(ch, pos)) {
+    for (auto nextPos = str.find(ch, pos); nextPos != std::string::npos && count--; nextPos = str.find(ch, pos)) {
         // Ignore empty strings
         if (pos != nextPos) {
             auto sz = nextPos - pos;

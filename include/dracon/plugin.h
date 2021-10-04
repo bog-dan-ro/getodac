@@ -29,9 +29,9 @@
 #include <functional>
 #include <string>
 
-namespace dracon {
-class abstract_stream;
-class request;
+namespace Dracon {
+class AbstractStream;
+class Request;
 
 #define PLUGIN_EXPORT extern "C" __attribute__ ((visibility("default")))
 
@@ -71,8 +71,8 @@ using InitPluginType = bool (*)(const std::string &);
 using PluginOrder = uint32_t (*)();
 
 /// The server calls this function when it needs to create a new session
-using HttpSession = std::function<void(dracon::abstract_stream&, dracon::request&)>;
-using CreateSessionType = HttpSession (*)(const dracon::request&);
+using HttpSession = std::function<void(Dracon::AbstractStream&, Dracon::Request&)>;
+using CreateSessionType = HttpSession (*)(const Dracon::Request&);
 
 /// The server calls this function when it destoyes the plugins
 using DestoryPluginType = void (*)();

@@ -32,37 +32,37 @@
 #include <dracon/logging.h>
 #include <dracon/utils.h>
 
-#include "server_plugin.h"
+#include "serverplugin.h"
 
-namespace dracon {
-class abstract_stream;
-class request;
+namespace Dracon {
+class AbstractStream;
+class Request;
 }
 
 namespace Getodac {
 
-class basic_server_session;
-class sessions_event_loop;
+class BasicServerSession;
+class SessionsEventLoop;
 
-class server
+class Server
 {
 public:
-    static server *instance();
+    static Server *instance();
     int exec(int argc, char *argv[]);
-    void server_session_created(basic_server_session *session);
-    void server_session_deleted(basic_server_session *session);
-    std::function<void(dracon::abstract_stream &, dracon::request &)> create_session(const dracon::request &request);
-    size_t peak_sessions();
-    size_t active_sessions();
+    void serverSessionCreated(BasicServerSession *session);
+    void serverSessionDeleted(BasicServerSession *session);
+    std::function<void(Dracon::AbstractStream &, Dracon::Request &)> create_session(const Dracon::Request &request);
+    size_t peakSessions();
+    size_t activeSessions();
     std::chrono::seconds uptime() const;
-    inline void session_served() { ++m_served_sessions; }
-    uint64_t served_sessions() const { return m_served_sessions; }
-    SSL_CTX *ssl_context() const;
-    static void exit_signal_handler();
+    inline void sessionServed() { ++m_servedSessions; }
+    uint64_t servedSessions() const { return m_servedSessions; }
+    SSL_CTX *sslContext() const;
+    static void exitSignalHandler();
 
 private:
-    server();
-    ~server();
+    Server();
+    ~Server();
 
     enum SocketType {
         IPV4,
@@ -72,19 +72,19 @@ private:
 
 private:
     std::atomic_bool m_shutdown{false};
-    std::atomic<size_t> m_peak_sessions{0};
-    std::atomic<size_t> m_served_sessions{0};
-    int m_events_size = 0;
-    int m_epoll_handler;
-    std::mutex m_active_sessions_mutex;
-    std::unordered_set<basic_server_session*> m_active_sessions;
-    std::vector<server_plugin> m_plugins;
-    std::chrono::system_clock::time_point m_start_time;
-    SSL_CTX *m_ssl_context = nullptr;
-    std::mutex m_connections_per_ip_mutex;
-    std::map<std::string, uint32_t> m_connections_per_ip;
-    int m_https_4_sock = -1;
-    int m_https_6_sock = -1;
+    std::atomic<size_t> m_peakSessions{0};
+    std::atomic<size_t> m_servedSessions{0};
+    int m_eventsSize = 0;
+    int m_epollHandler;
+    std::mutex m_activeSessionsMutex;
+    std::unordered_set<BasicServerSession*> m_activeSessions;
+    std::vector<ServerPlugin> m_plugins;
+    std::chrono::system_clock::time_point m_startTime;
+    SSL_CTX *m_sslContext = nullptr;
+    std::mutex m_connectionsPerIpMutex;
+    std::map<std::string, uint32_t> m_connectionsPerIp;
+    int m_https4Sock = -1;
+    int m_https6Sock = -1;
 };
 
 } // namespace Getodac

@@ -40,14 +40,14 @@ private:
     std::filesystem::file_time_type m_lastWriteTime;
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
-dracon::lru_cache<std::string, FileMapPtr> s_filesCache{100};
+Dracon::LruCache<std::string, FileMapPtr> s_filesCache{100};
 
 std::mutex s_filesCacheMutex;
 std::string s_default_file;
 std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
 TaggedLogger<> logger{"staticContent"};
-std::unique_ptr<dracon::simple_timer> g_timer;
+std::unique_ptr<Dracon::SimpleTimer> g_timer;
 
 inline std::string mimeType(boost::string_view ext)
 {
@@ -77,7 +77,7 @@ inline std::string mimeType(boost::string_view ext)
     return "application/octet-stream";
 }
 
-void static_content_session(const std::filesystem::path &root, const std::filesystem::path &path, dracon::abstract_stream& stream, dracon::request& req)
+void static_content_session(const std::filesystem::path &root, const std::filesystem::path &path, Dracon::AbstractStream& stream, Dracon::Request& req)
 {
     stream >> req;
     auto p = (root / path).lexically_normal();
@@ -85,7 +85,7 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
         p = std::filesystem::canonical(p);
     if (!boost::starts_with(p, root)) { // make sure we don't server files outside the root
         WARNING(logger) << "path \"" << p << "\" is outside the root \"" << root << "\"";
-        throw dracon::response{400};
+        throw Dracon::Response{400};
     }
     if (std::filesystem::is_directory(p))
         p /= s_default_file;
@@ -99,9 +99,9 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
     }
 
     {
-        dracon::response res{200};
+        Dracon::Response res{200};
         res["Content-Type"] = mimeType(p.extension().string());
-        res.content_length(file->size());
+        res.contentLength(file->size());
         stream << res;
     }
     stream.write({file->data(), file->size()});
@@ -109,7 +109,7 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
 
 } // namespace
 
-PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
+PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req) {
     if (req.method() != "GET")
         return {};
     auto &url = req.url();
@@ -120,7 +120,7 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
                 if (pos == std::string::npos)
                     pos = url.size();
                 std::filesystem::path root_path{pair.second};
-                auto user = dracon::unescape_url(url.substr(2, pos - 2));
+                auto user = Dracon::unescapeUrl(url.substr(2, pos - 2));
                 if (user == "." || user == "..")
                     break; // avoid GET /~../../etc/passwd HTTP/1.0 requests
 
@@ -128,7 +128,7 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
                 root_path /= "public_html";
                 std::filesystem::path file_path;
                 if (url.size() - pos > 1)
-                    file_path /= dracon::unescape_url(url.substr(pos + 1, url.size() - pos - 1));
+                    file_path /= Dracon::unescapeUrl(url.substr(pos + 1, url.size() - pos - 1));
                 return std::bind<void>(static_content_session,
                                        root_path,
                                        file_path.lexically_normal(),
@@ -137,7 +137,7 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
             } else {
                 return std::bind<void>(static_content_session,
                                        std::filesystem::path{pair.second},
-                                       std::filesystem::path{dracon::unescape_url(url.c_str() + pair.first.size())}.lexically_normal(),
+                                       std::filesystem::path{Dracon::unescapeUrl(url.c_str() + pair.first.size())}.lexically_normal(),
                                        std::placeholders::_1,
                                        std::placeholders::_2);
             }
@@ -159,7 +159,7 @@ PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
     }
     s_default_file = properties.get("default_file", "");
     s_allow_symlinks = properties.get("allow_symlinks", false);
-    g_timer = std::make_unique<dracon::simple_timer>([]{
+    g_timer = std::make_unique<Dracon::SimpleTimer>([]{
         std::unique_lock<std::mutex> lock(s_filesCacheMutex);
         for (auto it = s_filesCache.begin(); it != s_filesCache.end();) {
             if (it->second.use_count() == 1)

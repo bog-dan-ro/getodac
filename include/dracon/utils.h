@@ -40,14 +40,14 @@
 #include <unordered_map>
 #include <vector>
 
-namespace dracon {
+namespace Dracon {
 
 /*!
  * \brief The SpinLock class
  *
  * Spin lock mutex
  */
-class spin_lock
+class SpinLock
 {
 public:
     inline void lock() noexcept
@@ -61,7 +61,7 @@ public:
         m_lock.clear(std::memory_order_release);
     }
 
-    inline bool try_lock()
+    inline bool tryLock()
     {
         return !m_lock.test_and_set(std::memory_order_acquire);
     }
@@ -90,11 +90,11 @@ inline char fromHex(char ch)
 }
 
 /*!
- * \brief unEscapeUrl
+ * \brief unescapeUrl
  * \param in
  * \return
  */
-inline std::string unescape_url(std::string_view in)
+inline std::string unescapeUrl(std::string_view in)
 {
     std::string out;
     out.reserve(in.size());
@@ -154,106 +154,106 @@ inline SplitVector split(std::string_view str, char ch, std::string::size_type c
 }
 
 template <typename K, typename V>
-class lru_cache
+class LruCache
 {
     using KeyValue = std::pair<K, V>;
     using List = std::list<KeyValue>;
     using Iterator = typename List::iterator;
 
 public:
-    explicit lru_cache(size_t cacheSize)
-        : m_cache_size(cacheSize) {}
+    explicit LruCache(size_t cacheSize)
+        : m_cacheSize(cacheSize) {}
 
     inline void put(const K &key, const V &value)
     {
-        auto it = m_cache_hash.find(key);
-        if (it != m_cache_hash.end())
-            m_cache_items.erase(it->second);
-        m_cache_items.emplace_front(key, value);
-        m_cache_hash[key] = m_cache_items.begin();
-        clean_cache();
+        auto it = m_cacheHash.find(key);
+        if (it != m_cacheHash.end())
+            m_cacheItems.erase(it->second);
+        m_cacheItems.emplace_front(key, value);
+        m_cacheHash[key] = m_cacheItems.begin();
+        cleanCache();
     }
 
     inline V &reference(const K &key)
     {
-        auto it = m_cache_hash.find(key);
-        if (it == m_cache_hash.end())
+        auto it = m_cacheHash.find(key);
+        if (it == m_cacheHash.end())
             throw std::range_error{"Invalid key"};
-        m_cache_items.splice(m_cache_items.begin(), m_cache_items, it->second);
+        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
         return it->second->second;
     }
 
     inline V value(const K &key)
     {
-        auto it = m_cache_hash.find(key);
-        if (it == m_cache_hash.end())
+        auto it = m_cacheHash.find(key);
+        if (it == m_cacheHash.end())
             return V{};
-        m_cache_items.splice(m_cache_items.begin(), m_cache_items, it->second);
+        m_cacheItems.splice(m_cacheItems.begin(), m_cacheItems, it->second);
         return it->second->second;
     }
 
     inline bool exists(const K &key)
     {
-        return m_cache_hash.find(key) != m_cache_hash.end();
+        return m_cacheHash.find(key) != m_cacheHash.end();
     }
 
-    void cache_size(size_t size)
+    void cacheSize(size_t size)
     {
-        m_cache_size = size;
-        clean_cache();
+        m_cacheSize = size;
+        cleanCache();
     }
 
     void clear()
     {
-        m_cache_items.clear();
-        m_cache_hash.clear();
+        m_cacheItems.clear();
+        m_cacheHash.clear();
     }
 
     Iterator begin()
     {
-        return m_cache_items.begin();
+        return m_cacheItems.begin();
     }
 
     Iterator end()
     {
-        return m_cache_items.end();
+        return m_cacheItems.end();
     }
 
     Iterator begin() const
     {
-        return m_cache_items.begin();
+        return m_cacheItems.begin();
     }
 
     Iterator end() const
     {
-        return m_cache_items.end();
+        return m_cacheItems.end();
     }
 
     Iterator erase(Iterator it)
     {
-        m_cache_hash.erase(it->first);
-        return m_cache_items.erase(it);
+        m_cacheHash.erase(it->first);
+        return m_cacheItems.erase(it);
     }
 
     size_t size() const
     {
-        assert(m_cache_items.size() == m_cache_hash.size());
-        return m_cache_hash.size();
+        assert(m_cacheItems.size() == m_cacheHash.size());
+        return m_cacheHash.size();
     }
 private:
-    inline void clean_cache()
+    inline void cleanCache()
     {
-        while (m_cache_hash.size() > m_cache_size) {
-            auto it = m_cache_items.rbegin();
-            m_cache_hash.erase(it->first);
-            m_cache_items.pop_back();
+        while (m_cacheHash.size() > m_cacheSize) {
+            auto it = m_cacheItems.rbegin();
+            m_cacheHash.erase(it->first);
+            m_cacheItems.pop_back();
         }
     }
 
 private:
-    List m_cache_items;
-    std::unordered_map<K, Iterator> m_cache_hash;
-    size_t m_cache_size;
+    List m_cacheItems;
+    std::unordered_map<K, Iterator> m_cacheHash;
+    size_t m_cacheSize;
 };
 
 /*!
@@ -261,7 +261,7 @@ private:
  *
  * Transforms \a addr sockaddr_storage struct to string
  */
-inline std::string addr_text(const sockaddr_storage &addr)
+inline std::string addressText(const sockaddr_storage &addr)
 {
     char hbuf[NI_MAXHOST];
     if (getnameinfo((const sockaddr *)&addr, sizeof(sockaddr_storage),
@@ -274,11 +274,11 @@ inline std::string addr_text(const sockaddr_storage &addr)
 /*!
  * \brief The SimpleTimer class
  */
-class simple_timer
+class SimpleTimer
 {
 public:
     template<typename T>
-    simple_timer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
+    SimpleTimer(T callback, std::chrono::milliseconds timeout = std::chrono::seconds{1}, bool singleShot = false)
         : m_thread([callback, timeout, singleShot, this]{
         std::unique_lock<std::mutex> lock(m_lock);
         while (!m_waitCondition.wait_for(lock, timeout, [this]{return m_quit.load();})) {
@@ -289,7 +289,7 @@ public:
     })
     {}
 
-    ~simple_timer()
+    ~SimpleTimer()
     {
         m_quit.store(true);
         m_waitCondition.notify_one();
@@ -304,10 +304,10 @@ private:
 };
 
 template <typename T = char>
-class buffer {
+class Buffer {
 public:
-    buffer() = default;
-    buffer(size_t size)
+    Buffer() = default;
+    Buffer(size_t size)
         : m_buffer(std::make_unique<T[]>(size))
         , m_size(size)
     {}
@@ -348,26 +348,26 @@ public:
         m_end = m_current + size;
     }
 
-    const T *current_data() const
+    const T *currentData() const
     {
         return m_current;
     }
 
-    T *current_data()
+    T *currentData()
     {
         return m_current;
     }
-    size_t current_size() const
+    size_t currentSize() const
     {
         return m_end - m_current;
     }
 
-    void set_current_size(size_t size)
+    void setCurrentSize(size_t size)
     {
         m_end = m_current + size;
     }
 
-    void set_current_data(size_t size)
+    void setCurrentData(size_t size)
     {
         m_current = m_buffer.get() + size;
     }
@@ -386,7 +386,7 @@ public:
         return m_size;
     }
 
-    std::basic_string_view<T> current_string() const
+    std::basic_string_view<T> currentString() const
     {
         return {m_current, size_t(m_end - m_current)};
     }
@@ -396,16 +396,16 @@ public:
         return std::basic_string_view<T>{m_buffer.get(), m_size};
     }
 
-    buffer<T>& operator=(std::string_view buff)
+    Buffer<T>& operator =(std::string_view buff)
     {
         const size_t size = buff.size();
         resize(size);
         memcpy(m_buffer.get(), buff.data(), size);
-        set_current_size(size);
+        setCurrentSize(size);
         return *this;
     }
 
-    buffer<T>& operator *=(std::string_view buff)
+    Buffer<T>& operator *=(std::string_view buff)
     {
         const size_t size = buff.size();
         if (m_size <= size)
@@ -429,6 +429,6 @@ private:
     T *m_end = nullptr;
 };
 
-using char_buffer = buffer<char>;
+using CharBuffer = Buffer<char>;
 
 } // namespace dracon

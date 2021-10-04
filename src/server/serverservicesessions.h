@@ -17,10 +17,8 @@
 
 #pragma once
 
-#include <dracon/logging.h>
+#include <dracon/plugin.h>
 
-namespace Getodac {
-
-extern TaggedLogger<SeverityLoggerMt> server_logger;
-
-} // namespace Getodac
+namespace ServerSessions {
+    Dracon::HttpSession createSession(const Dracon::Request&);
+} // namespace Server

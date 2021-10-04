@@ -17,8 +17,27 @@
 
 #pragma once
 
+#include <memory>
 #include <dracon/plugin.h>
 
-namespace server_sessions {
-    dracon::HttpSession create_session(const dracon::request&);
-} // namespace Server
+namespace Getodac {
+
+/*!
+ * \brief The ServerPlugin class
+ *
+ * This class is used to load plugins
+ */
+class ServerPlugin
+{
+public:
+    explicit ServerPlugin(const std::string &path, const std::string &confDir);
+    explicit ServerPlugin(Dracon::CreateSessionType funcPtr, uint32_t order);
+    Dracon::CreateSessionType create_session;
+    uint32_t order() const { return m_order; }
+
+private:
+    std::shared_ptr<void> m_handler;
+    uint32_t m_order = 0;
+};
+
+} // namespace Getodac

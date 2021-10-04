@@ -15,9 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "server_service_sessions.h"
+#include "serverservicesessions.h"
 #include "server.h"
-#include "server_logger.h"
+#include "serverlogger.h"
 
 #include <chrono>
 #include <iostream>
@@ -26,24 +26,24 @@
 #include <dracon/http.h>
 
 using namespace std::chrono_literals;
-namespace server_sessions {
+namespace ServerSessions {
 
 
-static void write_response(dracon::abstract_stream& stream, dracon::request& req)
+static void writeResponse(Dracon::AbstractStream& stream, Dracon::Request& req)
 {
-    bool can_write_error = true;
+    bool canWriteError = true;
     try {
         stream >> req;
-        dracon::response res{200};
+        Dracon::Response res{200};
         {
             res["Refresh"] = "5";
             std::ostringstream response;
 
-            auto server = Getodac::server::instance();
-            auto activeSessions = server->active_sessions();
+            auto server = Getodac::Server::instance();
+            auto activeSessions = server->activeSessions();
 
             // the peakSessions is updated slowly
-            auto peak = std::max(server->peak_sessions(), activeSessions);
+            auto peak = std::max(server->peakSessions(), activeSessions);
 
             auto seconds = server->uptime().count();
             auto days = seconds / (60 * 60 * 24);
@@ -53,38 +53,38 @@ static void write_response(dracon::abstract_stream& stream, dracon::request& req
             auto minutes = seconds / 60;
             seconds  -= minutes * 60;
 
-            auto servedSessions = server->served_sessions();
+            auto servedSessions = server->servedSessions();
             response << "Active sessions: " << activeSessions << std::endl
                      << "Sessions peak: " << peak << std::endl
                      << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl
                      << "Serverd sessions: " << servedSessions << std::endl;
             res.body(response.str());
         }
-        can_write_error = false;
+        canWriteError = false;
         stream << res;
-    } catch (const dracon::response &res) {
-        if (can_write_error)
+    } catch (const Dracon::Response &res) {
+        if (canWriteError)
             stream << res;
-        WARNING(Getodac::server_logger) << res.status_code() << " " << res.body();
+        WARNING(Getodac::ServerLogger) << res.statusCode() << " " << res.body();
     } catch (const std::error_code &ec) {
-        if (can_write_error)
-            stream << dracon::response{500, ec.message()};
-        WARNING(Getodac::server_logger) << ec.message();
+        if (canWriteError)
+            stream << Dracon::Response{500, ec.message()};
+        WARNING(Getodac::ServerLogger) << ec.message();
     } catch (const std::exception &e) {
-        if (can_write_error)
-            stream << dracon::response{500, e.what()};
-        WARNING(Getodac::server_logger) << e.what();
+        if (canWriteError)
+            stream << Dracon::Response{500, e.what()};
+        WARNING(Getodac::ServerLogger) << e.what();
     } catch (...) {
-        if (can_write_error)
-            stream << dracon::response{500};
-        WARNING(Getodac::server_logger) << "Unkown error";
+        if (canWriteError)
+            stream << Dracon::Response{500};
+        WARNING(Getodac::ServerLogger) << "Unkown error";
     }
 }
 
-dracon::HttpSession create_session(const dracon::request &req)
+Dracon::HttpSession createSession(const Dracon::Request &req)
 {
     if (req.url() == "/server_status" && req.method() == "GET")
-        return &server_sessions::write_response;
+        return &ServerSessions::writeResponse;
     return {};
 }
 

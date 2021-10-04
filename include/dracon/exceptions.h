@@ -28,19 +28,19 @@
 
 #include <stdexcept>
 
-namespace dracon {
+namespace Dracon {
 
 /*!
  * \brief The segmentation_fault_error class
  *
  * The server converts any SIGSEGV signals into an exception
  */
-class segmentation_fault_error : public std::runtime_error
+class SegmentationFaultError : public std::runtime_error
 {
 public:
-  explicit segmentation_fault_error(const std::string& __arg)
+  explicit SegmentationFaultError(const std::string& __arg)
         : std::runtime_error(__arg){}
-  explicit segmentation_fault_error(const char* __arg)
+  explicit SegmentationFaultError(const char* __arg)
         : std::runtime_error(__arg){}
 };
 
@@ -49,12 +49,12 @@ public:
  *
  * The server converts any SIGFPE signals into an exception
  */
-class floating_point_error : public std::runtime_error
+class FloatingPointError : public std::runtime_error
 {
 public:
-  explicit floating_point_error(const std::string& __arg)
+  explicit FloatingPointError(const std::string& __arg)
         : std::runtime_error(__arg){}
-  explicit floating_point_error(const char* __arg)
+  explicit FloatingPointError(const char* __arg)
         : std::runtime_error(__arg){}
 };
 

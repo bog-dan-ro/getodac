@@ -32,16 +32,16 @@ namespace {
 const std::string test100response{"100XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"};
 std::string test50mresponse;
 
-dracon::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
-dracon::thread_worker s_threadWorker{10};
+Dracon::RESTfulRouterType s_testRootRestful("/test/rest/v1/");
+Dracon::ThreadWorker s_threadWorker{10};
 
 TaggedLogger<> logger{"test"};
 
-void TestRESTGET(const dracon::parsed_route& parsed_route, dracon::abstract_stream& stream, dracon::request& req){
+void TestRESTGET(const Dracon::ParsedRoute& parsed_route, Dracon::AbstractStream& stream, Dracon::Request& req){
     stream >> req;
-    stream << dracon::response{200, {}, {{"Content-Type","text/plain"}}}.content_length(dracon::Chunked_Data);
-    dracon::chunked_stream chunked_stream{stream};
-    dracon::ostreambuffer buff{chunked_stream};
+    stream << Dracon::Response{200, {}, {{"Content-Type","text/plain"}}}.contentLength(Dracon::ChunkedData);
+    Dracon::ChunkedStream chunkedStream{stream};
+    Dracon::OStreamBuffer buff{chunkedStream};
     std::ostream str{&buff};
     str << "Got " << parsed_route.capturedResources.size() << " captured resources\n";
     str << "and " << parsed_route.queryStrings.size() << " queries\n";
@@ -56,41 +56,41 @@ void TestRESTGET(const dracon::parsed_route& parsed_route, dracon::abstract_stre
 
 } // namespace
 
-PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
+PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
 {
-    using namespace dracon::literals;
+    using namespace Dracon::Literals;
     auto &url = req.url();
     if (url == "/test0")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
             stream << 200_http;
         };
 
     if (url == "/test100")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200, test100response};
+            stream << Dracon::Response{200, test100response};
         };
 
     if (url == "/test100Chunked")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
-            dracon::chunked_stream{stream}.write(test100response);
+            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            Dracon::ChunkedStream{stream}.write(test100response);
         };
 
     if (url == "/test50m")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200}.content_length(test50mresponse.size())
+            stream << Dracon::Response{200}.contentLength(test50mresponse.size())
                    << test50mresponse;
         };
 
     if (url == "/test50mChunked")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
-            dracon::chunked_stream chuncked_stream{stream};
+            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            Dracon::ChunkedStream chuncked_stream{stream};
             uint32_t pos = 0;
             do {
                 uint32_t chunkSize = 1 + rand() % (1024 * 1024);
@@ -101,14 +101,14 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         };
 
     if (url == "/testWorker")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
+            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
             auto wakeupper = stream.wakeupper();
             auto wait = std::make_shared<std::atomic_bool>();
             auto buffer = std::make_shared<std::string>();
             uint32_t size = 0;
-            dracon::chunked_stream chuncked_stream{stream};
+            Dracon::ChunkedStream chuncked_stream{stream};
             do {
                 wait->store(true);
                 s_threadWorker.insertTask([=]{
@@ -119,7 +119,7 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
                     for (uint32_t i = 0; i < chunkSize; ++i)
                         (*buffer)[i] = '0' + i % 10;
                     wait->store(false);
-                    wakeupper->wake_up();
+                    wakeupper->wakeUp();
                 });
                 do {
                     if (auto ec = stream.yield())
@@ -131,34 +131,34 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         };
 
     if (url == "/test50ms")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            std::vector<dracon::const_buffer> vec;
+            std::vector<Dracon::ConstBuffer> vec;
             vec.resize(51);
             for (int i = 1; i < 51; ++i) {
                 vec[i].ptr = (void*)(test50mresponse.c_str() + 1024 * 1024 * (i - 1));
                 vec[i].length = 1024 * 1024;
             }
-            auto res = dracon::response{200}.content_length(test50mresponse.size()).to_string(stream.keep_alive());
+            auto res = Dracon::Response{200}.contentLength(test50mresponse.size()).toString(stream.keepAlive());
             vec[0].ptr = res.data();
             vec[0].length = res.length();
             stream.write(vec);
         };
 
     if (url == "/echoTest")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
-            stream.session_timeout(10s);
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
+            stream.sessionTimeout(10s);
             std::string body;
-            req.append_body_callback([&](std::string_view buff){
+            req.appendBodyCallback([&](std::string_view buff){
                 body.append(buff);
             });
             stream >> req;
             if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != body.size()) {
                 throw 400;
             }
-            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
-            dracon::chunked_stream chunked_stream{stream};
-            dracon::ostreambuffer buff{chunked_stream};
+            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            Dracon::ChunkedStream chunked_stream{stream};
+            Dracon::OStreamBuffer buff{chunked_stream};
             std::ostream res{&buff};
             res << "~~~~ ContentLength: " << req["Content-Length"] << std::endl;
             res << "~~~~ Headers:\n";
@@ -168,21 +168,21 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         };
 
     if (url == "/secureOnly")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
-            if (!stream.is_secured_connection())
-                throw dracon::response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
+            if (!stream.isSecuredConnection())
+                throw Dracon::Response{403, "Only secured connections allowed", {{"ErrorKey1","Value1"}, {"ErrorKey2","Value2"}}};
             stream >> req;
             stream << 200_http;
         };
 
     if (url == "/testExpectation")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             if (req["Expect"] == "100-continue") {
                 if (req["X-Continue"] != "100") {
-                    throw dracon::response{417};
+                    throw Dracon::Response{417};
                 }
             }
-            req.append_body_callback([](std::string_view buff){
+            req.appendBodyCallback([](std::string_view buff){
                 (void)buff;
             });
             stream >> req;
@@ -190,14 +190,14 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         };
 
     if (url == "/testThowFromRequestComplete")
-        return [&](dracon::abstract_stream&, dracon::request&){
+        return [&](Dracon::AbstractStream&, Dracon::Request&){
             throw 412;
         };
 
     if (url == "/testThowFromBody")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
-            req.append_body_callback([](std::string_view){
-                throw dracon::response{400, "Body too big, lose some weight",
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
+            req.appendBodyCallback([](std::string_view){
+                throw Dracon::Response{400, "Body too big, lose some weight",
                                         {{"BodyKey1", "Value1"},
                         {"BodyKey2", "Value2"}}};
             });
@@ -206,26 +206,26 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
         };
 
     if (url == "/testThowFromWriteResponse")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            throw dracon::response{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
+            throw Dracon::Response{409, "Throw from WriteResponse", {{"WriteRes1","Value1"}, {"WriteRes2","Value2"}}};
         };
 
     if (url == "/testThowFromWriteResponseStd")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
             throw std::runtime_error{"Throw from WriteResponseStd"};
         };
 
     if (url == "/testThowFromWriteResponseAfterWrite")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << dracon::response{200}.content_length(dracon::Chunked_Data);
+            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
             throw std::runtime_error{"Unexpected error"};
         };
 
     if (url == "/testThrowAfterWakeup")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
 
             auto wakeupper = stream.wakeupper();
@@ -235,7 +235,7 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
                 // simulate some heavy work
                 std::this_thread::sleep_for(100ms);
                 wait->store(false);
-                wakeupper->wake_up();
+                wakeupper->wakeUp();
             });
             do {
                 if (auto ec = stream.yield())
@@ -246,34 +246,34 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req)
 
     // PPP stands for post, put, patch
     if (url == "/testPPP")
-        return [&](dracon::abstract_stream& stream, dracon::request& req){
+        return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             std::string body;
-            req.append_body_callback([&](std::string_view buff){
+            req.appendBodyCallback([&](std::string_view buff){
                 body.append(buff);
             });
             stream >> req;
             if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != test50mresponse.size())
-                throw dracon::response{400, "Invaid body size"};
+                throw Dracon::Response{400, "Invaid body size"};
             if (body != test50mresponse)
-                throw dracon::response{400, "Invaid body"};
-            stream << dracon::response{200}.content_length(body.length()) << body;
+                throw Dracon::Response{400, "Invaid body"};
+            stream << Dracon::Response{200}.contentLength(body.length()) << body;
         };
 
-    return s_testRootRestful.create_handler(url, req.method());
+    return s_testRootRestful.createHandler(url, req.method());
 }
 
 PLUGIN_EXPORT bool init_plugin(const std::string &/*confDir*/)
 {
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         test50mresponse += char(33 + (i % 93));
-    s_testRootRestful.create_route("customers")
-            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
-    s_testRootRestful.create_route("customers/{customerId}")
-            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
-    s_testRootRestful.create_route("customers/{customerId}/licenses")
-            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
-    s_testRootRestful.create_route("customers/{customerId}/licenses/{licenseId}")
-            ->add_method_handler("GET", dracon::session_handler(TestRESTGET));
+    s_testRootRestful.createRoute("customers")
+            ->addMethodHandler("GET", Dracon::sessionHandler(TestRESTGET));
+    s_testRootRestful.createRoute("customers/{customerId}")
+            ->addMethodHandler("GET", Dracon::sessionHandler(TestRESTGET));
+    s_testRootRestful.createRoute("customers/{customerId}/licenses")
+            ->addMethodHandler("GET", Dracon::sessionHandler(TestRESTGET));
+    s_testRootRestful.createRoute("customers/{customerId}/licenses/{licenseId}")
+            ->addMethodHandler("GET", Dracon::sessionHandler(TestRESTGET));
     return true;
 }
 

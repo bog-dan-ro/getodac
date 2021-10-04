@@ -28,7 +28,7 @@
 
 namespace Getodac {
 
-class basic_server_session;
+class BasicServerSession;
 
 /*!
  * \brief The SessionsEventLoop class
@@ -36,23 +36,23 @@ class basic_server_session;
  * This class is used by the server to handle the sessions (sock & timer) events.
  * Usually the server creates one event loop for every CPU core on the system.
  */
-class sessions_event_loop
+class SessionsEventLoop
 {
 public:
-    sessions_event_loop();
-    ~sessions_event_loop();
+    SessionsEventLoop();
+    ~SessionsEventLoop();
 
-    void register_session(basic_server_session *session, uint32_t events);
-    void update_session(basic_server_session *session, uint32_t events);
-    void unregister_session(basic_server_session *session);
+    void register_session(BasicServerSession *session, uint32_t events);
+    void update_session(BasicServerSession *session, uint32_t events);
+    void unregister_session(BasicServerSession *session);
 
-    void delete_later(basic_server_session *session) noexcept;
+    void delete_later(BasicServerSession *session) noexcept;
 
     inline uint32_t active_sessions() const noexcept { return m_active_sessions.load(); }
     void shutdown() noexcept;
 
-    dracon::char_buffer shared_read_buffer;
-    std::shared_ptr<dracon::char_buffer> shared_write_buffer(size_t size) const;
+    Dracon::CharBuffer shared_read_buffer;
+    std::shared_ptr<Dracon::CharBuffer> shared_write_buffer(size_t size) const;
     void setWorkloadBalancing(bool on);
 
     inline int event_fd() const { return m_event_fd; }
@@ -60,7 +60,7 @@ private:
     void loop();
 
 private:
-    std::shared_ptr<dracon::char_buffer> m_shared_write_buffer;
+    std::shared_ptr<Dracon::CharBuffer> m_shared_write_buffer;
     int m_epoll_handler;
     bool m_workload_balancing = false;
     int m_event_fd;
@@ -68,9 +68,9 @@ private:
     std::atomic_bool m_quit{false};
     std::thread m_loop_thread;
     std::mutex m_sessions_mutex;
-    std::set<basic_server_session *> m_sessions;
-    dracon::spin_lock m_deleteLater_mutex;
-    std::unordered_set<basic_server_session *> m_delete_later_objects;
+    std::set<BasicServerSession *> m_sessions;
+    Dracon::SpinLock m_deleteLater_mutex;
+    std::unordered_set<BasicServerSession *> m_delete_later_objects;
 };
 
 } // namespace Getodac

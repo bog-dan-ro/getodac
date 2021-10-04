@@ -21,16 +21,16 @@
 
 namespace {
     using namespace std;
-    using namespace dracon;
+    using namespace Dracon;
 
-    class TestRouter : public restful_router<std::optional<int>, int>
+    class TestRouter : public RestfulRouter<std::optional<int>, int>
     {
     public:
         TestRouter(const std::string &baseUrl = {})
-            : restful_router(baseUrl)
+            : RestfulRouter(baseUrl)
         {}
 
-        const auto &baseUrl() const { return m_base_url; }
+        const auto &baseUrl() const { return m_baseUrl; }
         const auto &routes() const { return m_routes; }
     };
 
@@ -60,20 +60,20 @@ namespace {
     TEST(RESTfulRoute, createRoute)
     {
         TestRouter router{};
-        auto route = router.create_route("/parents");
+        auto route = router.createRoute("/parents");
         EXPECT_EQ(router.routes().size(), 1);
-        route->add_method_handler("OPTIONS", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        route->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods.size(), 0);
             return ++a;
         });
-        auto route2 = router.create_route("/parents");
+        auto route2 = router.createRoute("/parents");
         EXPECT_EQ(router.routes().size(), 1);
         EXPECT_EQ(route, route2);
-        auto parentRoute = router.create_route("/parents/{parent}");
+        auto parentRoute = router.createRoute("/parents/{parent}");
         EXPECT_EQ(router.routes().size(), 2);
-        auto parentRoute2 = router.create_route("/parents/{parent}");
+        auto parentRoute2 = router.createRoute("/parents/{parent}");
         EXPECT_EQ(router.routes().size(), 2);
         EXPECT_EQ(parentRoute, parentRoute2);
     }
@@ -82,27 +82,27 @@ namespace {
     {
         TestRouter router{};
         // -------------------------------------------------------- //
-        auto parentsRoute = router.create_route("/parents");
+        auto parentsRoute = router.createRoute("/parents");
         EXPECT_EQ(router.routes().size(), 1);
-        parentsRoute->add_method_handler("OPTIONS", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentsRoute->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 1;
         });
-        parentsRoute->add_method_handler("GET", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentsRoute->addMethodHandler("GET", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 2;
         });
-        parentsRoute->add_method_handler("DELETE", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentsRoute->addMethodHandler("DELETE", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 3;
         });
-        parentsRoute->add_method_handler("POST", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentsRoute->addMethodHandler("POST", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
@@ -110,36 +110,36 @@ namespace {
         });
 
         // -------------------------------------------------------- //
-        auto parentRoute = router.create_route("/parents/{parent}");
-        parentRoute->add_method_handler("OPTIONS", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        auto parentRoute = router.createRoute("/parents/{parent}");
+        parentRoute->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "1234");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, PUT, PATCH");
             return a + 10;
         });
-        parentRoute->add_method_handler("GET", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentRoute->addMethodHandler("GET", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "2345");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, PUT, PATCH");
             return a + 20;
         });
-        parentRoute->add_method_handler("DELETE", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentRoute->addMethodHandler("DELETE", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "3456");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, PUT, PATCH");
             return a + 30;
         });
-        parentRoute->add_method_handler("PUT", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentRoute->addMethodHandler("PUT", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "4567");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, PUT, PATCH");
             return a + 40;
         });
-        parentRoute->add_method_handler("PATCH", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentRoute->addMethodHandler("PATCH", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "5678");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
@@ -148,8 +148,8 @@ namespace {
         });
 
         // -------------------------------------------------------- //
-        auto children = router.create_route("/parents/{parent}/children");
-        children->add_method_handler("GET", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        auto children = router.createRoute("/parents/{parent}/children");
+        children->addMethodHandler("GET", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "615243");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 1);
@@ -158,7 +158,7 @@ namespace {
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 200;
         });
-        children->add_method_handler("DELETE", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        children->addMethodHandler("DELETE", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "273645");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 2);
@@ -169,7 +169,7 @@ namespace {
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 300;
         });
-        children->add_method_handler("POST", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        children->addMethodHandler("POST", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "837465");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 3);
@@ -182,7 +182,7 @@ namespace {
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a + 400;
         });
-        children->add_method_handler("OPTIONS", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        children->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 1);
             EXPECT_EQ(parsedRoute.capturedResources.at("parent"), "495867");
             EXPECT_EQ(parsedRoute.queryStrings.size(), 3);
@@ -196,8 +196,8 @@ namespace {
             return a + 100;
         });
 
-        auto complex = router.create_route("/parents/{mother}/{father}/children/{name}/{age}/{height}");
-        complex->add_method_handler("GET", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        auto complex = router.createRoute("/parents/{mother}/{father}/children/{name}/{age}/{height}");
+        complex->addMethodHandler("GET", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 5);
             EXPECT_EQ(parsedRoute.capturedResources.at("mother"), "Anna");
             EXPECT_EQ(parsedRoute.capturedResources.at("father"), "George");
@@ -216,67 +216,67 @@ namespace {
         });
 
         // -------------------------------------------------------- //
-        EXPECT_EQ(2, router.create_handler("/parents", "OPTIONS", 1));
-        EXPECT_EQ(3, router.create_handler("/parents", "GET", 1));
-        EXPECT_EQ(5, router.create_handler("/parents", "POST", 1));
-        EXPECT_EQ(4, router.create_handler("/parents", "DELETE", 1));
+        EXPECT_EQ(2, router.createHandler("/parents", "OPTIONS", 1));
+        EXPECT_EQ(3, router.createHandler("/parents", "GET", 1));
+        EXPECT_EQ(5, router.createHandler("/parents", "POST", 1));
+        EXPECT_EQ(4, router.createHandler("/parents", "DELETE", 1));
 
         // There is no PUT method for /parents
         try {
-            router.create_handler("/parents", "PUT", 1);
+            router.createHandler("/parents", "PUT", 1);
             ASSERT_TRUE(false);
-        } catch (const response& e) {
-            EXPECT_EQ(e.status_code() , 405);
+        } catch (const Response& e) {
+            EXPECT_EQ(e.statusCode() , 405);
             EXPECT_EQ(e.at("Allow"), "GET, DELETE, POST");
         } catch(...) {
             ASSERT_TRUE(false);
         }
 
         // Replace old method
-        parentsRoute->add_method_handler("OPTIONS", [](const parsed_route &parsedRoute, int a) -> std::optional<int> {
+        parentsRoute->addMethodHandler("OPTIONS", [](const ParsedRoute &parsedRoute, int a) -> std::optional<int> {
             EXPECT_EQ(parsedRoute.capturedResources.size(), 0);
             EXPECT_EQ(parsedRoute.queryStrings.size(), 0);
             EXPECT_EQ(parsedRoute.allButOPTIONSNodeMethods, "GET, DELETE, POST");
             return a - 1;
         });
-        EXPECT_EQ(0, router.create_handler("/parents", "OPTIONS", 1));
-        EXPECT_EQ(0, router.create_handler("parents", "OPTIONS", 1));
-        EXPECT_EQ(0, router.create_handler("/////parents", "OPTIONS", 1));
-        EXPECT_EQ(0, router.create_handler("/////parents//", "OPTIONS", 1));
-        EXPECT_EQ(0, router.create_handler("/////parents//", "OPTIONS", 1));
+        EXPECT_EQ(0, router.createHandler("/parents", "OPTIONS", 1));
+        EXPECT_EQ(0, router.createHandler("parents", "OPTIONS", 1));
+        EXPECT_EQ(0, router.createHandler("/////parents", "OPTIONS", 1));
+        EXPECT_EQ(0, router.createHandler("/////parents//", "OPTIONS", 1));
+        EXPECT_EQ(0, router.createHandler("/////parents//", "OPTIONS", 1));
         // -------------------------------------------------------- //
 
         // -------------------------------------------------------- //
-        EXPECT_EQ(11, router.create_handler("/parents/1234", "OPTIONS", 1));
-        EXPECT_EQ(22, router.create_handler("/parents/2345", "GET", 2));
-        EXPECT_EQ(33, router.create_handler("/parents/3456", "DELETE", 3));
-        EXPECT_EQ(44, router.create_handler("/parents/4567", "PUT", 4));
-        EXPECT_EQ(55, router.create_handler("/parents/5678", "PATCH", 5));
+        EXPECT_EQ(11, router.createHandler("/parents/1234", "OPTIONS", 1));
+        EXPECT_EQ(22, router.createHandler("/parents/2345", "GET", 2));
+        EXPECT_EQ(33, router.createHandler("/parents/3456", "DELETE", 3));
+        EXPECT_EQ(44, router.createHandler("/parents/4567", "PUT", 4));
+        EXPECT_EQ(55, router.createHandler("/parents/5678", "PATCH", 5));
 
-        EXPECT_EQ(11, router.create_handler("parents//1234", "OPTIONS", 1));
-        EXPECT_EQ(11, router.create_handler("/////parents//1234", "OPTIONS", 1));
-        EXPECT_EQ(11, router.create_handler("/////parents//1234//", "OPTIONS", 1));
-        // -------------------------------------------------------- //
-
-
-        // -------------------------------------------------------- //
-        EXPECT_EQ(222, router.create_handler("/parents/615243/children?key1=value1", "GET", 22));
-        EXPECT_EQ(333, router.create_handler("/parents/273645/children?key2=value2&key1=value1", "DELETE", 33));
-        EXPECT_EQ(444, router.create_handler("/parents/837465/children?key1=value1&key2=value1&q=search%20term", "POST", 44));
-        EXPECT_EQ(111, router.create_handler("/parents/495867/children?key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
-
-        EXPECT_EQ(111, router.create_handler("parents/495867/children?key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
-        EXPECT_EQ(111, router.create_handler("parents//495867//children//?&key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
-        EXPECT_EQ(111, router.create_handler("//parents//495867//children//?&key1=value1&&&key1=value2&key3=value%203&&&", "OPTIONS", 11));
-        EXPECT_THROW(router.create_handler("//parents//495867//children//?&key1=value1&&&key1=value2&key3=value%203=2&&&", "OPTIONS", 11), response);
+        EXPECT_EQ(11, router.createHandler("parents//1234", "OPTIONS", 1));
+        EXPECT_EQ(11, router.createHandler("/////parents//1234", "OPTIONS", 1));
+        EXPECT_EQ(11, router.createHandler("/////parents//1234//", "OPTIONS", 1));
         // -------------------------------------------------------- //
 
 
         // -------------------------------------------------------- //
-        EXPECT_EQ(1111, router.create_handler("/parents/Anna/George/children/Jonny/14/165?key1=value1&key2=value2&key3=value3", "GET", 111));
+        EXPECT_EQ(222, router.createHandler("/parents/615243/children?key1=value1", "GET", 22));
+        EXPECT_EQ(333, router.createHandler("/parents/273645/children?key2=value2&key1=value1", "DELETE", 33));
+        EXPECT_EQ(444, router.createHandler("/parents/837465/children?key1=value1&key2=value1&q=search%20term", "POST", 44));
+        EXPECT_EQ(111, router.createHandler("/parents/495867/children?key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
 
-        EXPECT_EQ(1111, router.create_handler("parents/Anna/George/children/Jonny/14/165?key1=value1&key2=value2&key3=value3&", "GET", 111));
-        EXPECT_EQ(1111, router.create_handler("//parents//Anna//George////children///Jonny/14/165////?&&&key1=value1&&&&key2=value2&key3=value3&&&", "GET", 111));
+        EXPECT_EQ(111, router.createHandler("parents/495867/children?key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
+        EXPECT_EQ(111, router.createHandler("parents//495867//children//?&key1=value1&key1=value2&key3=value%203", "OPTIONS", 11));
+        EXPECT_EQ(111, router.createHandler("//parents//495867//children//?&key1=value1&&&key1=value2&key3=value%203&&&", "OPTIONS", 11));
+        EXPECT_THROW(router.createHandler("//parents//495867//children//?&key1=value1&&&key1=value2&key3=value%203=2&&&", "OPTIONS", 11), Response);
+        // -------------------------------------------------------- //
+
+
+        // -------------------------------------------------------- //
+        EXPECT_EQ(1111, router.createHandler("/parents/Anna/George/children/Jonny/14/165?key1=value1&key2=value2&key3=value3", "GET", 111));
+
+        EXPECT_EQ(1111, router.createHandler("parents/Anna/George/children/Jonny/14/165?key1=value1&key2=value2&key3=value3&", "GET", 111));
+        EXPECT_EQ(1111, router.createHandler("//parents//Anna//George////children///Jonny/14/165////?&&&key1=value1&&&&key2=value2&key3=value3&&&", "GET", 111));
         // -------------------------------------------------------- //
     }
 }

@@ -17,27 +17,10 @@
 
 #pragma once
 
-#include <memory>
-#include <dracon/plugin.h>
+#include <dracon/logging.h>
 
 namespace Getodac {
 
-/*!
- * \brief The ServerPlugin class
- *
- * This class is used to load plugins
- */
-class server_plugin
-{
-public:
-    explicit server_plugin(const std::string &path, const std::string &confDir);
-    explicit server_plugin(dracon::CreateSessionType funcPtr, uint32_t order);
-    dracon::CreateSessionType create_session;
-    uint32_t order() const { return m_order; }
-
-private:
-    std::shared_ptr<void> m_handler;
-    uint32_t m_order = 0;
-};
+extern TaggedLogger<SeverityLoggerMt> ServerLogger;
 
 } // namespace Getodac

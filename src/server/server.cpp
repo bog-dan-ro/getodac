@@ -58,10 +58,10 @@
 #include <dracon/logging.h>
 
 #include "server.h"
-#include "server_logger.h"
-#include "server_session.h"
-#include "server_service_sessions.h"
-#include "sessions_event_loop.h"
+#include "serverlogger.h"
+#include "serversession.h"
+#include "serverservicesessions.h"
+#include "sessionseventloop.h"
 #include "streams.h"
 
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL
@@ -94,7 +94,7 @@ using deleted_unique_ptr = std::unique_ptr<T,std::function<void(T*)>>;
 
 namespace Getodac {
 
-TaggedLogger<> server_logger{"Server"};
+TaggedLogger<> ServerLogger{"Server"};
 
 namespace {
     uint32_t queuedConnections = 20000;
@@ -158,16 +158,16 @@ namespace {
         /// Transform segmentation violations signals into exceptions
         if (sig == SIGSEGV && info->si_addr == nullptr) {
             unblockSignal(SIGSEGV);
-            throw dracon::segmentation_fault_error(stackTrace(3));
+            throw Dracon::SegmentationFaultError(stackTrace(3));
         }
 
         /// Transform floation-point errors signals into exceptions
         if (sig == SIGFPE && (info->si_code == FPE_INTDIV || info->si_code == FPE_FLTDIV)) {
             unblockSignal(SIGFPE);
-            throw dracon::floating_point_error(stackTrace(3));
+            throw Dracon::FloatingPointError(stackTrace(3));
         }
         if (sig == SIGTERM || sig == SIGINT) {
-            server::exit_signal_handler();
+            Server::exitSignalHandler();
             return;
         }
         throw std::runtime_error(stackTrace(3));
@@ -179,10 +179,10 @@ namespace {
  *
  * Exit the server
  */
-void server::exit_signal_handler()
+void Server::exitSignalHandler()
 {
     // Quit server loop
-    INFO(server_logger) << "shutting down the server";
+    INFO(ServerLogger) << "shutting down the server";
     instance()->m_shutdown.store(true);
 }
 
@@ -195,7 +195,7 @@ void server::exit_signal_handler()
  *
  * \return the bound socket
  */
-int server::bind(SocketType type, int port)
+int Server::bind(SocketType type, int port)
 {
     int sock = -1;
     if ((sock = ::socket(type == IPV4 ? AF_INET : AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)) < 0)
@@ -235,10 +235,10 @@ int server::bind(SocketType type, int port)
     event.data.fd = sock;
     event.events = EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET;
 
-    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, sock, &event))
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, sock, &event))
         throw std::runtime_error{"Can't  epoll_ctl"};
 
-    ++m_events_size;
+    ++m_eventsSize;
     return sock;
 }
 
@@ -247,9 +247,9 @@ int server::bind(SocketType type, int port)
  *
  * \return the server instance
  */
-server *server::instance()
+Server *Server::instance()
 {
-    static server server;
+    static Server server;
     return &server;
 }
 
@@ -264,7 +264,7 @@ server *server::instance()
  *
  * \return the status
  */
-int server::exec(int argc, char *argv[])
+int Server::exec(int argc, char *argv[])
 {
     static bool running = false;
     if (running)
@@ -275,7 +275,7 @@ int server::exec(int argc, char *argv[])
     boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
 
     // Server start time, will be used by server sessions
-    m_start_time = std::chrono::system_clock::now();
+    m_startTime = std::chrono::system_clock::now();
 
     namespace po = boost::program_options;
     namespace fs = std::filesystem;
@@ -308,7 +308,7 @@ int server::exec(int argc, char *argv[])
         po::notify(vm);
         if (vm.count("help")) {
             std::cout << desc << std::endl;
-            exit_signal_handler();
+            exitSignalHandler();
             return 0;
         }
         printPID = vm.count("pid");
@@ -340,12 +340,12 @@ int server::exec(int argc, char *argv[])
         queuedConnections = properties.get("queued_connections", queuedConnections);
         maxConnectionsPerIp = properties.get("max_connections_per_ip", maxConnectionsPerIp);
         workloadBalancing = properties.get("workload_balancing", workloadBalancing);
-        TRACE(server_logger) << "http port:" << httpPort;
+        TRACE(ServerLogger) << "http port:" << httpPort;
         if (properties.find("https") != properties.not_found()) {
-            TRACE(server_logger) << "https section found in config";
+            TRACE(ServerLogger) << "https section found in config";
             if (properties.get("https.enabled", false)) {
                 httpsPort = properties.get("https.port", httpsPort);
-                TRACE(server_logger) << "https enabled in configm port=" << httpsPort;
+                TRACE(ServerLogger) << "https enabled in configm port=" << httpsPort;
 
                 // Init SSL Context
                 SSL_library_init();
@@ -353,30 +353,30 @@ int server::exec(int argc, char *argv[])
                 ERR_load_crypto_strings();
                 OpenSSL_add_all_algorithms();
                 std::string ctxMethod = boost::algorithm::to_lower_copy(properties.get<std::string>("https.ssl.ctx_method"));
-                DEBUG(server_logger) << "SSL_CTX_new(" << ctxMethod << ")";
-                if (!(m_ssl_context = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
+                DEBUG(ServerLogger) << "SSL_CTX_new(" << ctxMethod << ")";
+                if (!(m_sslContext = SSL_CTX_new(ctxMethod == "DTLS" ? DTLS_server_method() : TLS_server_method())))
                     throw std::runtime_error("Can't create SSL Context");
 
                 // load SSL CTX configuration
                 auto ctxConf = deleted_unique_ptr<SSL_CONF_CTX>(SSL_CONF_CTX_new(), [](SSL_CONF_CTX *ptr){SSL_CONF_CTX_free(ptr);});
                 if (!ctxConf)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
-                SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_ssl_context);
+                SSL_CONF_CTX_set_ssl_ctx(ctxConf.get(), m_sslContext);
                 SSL_CONF_CTX_set_flags(ctxConf.get(), SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_SERVER | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_REQUIRE_PRIVATE | SSL_CONF_FLAG_SHOW_ERRORS);
 
                 auto cxt_settings = mergedProperties(properties.get_child("https.ssl.cxt_settings"));
                 for (const auto &kv : cxt_settings) {
-                    DEBUG(server_logger) << "SSL_CONF_cmd(" << kv.first << ", " << kv.second << ")";
+                    DEBUG(ServerLogger) << "SSL_CONF_cmd(" << kv.first << ", " << kv.second << ")";
                     if (SSL_CONF_cmd(ctxConf.get(), kv.first.c_str(), kv.second.empty() ? nullptr : kv.second.c_str()) < 1)
                         throw std::runtime_error{ERR_error_string(ERR_get_error(), nullptr)};
                 }
 
-                if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_ssl_context) != 1)
+                if (SSL_CONF_CTX_finish(ctxConf.get()) != 1 || SSL_CTX_check_private_key(m_sslContext) != 1)
                     throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
 
-                SSL_CTX_set_read_ahead(m_ssl_context, 1);
-                SSL_CTX_set_mode(m_ssl_context, SSL_MODE_RELEASE_BUFFERS);
-                SSL_CTX_set_mode(m_ssl_context, SSL_MODE_ENABLE_PARTIAL_WRITE);
+                SSL_CTX_set_read_ahead(m_sslContext, 1);
+                SSL_CTX_set_mode(m_sslContext, SSL_MODE_RELEASE_BUFFERS);
+                SSL_CTX_set_mode(m_sslContext, SSL_MODE_ENABLE_PARTIAL_WRITE);
             } else {
                 httpsPort = -1;
             }
@@ -412,15 +412,15 @@ int server::exec(int argc, char *argv[])
                 if (fs::is_regular_file(dir_itr->status()))
                     m_plugins.emplace_back(dir_itr->path().string(), confDir);
             } catch (const std::exception &e) {
-                ERROR(server_logger) << e.what();
+                ERROR(ServerLogger) << e.what();
             }
         }
     }
 
     // at the end add the server sessions
     if (enableServerStatus)
-        m_plugins.emplace_back(&server_sessions::create_session, UINT32_MAX / 2);
-    std::sort(m_plugins.begin(), m_plugins.end(), [](const server_plugin &a, const server_plugin &b){return a.order() < b.order();});
+        m_plugins.emplace_back(&ServerSessions::createSession, UINT32_MAX / 2);
+    std::sort(m_plugins.begin(), m_plugins.end(), [](const ServerPlugin &a, const ServerPlugin &b){return a.order() < b.order();});
 
     // accept thread must have insane priority to be able to accept connections
     // as fast as possible
@@ -432,47 +432,47 @@ int server::exec(int argc, char *argv[])
     if (httpPort > 0) {
         bind(IPV4, httpPort);
         bind(IPV6, httpPort);
-        INFO(server_logger) << "listen on :"<< httpPort << " port";
+        INFO(ServerLogger) << "listen on :"<< httpPort << " port";
     }
 
     if (httpsPort > 0) {
         // Bind IPv4 & IPv6 https ports
-        m_https_4_sock = bind(IPV4, httpsPort);
-        m_https_6_sock = bind(IPV6, httpsPort);
-        INFO(server_logger) << "listen on :"<< httpsPort << " port";
+        m_https4Sock = bind(IPV4, httpsPort);
+        m_https6Sock = bind(IPV6, httpsPort);
+        INFO(ServerLogger) << "listen on :"<< httpsPort << " port";
     }
 
     if (!getuid() && gid != gid_t(-1) && uid != uid_t(-1)) {
         if (setgid(gid) || setuid(uid))
              throw std::runtime_error("Can't drop privileges");
-        INFO(server_logger) << "Droping privileges";
+        INFO(ServerLogger) << "Droping privileges";
     }
 
     boost::log::init_from_settings(loggingSettings);
-    INFO(server_logger) << "Logging setup succeeded";
+    INFO(ServerLogger) << "Logging setup succeeded";
 
-    auto eventLoops = std::make_unique<sessions_event_loop[]>(eventLoopsSize);
+    auto eventLoops = std::make_unique<SessionsEventLoop[]>(eventLoopsSize);
     for (uint32_t i = 0; i < eventLoopsSize; ++i)
         eventLoops[i].setWorkloadBalancing(workloadBalancing);
 
-    INFO(server_logger) << "using " << eventLoopsSize << " worker threads";
+    INFO(ServerLogger) << "using " << eventLoopsSize << " worker threads";
 
-    INFO(server_logger) << "using " << queuedConnections << " queued connections";
+    INFO(ServerLogger) << "using " << queuedConnections << " queued connections";
 
     // allocate epoll list
-    const auto epollList = std::make_unique<epoll_event[]>(m_events_size);
+    const auto epollList = std::make_unique<epoll_event[]>(m_eventsSize);
 
     if (printPID)
         std::cout << "pid:" << getpid() << std::endl << std::flush;
 
     // Wait for incoming connections
     while (!m_shutdown) {
-        int triggeredEvents = epoll_wait(m_epoll_handler, epollList.get(), m_events_size, 1000);
+        int triggeredEvents = epoll_wait(m_epollHandler, epollList.get(), m_eventsSize, 1000);
         {
-            std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
-            auto sessions = m_active_sessions.size();
-            if (sessions > m_peak_sessions)
-                m_peak_sessions = sessions;
+            std::unique_lock<std::mutex> lock{m_activeSessionsMutex};
+            auto sessions = m_activeSessions.size();
+            if (sessions > m_peakSessions)
+                m_peakSessions = sessions;
 
             if (sessions <= 1)  // No more pending sessions?
                 malloc_trim(0); // release the memory to OS
@@ -490,45 +490,45 @@ int server::exec(int argc, char *argv[])
                 socklen_t in_len = sizeof(struct sockaddr_storage);
                 while (!m_shutdown) {
                     int fd = epollList[i].data.fd;
-                    bool ssl = fd == m_https_4_sock || fd == m_https_6_sock;
+                    bool ssl = fd == m_https4Sock || fd == m_https6Sock;
                     int sock = ::accept4(fd, (struct sockaddr *)&in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
                     if (-1 == sock)
                         break;
 
                     uint32_t order;
                     {
-                        auto addr = dracon::addr_text(in_addr);
-                        std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
-                        if (m_connections_per_ip[addr] > maxConnectionsPerIp) {
+                        auto addr = Dracon::addressText(in_addr);
+                        std::unique_lock<std::mutex> lock{m_connectionsPerIpMutex};
+                        if (m_connectionsPerIp[addr] > maxConnectionsPerIp) {
                             ::close(sock);
                             continue;
                         }
-                        order = m_connections_per_ip[addr]++;
+                        order = m_connectionsPerIp[addr]++;
                     }
 
                     //TODO: here we can check if sock address is banned
                     //and we can drop the connection
 
                     // Find the least used session
-                    sessions_event_loop *bestLoop = eventLoops.get();
+                    SessionsEventLoop *bestLoop = eventLoops.get();
                     for (uint32_t i = 1; i < eventLoopsSize; ++i) {
-                        sessions_event_loop &loop = eventLoops[i];
+                        SessionsEventLoop &loop = eventLoops[i];
                         if (bestLoop->active_sessions() > loop.active_sessions())
                             bestLoop = &loop;
                     }
                     try {
                         // Let's try to create a new session
                         if (ssl)
-                            (new server_session<ssl_socket_session>(bestLoop, sock, in_addr, order))->init_session();
+                            (new ServerSession<SslSocketSession>(bestLoop, sock, in_addr, order))->init_session();
                         else
-                            (new server_session<socket_session>(bestLoop, sock, in_addr, order))->init_session();
+                            (new ServerSession<SocketSession>(bestLoop, sock, in_addr, order))->init_session();
                     } catch (const std::exception &e) {
-                        WARNING(server_logger) << " Can't create session, reason: " << e.what();
+                        WARNING(ServerLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);
                     } catch (...) {
                         // if we can't create a new session
                         // then just close the socket
-                        WARNING(server_logger) << " Can't create session, for unknown reason";
+                        WARNING(ServerLogger) << " Can't create session, for unknown reason";
                         ::close(sock);
                     }
                 }
@@ -543,17 +543,17 @@ int server::exec(int argc, char *argv[])
     eventLoops.reset();
 
     // Delete all active sessions
-    for (auto &session : m_active_sessions)
+    for (auto &session : m_activeSessions)
         delete session;
 
     m_plugins.clear();
     return 0;
 }
 
-void server::server_session_created(basic_server_session *session)
+void Server::serverSessionCreated(BasicServerSession *session)
 {
-    std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
-    m_active_sessions.insert(session);
+    std::unique_lock<std::mutex> lock{m_activeSessionsMutex};
+    m_activeSessions.insert(session);
 }
 
 /*!
@@ -562,24 +562,24 @@ void server::server_session_created(basic_server_session *session)
  * Called by the ServerSession when is deleted
  * \param session that was deleted
  */
-void server::server_session_deleted(basic_server_session *session)
+void Server::serverSessionDeleted(BasicServerSession *session)
 {
     {
-        std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
-        m_active_sessions.erase(session);
+        std::unique_lock<std::mutex> lock{m_activeSessionsMutex};
+        m_activeSessions.erase(session);
     }
 
     {
-        auto addr = dracon::addr_text(session->peer_address());
-        std::unique_lock<std::mutex> lock{m_connections_per_ip_mutex};
-        auto it = m_connections_per_ip.find(addr);
-        assert(it != m_connections_per_ip.end());
+        auto addr = Dracon::addressText(session->peer_address());
+        std::unique_lock<std::mutex> lock{m_connectionsPerIpMutex};
+        auto it = m_connectionsPerIp.find(addr);
+        assert(it != m_connectionsPerIp.end());
         if (--(it->second) == 0)
-            m_connections_per_ip.erase(it);
+            m_connectionsPerIp.erase(it);
     }
 }
 
-std::function<void (dracon::abstract_stream &, dracon::request &)> server::create_session(const dracon::request &request)
+std::function<void (Dracon::AbstractStream &, Dracon::Request &)> Server::create_session(const Dracon::Request &request)
 {
     for (const auto &plugin : m_plugins) {
         if (auto service = plugin.create_session(request))
@@ -592,33 +592,33 @@ std::function<void (dracon::abstract_stream &, dracon::request &)> server::creat
  * \brief Server::peakSessions
  * \return the peak of simulatneous connections since the beginning
  */
-size_t server::peak_sessions()
+size_t Server::peakSessions()
 {
-    return m_peak_sessions;
+    return m_peakSessions;
 }
 
 /*!
  * \brief Server::activeSessions
  * \return the number of active connections
  */
-size_t server::active_sessions()
+size_t Server::activeSessions()
 {
-    std::unique_lock<std::mutex> lock{m_active_sessions_mutex};
-    return m_active_sessions.size();
+    std::unique_lock<std::mutex> lock{m_activeSessionsMutex};
+    return m_activeSessions.size();
 }
 
 /*!
  * \brief Getodac::Server::uptime
  * \return the number of seconds since the server started
  */
-std::chrono::seconds Getodac::server::uptime() const
+std::chrono::seconds Getodac::Server::uptime() const
 {
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - m_start_time);
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - m_startTime);
 }
 
-SSL_CTX *Getodac::server::ssl_context() const
+SSL_CTX *Getodac::Server::sslContext() const
 {
-    return m_ssl_context;
+    return m_sslContext;
 }
 
 /*!
@@ -626,9 +626,9 @@ SSL_CTX *Getodac::server::ssl_context() const
  *
  * Creates the server object & the server events loop
  */
-server::server()
+Server::Server()
 {
-    m_epoll_handler = epoll_create1(EPOLL_CLOEXEC);
+    m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
 
     // register signal handlers
     struct sigaction sa;
@@ -661,11 +661,11 @@ server::server()
  *
  * Cleanup everything
  */
-server::~server()
+Server::~Server()
 {
     try {
-        if (m_ssl_context)
-            SSL_CTX_free(m_ssl_context);
+        if (m_sslContext)
+            SSL_CTX_free(m_sslContext);
         CRYPTO_set_locking_callback(nullptr);
         CRYPTO_set_id_callback(nullptr);
     } catch (...) {}

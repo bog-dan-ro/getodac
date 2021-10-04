@@ -21,17 +21,17 @@
 #include <dracon/logging.h>
 
 #include "server.h"
-#include "server_logger.h"
+#include "serverlogger.h"
 
 int main(int argc, char*argv[])
 {
     try {
-        return Getodac::server::instance()->exec(argc, argv);
+        return Getodac::Server::instance()->exec(argc, argv);
     } catch (const std::exception &e) {
-        FATAL(Getodac::server_logger) << e.what();
+        FATAL(Getodac::ServerLogger) << e.what();
         return -1;
     } catch (...) {
-        FATAL(Getodac::server_logger) << "Unknown exception";
+        FATAL(Getodac::ServerLogger) << "Unknown exception";
         return -1;
     }
 }

@@ -20,7 +20,7 @@
 #include <memory>
 
 namespace {
-using namespace dracon;
+using namespace Dracon;
 using namespace std;
 
     TEST(Utils, fromHex)
@@ -41,19 +41,19 @@ using namespace std;
         EXPECT_THROW(fromHex('H'), std::invalid_argument);
     }
 
-    TEST(Utils, unescape_url)
+    TEST(Utils, unescapeUrl)
     {
-        EXPECT_EQ(unescape_url("plainText"), "plainText");
-        EXPECT_EQ(unescape_url("--%3D%3D+c%C3%A2nd+%229+%22+%2B+1+nu+fac+%2210%22+%3F+%3D+%21%40%23%24%25%5E%26%2A%3F%3E%3C%3A%27%5C%7C%5D%5B%60%7E+%21+%2A+%27+%28+%29+%3B+%3A+%40+%26+%3D+%2B+%24+%2C+%2F+%3F+%25+%23+%5B+%5D%3D%3D--"),
+        EXPECT_EQ(unescapeUrl("plainText"), "plainText");
+        EXPECT_EQ(unescapeUrl("--%3D%3D+c%C3%A2nd+%229+%22+%2B+1+nu+fac+%2210%22+%3F+%3D+%21%40%23%24%25%5E%26%2A%3F%3E%3C%3A%27%5C%7C%5D%5B%60%7E+%21+%2A+%27+%28+%29+%3B+%3A+%40+%26+%3D+%2B+%24+%2C+%2F+%3F+%25+%23+%5B+%5D%3D%3D--"),
                   std::string{R"(--== când "9 " + 1 nu fac "10" ? = !@#$%^&*?><:'\|][`~ ! * ' ( ) ; : @ & = + $ , / ? % # [ ]==--)"});
-        EXPECT_EQ(unescape_url("%20"), " ");
-        EXPECT_THROW(unescape_url("plain%2hText"), std::invalid_argument);
-        EXPECT_THROW(unescape_url("Text%2"), std::invalid_argument);
+        EXPECT_EQ(unescapeUrl("%20"), " ");
+        EXPECT_THROW(unescapeUrl("plain%2hText"), std::invalid_argument);
+        EXPECT_THROW(unescapeUrl("Text%2"), std::invalid_argument);
     }
 
     TEST(Utils, split)
     {
-        const string str = unescape_url("///api/v1/parents/123/children/");
+        const string str = unescapeUrl("///api/v1/parents/123/children/");
         SplitVector expected = {"api", "v1", "parents", "123", "children"};
         auto splitted = split(str, '/');
         EXPECT_EQ(splitted.size(), expected.size());
@@ -67,10 +67,10 @@ using namespace std;
             EXPECT_EQ(expected1[i], splitted[i]);
     }
 
-    TEST(Utils, lru_cache)
+    TEST(Utils, LruCache)
     {
         using ptr = std::shared_ptr<int>;
-        dracon::lru_cache<int, ptr> cache{2};
+        Dracon::LruCache<int, ptr> cache{2};
         std::vector<ptr> all{10};
         for (auto & p : all)
             p = std::make_shared<int>();
@@ -114,13 +114,13 @@ using namespace std;
         EXPECT_EQ(cache.size(), 0);
     }
 
-    TEST(Utils, simple_timer)
+    TEST(Utils, SimpleTimer)
     {
         using namespace std::chrono_literals;
         auto start = std::chrono::system_clock::now();
         std::condition_variable time_out_wait;
         std::mutex mutex;
-        simple_timer st{[&]{time_out_wait.notify_one();}, 50ms};
+        SimpleTimer st{[&]{time_out_wait.notify_one();}, 50ms};
         std::unique_lock<std::mutex> lock(mutex);
         time_out_wait.wait(lock);
         time_out_wait.wait(lock);
@@ -133,7 +133,7 @@ using namespace std;
         auto start = std::chrono::system_clock::now();
         std::condition_variable timeOutWait;
         std::mutex mutex;
-        simple_timer st{[&]{timeOutWait.notify_one();}, 50ms, true};
+        SimpleTimer st{[&]{timeOutWait.notify_one();}, 50ms, true};
         std::unique_lock<std::mutex> lock(mutex);
         timeOutWait.wait(lock);
         EXPECT_GE(std::chrono::system_clock::now(), (start + 50ms));

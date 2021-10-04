@@ -33,14 +33,14 @@
 #include <thread>
 #include <vector>
 
-namespace dracon {
+namespace Dracon {
 
 /*!
  * \brief The ThreadWorker class
  *
  * Helper class to sync run tasks on worker thread(s)
  */
-class thread_worker
+class ThreadWorker
 {
 public:
     /*!
@@ -48,7 +48,7 @@ public:
      *
      * \param workers the number of threads that will be used to run the tasks
      */
-    thread_worker(uint32_t workers = 1)
+    ThreadWorker(uint32_t workers = 1)
     {
         workers = std::max(uint32_t(1), workers);
         m_quit.store(false);
@@ -64,7 +64,7 @@ public:
             });
     }
 
-    ~thread_worker()
+    ~ThreadWorker()
     {
         try {
             m_quit.store(true);

@@ -35,12 +35,12 @@
 
 #include <dracon/stream.h>
 
-namespace dracon {
+namespace Dracon {
 
 namespace {
 
 // https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
-static const std::unordered_map<uint16_t, std::string_view> status_codes = {
+static const std::unordered_map<uint16_t, std::string_view> StatusCodes = {
 
     // Informational 1xx
     {100, "100 Continue\r\n"},
@@ -94,126 +94,126 @@ static const std::unordered_map<uint16_t, std::string_view> status_codes = {
     {505, "505 HTTP Version Not Supported\r\n"}
 };
 
-inline std::string_view status_code_string(uint16_t status)
+inline std::string_view statusCodeString(uint16_t status)
 {
-    auto it = status_codes.find(status);
-    if (it != status_codes.end())
+    auto it = StatusCodes.find(status);
+    if (it != StatusCodes.end())
         return it->second;
-    return status_codes.at(500);
+    return StatusCodes.at(500);
 }
 } // namespace
 
 enum {
-    Chunked_Data = std::numeric_limits<size_t>::max()
+    ChunkedData = std::numeric_limits<size_t>::max()
 };
 
-using fields = std::unordered_map<std::string, std::string>;
+using Fields = std::unordered_map<std::string, std::string>;
 
-class response: public fields
+class Response: public Fields
 {
 public:
-    response(uint16_t status_code = 500, std::string_view body = {}, fields && fields_ = {})
-        : fields(std::move(fields_))
-        , m_status_code(status_code)
+    Response(uint16_t statusCode = 500, std::string_view body = {}, Fields && fields = {})
+        : Fields(std::move(fields))
+        , m_statusCode(statusCode)
         , m_body(body)
-        , m_content_length(body.size())
+        , m_contentLength(body.size())
     {}
 
-    response &status_code(uint16_t status_code)
+    Response &statusCode(uint16_t status_code)
     {
-        m_status_code = status_code;
+        m_statusCode = status_code;
         return *this;
     }
-    uint16_t status_code() const {return m_status_code;}
+    uint16_t statusCode() const {return m_statusCode;}
 
-    response &content_length(size_t length)
+    Response &contentLength(size_t length)
     {
-        m_content_length = length;
+        m_contentLength = length;
         m_body.clear();
         return *this;
     }
-    size_t content_length() const {return m_content_length;}
+    size_t contentLength() const {return m_contentLength;}
 
-    response &keep_alive(std::chrono::seconds seconds)
+    Response &keepAlive(std::chrono::seconds seconds)
     {
         m_keep_alive = seconds;
         return *this;
     }
-    std::chrono::seconds keep_alive() const {return m_keep_alive;}
+    std::chrono::seconds keepAlive() const {return m_keep_alive;}
 
-    response &body(std::string body)
+    Response &body(std::string body)
     {
         m_body = std::move(body);
-        m_content_length = m_body.size();
+        m_contentLength = m_body.size();
         return *this;
     }
     const std::string &body() const {return m_body;}
 
-    std::string to_string(std::chrono::seconds keep_alive_override = std::chrono::seconds{-1}) const
+    std::string toString(std::chrono::seconds keepAliveOverride = std::chrono::seconds{-1}) const
     {
         std::ostringstream res;
-        uint16_t status_code = m_status_code;
-        if (!status_code) {
-            status_code = 500;
+        uint16_t statusCode = m_statusCode;
+        if (!statusCode) {
+            statusCode = 500;
         }
-        res << "HTTP/1.1 " << status_code_string(status_code);
+        res << "HTTP/1.1 " << statusCodeString(statusCode);
         for (const auto &kv : *this)
-            res << kv.first << ": " << kv.second << crlf_string;
+            res << kv.first << ": " << kv.second << CrlfString;
 
-        if (keep_alive_override.count() == -1)
-            keep_alive_override = m_keep_alive;
-        if (m_content_length == Chunked_Data)
+        if (keepAliveOverride.count() == -1)
+            keepAliveOverride = m_keep_alive;
+        if (m_contentLength == ChunkedData)
             res << "Transfer-Encoding: chunked\r\n";
         else
-            res << "Content-Length: " << m_content_length << crlf_string;
-        if (keep_alive_override.count() > 0) {
-            res << "Keep-Alive: timeout=" << keep_alive_override.count() << crlf_string;
+            res << "Content-Length: " << m_contentLength << CrlfString;
+        if (keepAliveOverride.count() > 0) {
+            res << "Keep-Alive: timeout=" << keepAliveOverride.count() << CrlfString;
             res << "Connection: keep-alive\r\n";
         } else {
             res << "Connection: close\r\n";
         }
-        res << crlf_string;
+        res << CrlfString;
         if (!m_body.empty())
             res << m_body;
         return res.str();
     }
 
 private:
-    uint16_t m_status_code;
+    uint16_t m_statusCode;
     std::string m_body;
-    size_t m_content_length = 0;
+    size_t m_contentLength = 0;
     std::chrono::seconds m_keep_alive{-1};
 };
 
-inline abstract_stream &operator << (abstract_stream &stream, const response &res)
+inline AbstractStream &operator << (AbstractStream &stream, const Response &res)
 {
     using namespace std::chrono_literals;
-    if (res.keep_alive().count() != -1)
-        stream.keep_alive(res.keep_alive());
-    if (res.content_length())
-        stream.session_timeout(std::max(stream.session_timeout(),
-                                        10s + std::chrono::seconds(res.content_length() / (512 * 1024))));
-    stream.write(res.to_string(stream.keep_alive()));
+    if (res.keepAlive().count() != -1)
+        stream.keepAlive(res.keepAlive());
+    if (res.contentLength())
+        stream.sessionTimeout(std::max(stream.sessionTimeout(),
+                                        10s + std::chrono::seconds(res.contentLength() / (512 * 1024))));
+    stream.write(res.toString(stream.keepAlive()));
     return stream;
 }
 
-class request : public fields
+class Request : public Fields
 {
 public:
-    enum class state {
-        uninitialized,
-        processing_url,
-        processing_header,
-        headers_completed,
-        processing_body,
-        completed,
+    enum class State {
+        Uninitialized,
+        ProcessingUrl,
+        ProcessingHeader,
+        HeadersCompleted,
+        ProcessingBody,
+        Completed,
     };
     using BodyCallback = std::function<void(std::string_view)>;
 public:
-    request() = default;
+    Request() = default;
 
-    state state() const noexcept { return m_state; }
-    void state(enum state s) noexcept { m_state = s; }
+    State State() const noexcept { return m_state; }
+    void State(enum State s) noexcept { m_state = s; }
 
     const std::string &url() const noexcept { return m_url; }
     void url(std::string &&url) noexcept { m_url = std::move(url); }
@@ -221,23 +221,23 @@ public:
     const std::string &method() const noexcept { return m_method; }
     void method(std::string &&method) noexcept { m_method = std::move(method); }
 
-    bool keep_alive() const noexcept { return m_keep_alive; }
-    void keep_alive(bool keep) noexcept { m_keep_alive = keep; }
+    bool keepAlive() const noexcept { return m_keep_alive; }
+    void keepAlive(bool keep) noexcept { m_keep_alive = keep; }
 
-    void append_body_callback(const BodyCallback &callback, size_t max_size = std::numeric_limits<size_t>::max() - 1) noexcept
+    void appendBodyCallback(const BodyCallback &callback, size_t max_size = std::numeric_limits<size_t>::max() - 1) noexcept
     {
-        m_max_body_size = max_size;
+        m_maxBodySize = max_size;
         m_callback = callback;
     }
 
-    void append_body(std::string_view body) noexcept(false)
+    void appendBody(std::string_view body) noexcept(false)
     {
         if (!m_callback)
-            throw response(400, std::string_view{"unexpected body"});
+            throw Response(400, std::string_view{"unexpected body"});
         m_callback(body);
     }
 
-    size_t content_length() const
+    size_t contentLength() const
     {
         auto it = find("Content-Length");
         if (it != end()) {
@@ -247,12 +247,12 @@ public:
             if (end == data + it->second.size())
                 return len;
         }
-        return dracon::Chunked_Data;
+        return Dracon::ChunkedData;
     }
 
-    size_t max_body_size() const noexcept
+    size_t maxBodySize() const noexcept
     {
-        return m_max_body_size;
+        return m_maxBodySize;
     }
 
 private:
@@ -260,29 +260,29 @@ private:
     std::string m_url;
     std::string m_method;
     BodyCallback m_callback;
-    enum state m_state = state::uninitialized;
-    size_t m_max_body_size = 0;
+    enum State m_state = State::Uninitialized;
+    size_t m_maxBodySize = 0;
 };
 
-inline abstract_stream &operator >> (abstract_stream &stream, request &req)
+inline AbstractStream &operator >> (AbstractStream &stream, Request &req)
 {
     auto it = req.find("Expect");
     if (it != req.end() && it->second == "100-continue") {
-        size_t content_length = req.content_length();
-        if (content_length != Chunked_Data && req.max_body_size() < content_length)
+        size_t contentLength = req.contentLength();
+        if (contentLength != ChunkedData && req.maxBodySize() < contentLength)
             throw 417; // Expectation Failed
         else
-            stream << response{100};
+            stream << Response{100};
     }
 
     stream.read(req);
     return stream;
 }
 
-namespace literals {
-    inline response operator "" _http(unsigned long long int status)
+namespace Literals {
+    inline Response operator "" _http(unsigned long long int status)
     {
-        return response{uint16_t(status)};
+        return Response{uint16_t(status)};
     }
 }
 

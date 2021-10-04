@@ -15,31 +15,31 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "server_session.h"
+#include "serversession.h"
 
 namespace Getodac {
 
-basic_server_session::basic_server_session(Getodac::sessions_event_loop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order)
+BasicServerSession::BasicServerSession(Getodac::SessionsEventLoop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order)
     : m_sock(sock)
     , m_order(order)
     , m_peer_addr(sock_addr)
     , m_event_loop(event_loop)
 {
-    server::instance()->server_session_created(this);
+    Server::instance()->serverSessionCreated(this);
 }
 
-basic_server_session::~basic_server_session()
+BasicServerSession::~BasicServerSession()
 {
     TRACE(server_logger) << this << " socket " << m_sock;
-    server::instance()->server_session_deleted(this);
+    Server::instance()->serverSessionDeleted(this);
 }
 
-void basic_server_session::init_session()
+void BasicServerSession::init_session()
 {
     m_event_loop->register_session(this, EPOLLOUT | EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
 }
 
-const sockaddr_storage &basic_server_session::peer_address() const noexcept
+const sockaddr_storage &BasicServerSession::peer_address() const noexcept
 {
     return m_peer_addr;
 }

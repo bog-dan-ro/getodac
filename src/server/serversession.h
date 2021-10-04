@@ -17,8 +17,8 @@
 
 #pragma once
 
-#include "sessions_event_loop.h"
-#include "server_logger.h"
+#include "sessionseventloop.h"
+#include "serverlogger.h"
 
 #include "http_parser.h"
 
@@ -43,14 +43,14 @@ namespace Getodac {
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
 
-struct wakeupper : dracon::abstract_stream::abstract_wakeupper
+struct Wakeupper : Dracon::AbstractStream::AbstractWakeupper
 {
-    wakeupper(int fd, uint64_t ptr)
+    Wakeupper(int fd, uint64_t ptr)
         : m_fd(fd)
         , m_ptr(ptr)
     {}
     // abstract_wakeupper interface
-    void wake_up() noexcept override
+    void wakeUp() noexcept override
     {
         eventfd_write(m_fd, m_ptr);
     }
@@ -58,11 +58,11 @@ struct wakeupper : dracon::abstract_stream::abstract_wakeupper
     uint64_t m_ptr;
 };
 
-class basic_server_session
+class BasicServerSession
 {
 public:
-    basic_server_session(sessions_event_loop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order);
-    virtual ~basic_server_session();
+    BasicServerSession(SessionsEventLoop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order);
+    virtual ~BasicServerSession();
     void init_session();
 
     inline uint32_t order() const noexcept { return m_order; }
@@ -78,7 +78,7 @@ public:
     {
         std::unique_lock<std::mutex> lock{m_stream_mutex};
         if (m_stream)
-            return m_stream->next_timeout();
+            return m_stream->nextTimeout();
         return m_next_timeout;
     }
 
@@ -90,22 +90,22 @@ protected:
     int m_sock;
     uint32_t m_order;
     struct sockaddr_storage m_peer_addr;
-    sessions_event_loop *m_event_loop;
+    SessionsEventLoop *m_event_loop;
     mutable std::mutex m_stream_mutex;
-    std::unique_ptr<basic_http_session> m_stream;
+    std::unique_ptr<BasicHttpSession> m_stream;
     TimePoint m_next_timeout;
 };
 
 template <typename SocketStream>
-class server_session : public basic_server_session
+class ServerSession : public BasicServerSession
 {
-    static_assert(std::is_base_of<basic_http_session, SocketStream>::value, "SocketStream must subclass basic_http_session");
+    static_assert(std::is_base_of<BasicHttpSession, SocketStream>::value, "SocketStream must subclass basic_http_session");
 public:
-    server_session(sessions_event_loop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
-        : basic_server_session(eventLoop, sock, sockAddr, order)
-        , m_io_yield(std::bind(&server_session::io_loop, this, std::placeholders::_1))
+    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
+        : BasicServerSession(eventLoop, sock, sockAddr, order)
+        , m_io_yield(std::bind(&ServerSession::io_loop, this, std::placeholders::_1))
     {
-        TRACE(Getodac::server_logger) << (void*)this
+        TRACE(Getodac::ServerLogger) << (void*)this
                                      << " eventLoop: " << eventLoop
                                      << " socket:" << sock;
         int opt = 1;
@@ -114,7 +114,7 @@ public:
         next_timeout(5s);
     }
 
-    ~server_session() override
+    ~ServerSession() override
     {
         quit_io_loop(std::make_error_code(std::errc::operation_canceled));
         try {
@@ -128,11 +128,11 @@ public:
         try {
             while (m_io_yield) m_io_yield(ec);
         } catch (const std::error_code &ec) {
-            ERROR(server_logger) << ec.message();
+            ERROR(ServerLogger) << ec.message();
         } catch (const std::exception &e) {
-            ERROR(server_logger) << e.what();
+            ERROR(ServerLogger) << e.what();
         } catch (...) {
-            ERROR(server_logger) << "Unhandled error";
+            ERROR(ServerLogger) << "Unhandled error";
         }
     }
 
@@ -149,14 +149,14 @@ public:
                     m_event_loop->delete_later(this);
                 }
             } else {
-                WARNING(server_logger) << "Unhandled epool events " << events;
+                WARNING(ServerLogger) << "Unhandled epool events " << events;
                 m_event_loop->delete_later(this);
             }
         } catch (const std::exception &e) {
-            DEBUG(server_logger) << dracon::addr_text(m_peer_addr) << e.what();
+            DEBUG(ServerLogger) << Dracon::addressText(m_peer_addr) << e.what();
             m_event_loop->delete_later(this);
         } catch (...) {
-            DEBUG(server_logger) << dracon::addr_text(m_peer_addr) << "Unkown exception, terminating the session";
+            DEBUG(ServerLogger) << Dracon::addressText(m_peer_addr) << "Unkown exception, terminating the session";
             m_event_loop->delete_later(this);
         }
     }
@@ -175,10 +175,10 @@ public:
             else
                 m_event_loop->delete_later(this);
         } catch (const std::exception &e) {
-            ERROR(server_logger) << e.what();
+            ERROR(ServerLogger) << e.what();
             m_event_loop->delete_later(this);
         } catch (...) {
-            ERROR(server_logger) << "Unhandled error";
+            ERROR(ServerLogger) << "Unhandled error";
             m_event_loop->delete_later(this);
         }
     }
@@ -188,15 +188,15 @@ protected:
     {
         try {
             {
-                auto wu = std::make_shared<wakeupper>(m_event_loop->event_fd(),
-                                                      uint64_t(static_cast<basic_server_session*>(this)));
+                auto wu = std::make_shared<Wakeupper>(m_event_loop->event_fd(),
+                                                      uint64_t(static_cast<BasicServerSession*>(this)));
                 auto stream = std::make_unique<SocketStream>(m_event_loop, m_sock,
                                                              yield, m_peer_addr,
                                                              wu);
                 std::unique_lock<std::mutex> lock{m_stream_mutex};
                 m_stream = std::move(stream);
             }
-            m_stream->io_loop();
+            m_stream->ioLoop();
         } catch(...) {
             m_event_loop->delete_later(this);
         }

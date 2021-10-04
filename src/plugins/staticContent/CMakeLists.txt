@@ -1,4 +1,4 @@
-find_package(Boost 1.57 REQUIRED COMPONENTS filesystem iostreams log log_setup)
+find_package(Boost 1.57 REQUIRED COMPONENTS iostreams log log_setup)
 
 include_directories(${PROJECT_SOURCE_DIR}/include http-parser ${Boost_INCLUDE_DIRS})
 

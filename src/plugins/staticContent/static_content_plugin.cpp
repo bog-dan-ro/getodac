@@ -19,8 +19,9 @@
 #include <dracon/plugin.h>
 #include <dracon/utils.h>
 
+#include <filesystem>
+
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -29,14 +30,14 @@ namespace {
 class FileMap : public boost::iostreams::mapped_file_source
 {
 public:
-    FileMap(const boost::filesystem::path &path, std::time_t lastWriteTime)
+    FileMap(const std::filesystem::path &path, std::filesystem::file_time_type lastWriteTime)
         : boost::iostreams::mapped_file_source(path)
         , m_lastWriteTime(lastWriteTime)
     {}
     ~FileMap() { close(); }
-    inline std::time_t lastWriteTime() const { return m_lastWriteTime; }
+    inline std::filesystem::file_time_type lastWriteTime() const { return m_lastWriteTime; }
 private:
-    std::time_t m_lastWriteTime;
+    std::filesystem::file_time_type m_lastWriteTime;
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
 dracon::lru_cache<std::string, FileMapPtr> s_filesCache{100};
@@ -76,22 +77,22 @@ inline std::string mimeType(boost::string_view ext)
     return "application/octet-stream";
 }
 
-void static_content_session(const boost::filesystem::path &root, const boost::filesystem::path &path, dracon::abstract_stream& stream, dracon::request& req)
+void static_content_session(const std::filesystem::path &root, const std::filesystem::path &path, dracon::abstract_stream& stream, dracon::request& req)
 {
     stream >> req;
     auto p = (root / path).lexically_normal();
     if (!s_allow_symlinks)
-        p = boost::filesystem::canonical(p);
+        p = std::filesystem::canonical(p);
     if (!boost::starts_with(p, root)) { // make sure we don't server files outside the root
         WARNING(logger) << "path \"" << p << "\" is outside the root \"" << root << "\"";
         throw dracon::response{400};
     }
-    if (boost::filesystem::is_directory(p))
+    if (std::filesystem::is_directory(p))
         p /= s_default_file;
     TRACE(logger) << "Serving " << p.string();
     std::unique_lock<std::mutex> lock{s_filesCacheMutex};
     auto file = s_filesCache.value(p.string());
-    auto lastWriteTime = boost::filesystem::last_write_time(p);
+    auto lastWriteTime = std::filesystem::last_write_time(p);
     if (!file || file->lastWriteTime() != lastWriteTime) {
         file = std::make_shared<FileMap>(p, lastWriteTime);
         s_filesCache.put(p.string(), file);
@@ -118,14 +119,14 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
                 auto pos = url.find('/', 1);
                 if (pos == std::string::npos)
                     pos = url.size();
-                boost::filesystem::path root_path{pair.second};
+                std::filesystem::path root_path{pair.second};
                 auto user = dracon::unescape_url(url.substr(2, pos - 2));
                 if (user == "." || user == "..")
                     break; // avoid GET /~../../etc/passwd HTTP/1.0 requests
 
                 root_path /= user;
                 root_path /= "public_html";
-                boost::filesystem::path file_path;
+                std::filesystem::path file_path;
                 if (url.size() - pos > 1)
                     file_path /= dracon::unescape_url(url.substr(pos + 1, url.size() - pos - 1));
                 return std::bind<void>(static_content_session,
@@ -135,8 +136,8 @@ PLUGIN_EXPORT dracon::HttpSession create_session(const dracon::request &req) {
                                        std::placeholders::_2);
             } else {
                 return std::bind<void>(static_content_session,
-                                       boost::filesystem::path{pair.second},
-                                       boost::filesystem::path{dracon::unescape_url(url.c_str() + pair.first.size())}.lexically_normal(),
+                                       std::filesystem::path{pair.second},
+                                       std::filesystem::path{dracon::unescape_url(url.c_str() + pair.first.size())}.lexically_normal(),
                                        std::placeholders::_1,
                                        std::placeholders::_2);
             }
@@ -151,7 +152,7 @@ PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
     INFO(logger) << "Initializing plugin";
     namespace pt = boost::property_tree;
     pt::ptree properties;
-    pt::read_info(boost::filesystem::path(confDir).append("/staticFiles.conf").string(), properties);
+    pt::read_info(std::filesystem::path(confDir).append("staticFiles.conf").string(), properties);
     for (const auto &p : properties.get_child("paths")) {
         DEBUG(logger) << "Mapping \"" << p.first << "\" to \"" << p.second.get_value<std::string>() << "\"";
         s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));

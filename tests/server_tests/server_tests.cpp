@@ -16,7 +16,8 @@
 */
 
 #include <gtest/gtest.h>
-#include <boost/filesystem.hpp>
+
+#include <filesystem>
 #include <iostream>
 
 #include <GETodacServer.h>
@@ -24,7 +25,7 @@
 extern std::string hugeData;
 
 int main(int argc, char **argv) {
-    Getodac::Test::startServer(boost::filesystem::canonical(boost::filesystem::path(argv[0])).parent_path().append("/GETodac").string());
+    Getodac::Test::startServer(std::filesystem::canonical(std::filesystem::path(argv[0])).parent_path().append("GETodac").string());
     for (int i = 0; i < 50 * 1024 * 1024; ++i)
         hugeData += char(33 + (i % 93));
     ::testing::InitGoogleTest(&argc, argv);

@@ -18,6 +18,7 @@
 #include <cerrno>
 #include <csignal>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -39,7 +40,6 @@
 
 
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/common.hpp>
@@ -278,15 +278,15 @@ int server::exec(int argc, char *argv[])
     m_start_time = std::chrono::system_clock::now();
 
     namespace po = boost::program_options;
-    namespace fs = boost::filesystem;
+    namespace fs = std::filesystem;
     int httpPort = 8080; // Default HTTP port
     int httpsPort = 8443; // Default HTTPS port
     uint32_t maxConnectionsPerIp = 500;
     bool workloadBalancing = true;
 
     // Default plugins path
-    std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/lib/getodac/plugins").string();
-    std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("/etc/GETodac").string();
+    std::string pluginsPath = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("lib/getodac/plugins").string();
+    std::string confDir = fs::canonical(fs::path(argv[0])).parent_path().parent_path().append("etc/GETodac").string();
     std::string dropUser;
     std::string dropGroup;
     bool printPID = false;
@@ -326,8 +326,8 @@ int server::exec(int argc, char *argv[])
     uid_t uid = uid_t(-1);
     boost::log::settings loggingSettings;
     if (!confDir.empty()) {
-        auto curPath = boost::filesystem::current_path();
-        boost::filesystem::current_path(confDir);
+        auto curPath = std::filesystem::current_path();
+        std::filesystem::current_path(confDir);
         namespace pt = boost::property_tree;
         pt::ptree properties;
         pt::read_info("server.conf", properties);
@@ -398,7 +398,7 @@ int server::exec(int argc, char *argv[])
                 }
             }
         }
-        boost::filesystem::current_path(curPath);
+        std::filesystem::current_path(curPath);
     }
 
     if (httpPort < 0 && httpsPort < 0)

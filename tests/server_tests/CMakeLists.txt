@@ -1,4 +1,4 @@
-find_package(Boost 1.57 REQUIRED COMPONENTS system filesystem)
+find_package(Boost 1.57 REQUIRED COMPONENTS log system)
 
 include_directories(${GTEST_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
 

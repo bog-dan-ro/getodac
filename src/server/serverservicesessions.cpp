@@ -58,7 +58,7 @@ static void writeResponse(Dracon::AbstractStream& stream, Dracon::Request& req)
                      << "Sessions peak: " << peak << std::endl
                      << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl
                      << "Serverd sessions: " << servedSessions << std::endl;
-            res.body(response.str());
+            res.setBody(response.str());
         }
         canWriteError = false;
         stream << res;

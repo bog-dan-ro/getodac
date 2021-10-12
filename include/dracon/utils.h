@@ -72,19 +72,19 @@ private:
 
 
 /*!
- * \brief toHex
+ * \brief fromHex
  *
  * \param ch
  * \return
  */
-inline char fromHex(char ch)
+inline uint8_t fromHex(char ch)
 {
     if (ch >= '0' && ch <= '9')
         return ch - '0';
     if (ch >= 'a' && ch <= 'f')
-        return 10 + ch -'a';
+        return 10 + ch - 'a';
     if (ch >= 'A' && ch <= 'F')
-        return 10 + ch -'A';
+        return 10 + ch - 'A';
 
     throw std::invalid_argument{"Bad hex value"};
 }

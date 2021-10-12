@@ -101,7 +101,7 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
     {
         Dracon::Response res{200};
         res["Content-Type"] = mimeType(p.extension().string());
-        res.contentLength(file->size());
+        res.setContentLength(file->size());
         stream << res;
     }
     stream.write({file->data(), file->size()});

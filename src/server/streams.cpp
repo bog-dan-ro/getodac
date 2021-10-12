@@ -72,7 +72,7 @@ BasicHttpSession::~BasicHttpSession() = default;
 
 void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
 {
-    if (req.State() == Dracon::Request::State::Completed)
+    if (req.state() == Dracon::Request::State::Completed)
         return;
 
     m_can_write_errror = true;
@@ -87,7 +87,7 @@ void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
         }
         m_httpParserBuffer.advance(parsed_bytes);
     }
-    while (req.State() != Dracon::Request::State::Completed) {
+    while (req.state() != Dracon::Request::State::Completed) {
         buffer.reset();
         std::error_code ec;
         auto temp_size = m_httpParserBuffer.currentSize();
@@ -110,7 +110,7 @@ void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
             INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
-        if (req.State() == Dracon::Request::State::Completed)
+        if (req.state() == Dracon::Request::State::Completed)
             break;
         buffer.advance(parsed_bytes);
         if (buffer.currentSize())
@@ -293,16 +293,16 @@ void BasicHttpSession::ioLoop()
 int BasicHttpSession::messageBegin(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.State(Dracon::Request::State::ProcessingUrl);
+    data->req.setState(Dracon::Request::State::ProcessingUrl);
     return 0;
 }
 
 int BasicHttpSession::url(http_parser *parser, const char *at, size_t length)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.url(std::string{at, length});
-    data->req.method(http_method_str(http_method(parser->method)));
-    data->req.State(Dracon::Request::State::ProcessingHeader);
+    data->req.setUrl(std::string{at, length});
+    data->req.setMethod(http_method_str(http_method(parser->method)));
+    data->req.setState(Dracon::Request::State::ProcessingHeader);
     return 0;
 }
 
@@ -323,8 +323,8 @@ int BasicHttpSession::headerValue(http_parser *parser, const char *at, size_t le
 int BasicHttpSession::headersComplete(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.State(Dracon::Request::State::HeadersCompleted);
-    data->req.keepAlive(http_should_keep_alive(parser));
+    data->req.setState(Dracon::Request::State::HeadersCompleted);
+    data->req.setKeepAlive(http_should_keep_alive(parser));
     return 0;
 }
 
@@ -338,7 +338,7 @@ int BasicHttpSession::body(http_parser *parser, const char *at, size_t length)
 int BasicHttpSession::messageComplete(http_parser *parser)
 {
     auto data = reinterpret_cast<http_parser_data*>(parser->data);
-    data->req.State(Dracon::Request::State::Completed);
+    data->req.setState(Dracon::Request::State::Completed);
     return 0;
 }
 
@@ -351,8 +351,8 @@ Dracon::Request BasicHttpSession::readHeaders()
     http_parser_init(&m_parser, HTTP_REQUEST);
 
     auto &buffer = m_eventLoop->shared_read_buffer;
-    while(req.State() != Dracon::Request::State::HeadersCompleted &&
-        req.State() != Dracon::Request::State::Completed) {
+    while(req.state() != Dracon::Request::State::HeadersCompleted &&
+        req.state() != Dracon::Request::State::Completed) {
         buffer.reset();
         std::error_code ec;
         auto temp_size = m_httpParserBuffer.currentSize();
@@ -370,8 +370,8 @@ Dracon::Request BasicHttpSession::readHeaders()
         m_can_write_errror = true;
         buffer.reset();
         buffer.setCurrentSize(sz + temp_size);
-        while ((req.State() != Dracon::Request::State::HeadersCompleted &&
-                req.State() != Dracon::Request::State::Completed) &&
+        while ((req.state() != Dracon::Request::State::HeadersCompleted &&
+                req.state() != Dracon::Request::State::Completed) &&
                buffer.currentSize()) {
             // find next crlf
             auto next = buffer.currentString().find(Dracon::CrlfString);

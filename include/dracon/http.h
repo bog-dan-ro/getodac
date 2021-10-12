@@ -119,14 +119,14 @@ public:
         , m_contentLength(body.size())
     {}
 
-    Response &statusCode(uint16_t status_code)
+    Response &setStatusCode(uint16_t status_code)
     {
         m_statusCode = status_code;
         return *this;
     }
     uint16_t statusCode() const {return m_statusCode;}
 
-    Response &contentLength(size_t length)
+    Response &setContentLength(size_t length)
     {
         m_contentLength = length;
         m_body.clear();
@@ -134,14 +134,14 @@ public:
     }
     size_t contentLength() const {return m_contentLength;}
 
-    Response &keepAlive(std::chrono::seconds seconds)
+    Response &setKeepAlive(std::chrono::seconds seconds)
     {
         m_keep_alive = seconds;
         return *this;
     }
     std::chrono::seconds keepAlive() const {return m_keep_alive;}
 
-    Response &body(std::string body)
+    Response &setBody(std::string body)
     {
         m_body = std::move(body);
         m_contentLength = m_body.size();
@@ -212,17 +212,17 @@ public:
 public:
     Request() = default;
 
-    State State() const noexcept { return m_state; }
-    void State(enum State s) noexcept { m_state = s; }
+    State state() const noexcept { return m_state; }
+    void setState(enum State s) noexcept { m_state = s; }
 
     const std::string &url() const noexcept { return m_url; }
-    void url(std::string &&url) noexcept { m_url = std::move(url); }
+    void setUrl(std::string &&url) noexcept { m_url = std::move(url); }
 
     const std::string &method() const noexcept { return m_method; }
-    void method(std::string &&method) noexcept { m_method = std::move(method); }
+    void setMethod(std::string &&method) noexcept { m_method = std::move(method); }
 
     bool keepAlive() const noexcept { return m_keep_alive; }
-    void keepAlive(bool keep) noexcept { m_keep_alive = keep; }
+    void setKeepAlive(bool keep) noexcept { m_keep_alive = keep; }
 
     void appendBodyCallback(const BodyCallback &callback, size_t max_size = std::numeric_limits<size_t>::max() - 1) noexcept
     {
@@ -280,10 +280,10 @@ inline AbstractStream &operator >> (AbstractStream &stream, Request &req)
 }
 
 namespace Literals {
-    inline Response operator "" _http(unsigned long long int status)
-    {
-        return Response{uint16_t(status)};
-    }
+inline Response operator "" _http(unsigned long long int status)
+{
+    return Response{uint16_t(status)};
 }
+} // namespace Literals
 
 } // namespace dracon

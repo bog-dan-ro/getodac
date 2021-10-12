@@ -39,7 +39,7 @@ TaggedLogger<> logger{"test"};
 
 void TestRESTGET(const Dracon::ParsedRoute& parsed_route, Dracon::AbstractStream& stream, Dracon::Request& req){
     stream >> req;
-    stream << Dracon::Response{200, {}, {{"Content-Type","text/plain"}}}.contentLength(Dracon::ChunkedData);
+    stream << Dracon::Response{200, {}, {{"Content-Type","text/plain"}}}.setContentLength(Dracon::ChunkedData);
     Dracon::ChunkedStream chunkedStream{stream};
     Dracon::OStreamBuffer buff{chunkedStream};
     std::ostream str{&buff};
@@ -75,21 +75,21 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
     if (url == "/test100Chunked")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            stream << Dracon::Response{200}.setContentLength(Dracon::ChunkedData);
             Dracon::ChunkedStream{stream}.write(test100response);
         };
 
     if (url == "/test50m")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << Dracon::Response{200}.contentLength(test50mresponse.size())
+            stream << Dracon::Response{200}.setContentLength(test50mresponse.size())
                    << test50mresponse;
         };
 
     if (url == "/test50mChunked")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            stream << Dracon::Response{200}.setContentLength(Dracon::ChunkedData);
             Dracon::ChunkedStream chuncked_stream{stream};
             uint32_t pos = 0;
             do {
@@ -103,7 +103,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
     if (url == "/testWorker")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            stream << Dracon::Response{200}.setContentLength(Dracon::ChunkedData);
             auto wakeupper = stream.wakeupper();
             auto wait = std::make_shared<std::atomic_bool>();
             auto buffer = std::make_shared<std::string>();
@@ -139,7 +139,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
                 vec[i].ptr = (void*)(test50mresponse.c_str() + 1024 * 1024 * (i - 1));
                 vec[i].length = 1024 * 1024;
             }
-            auto res = Dracon::Response{200}.contentLength(test50mresponse.size()).toString(stream.keepAlive());
+            auto res = Dracon::Response{200}.setContentLength(test50mresponse.size()).toString(stream.keepAlive());
             vec[0].ptr = res.data();
             vec[0].length = res.length();
             stream.write(vec);
@@ -156,7 +156,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
             if (std::strtoull(req["Content-Length"].data(), nullptr, 10) != body.size()) {
                 throw 400;
             }
-            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            stream << Dracon::Response{200}.setContentLength(Dracon::ChunkedData);
             Dracon::ChunkedStream chunked_stream{stream};
             Dracon::OStreamBuffer buff{chunked_stream};
             std::ostream res{&buff};
@@ -220,7 +220,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
     if (url == "/testThowFromWriteResponseAfterWrite")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
             stream >> req;
-            stream << Dracon::Response{200}.contentLength(Dracon::ChunkedData);
+            stream << Dracon::Response{200}.setContentLength(Dracon::ChunkedData);
             throw std::runtime_error{"Unexpected error"};
         };
 
@@ -256,7 +256,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
                 throw Dracon::Response{400, "Invaid body size"};
             if (body != test50mresponse)
                 throw Dracon::Response{400, "Invaid body"};
-            stream << Dracon::Response{200}.contentLength(body.length()) << body;
+            stream << Dracon::Response{200}.setContentLength(body.length()) << body;
         };
 
     return s_testRootRestful.createHandler(url, req.method());

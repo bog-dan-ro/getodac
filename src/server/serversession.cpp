@@ -25,13 +25,13 @@ BasicServerSession::BasicServerSession(Getodac::SessionsEventLoop *event_loop, i
     , m_peer_addr(sock_addr)
     , m_event_loop(event_loop)
 {
-    Server::instance()->serverSessionCreated(this);
+    Server::instance().serverSessionCreated(this);
 }
 
 BasicServerSession::~BasicServerSession()
 {
     TRACE(server_logger) << this << " socket " << m_sock;
-    Server::instance()->serverSessionDeleted(this);
+    Server::instance().serverSessionDeleted(this);
 }
 
 void BasicServerSession::init_session()

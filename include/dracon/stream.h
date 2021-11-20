@@ -178,7 +178,7 @@ public:
      * \brief expires_after
      * Sets the timeout for the entire session, starting from now.
      */
-    virtual void sessionTimeout(std::chrono::seconds seconds) noexcept = 0;
+    virtual void setSessionTimeout(std::chrono::seconds seconds) noexcept = 0;
 };
 
 class NextLayerStream : public AbstractStream
@@ -249,9 +249,9 @@ public:
         return m_nextLayer.sessionTimeout();
     }
 
-    void sessionTimeout(std::chrono::seconds seconds) noexcept override
+    void setSessionTimeout(std::chrono::seconds seconds) noexcept override
     {
-        m_nextLayer.sessionTimeout(seconds);
+        m_nextLayer.setSessionTimeout(seconds);
     }
 
 protected:

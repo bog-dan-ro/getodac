@@ -324,9 +324,13 @@ public:
             reset();
             return;
         }
-        auto tmp = std::make_unique<T[]>(size);
-        std::memcpy(tmp.get(), m_buffer.get(), sizeof(T) * std::min(size, m_size));
-        m_buffer = std::move(tmp);
+        if (m_size) {
+            auto tmp = std::make_unique<T[]>(size);
+            std::memcpy(tmp.get(), m_buffer.get(), sizeof(T) * std::min(size, m_size));
+            m_buffer = std::move(tmp);
+        } else {
+            m_buffer = std::make_unique<T[]>(size);
+        }
         m_size = size;
         reset();
     }

@@ -1,8 +1,6 @@
-include_directories(${GTEST_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/include)
-
 set(TEST_SRCS GETodacTests.cpp GETodacUtils.cpp GETodacRESTfullRoute.cpp)
 
 add_executable(GETodacLibrartyTests ${TEST_SRCS})
-add_sanitizers(GETodacLibrartyTests)
-target_link_libraries(GETodacLibrartyTests ${GTEST_BOTH_LIBRARIES} pthread)
+target_link_libraries(GETodacLibrartyTests GETodac::testsLib GETodac::dracon gtest pthread)
+target_include_directories(GETodacTestsLib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME GETodacLibrartyTests COMMAND GETodacLibrartyTests)

@@ -65,7 +65,7 @@ BasicHttpSession::BasicHttpSession(SessionsEventLoop *eventLoop, int socket, Yie
     m_settings.on_body = &BasicHttpSession::body;
     m_settings.on_message_complete = &BasicHttpSession::messageComplete;
     http_parser_init(&m_parser, HTTP_REQUEST);
-    sessionTimeout(5s);
+    setSessionTimeout(5s);
 }
 
 BasicHttpSession::~BasicHttpSession() = default;
@@ -227,7 +227,7 @@ std::chrono::seconds BasicHttpSession::sessionTimeout() const noexcept
     return m_sessionTimeout;
 }
 
-void BasicHttpSession::sessionTimeout(std::chrono::seconds seconds) noexcept
+void BasicHttpSession::setSessionTimeout(std::chrono::seconds seconds) noexcept
 {
     m_sessionTimeout = seconds;
     if (seconds.count())
@@ -244,11 +244,11 @@ TimePoint BasicHttpSession::nextTimeout() const noexcept
 void BasicHttpSession::ioLoop()
 {
     try {
-        sessionTimeout(5s); // 5 seconds to read the headers
+        setSessionTimeout(5s); // 5 seconds to read the headers
         do {
             Dracon::Request req = readHeaders();
             keepAlive(req.keepAlive() * 10s);
-            auto session = Server::instance()->create_session(req);
+            auto session = Server::instance().create_session(req);
             if (!session) {
                 INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " invalid url " << req.method() << " " << req.url();
                 write(Dracon::Response{503}.toString());
@@ -256,12 +256,12 @@ void BasicHttpSession::ioLoop()
             }
             size_t content_length = req.contentLength();
             if (content_length != Dracon::ChunkedData)
-                sessionTimeout(10s + 1s* (content_length / (512 * 1024)));
+                setSessionTimeout(10s + 1s* (content_length / (512 * 1024)));
             else
-                sessionTimeout(5min); // In this case the session should set a proper timeout
+                setSessionTimeout(5min); // In this case the session should set a proper timeout
             session(*this, req);
-            sessionTimeout(keepAlive());
-            Server::instance()->sessionServed();
+            setSessionTimeout(keepAlive());
+            Server::instance().sessionServed();
         } while (!m_yield.get() && m_keepAlive.count());
     } catch (int error) {
         INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " status code " << error;
@@ -458,7 +458,7 @@ ssize_t SocketSession::writeSome(std::vector<Dracon::ConstBuffer> buff, std::err
 
 SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage &peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper)
     : BasicHttpSession(eventLoop, socket, yield, peer_address, wakeupper)
-    , m_SSL(std::unique_ptr<SSL, void (*)(SSL *)>(SSL_new(Server::instance()->sslContext()), SSL_free))
+    , m_SSL(std::unique_ptr<SSL, void (*)(SSL *)>(SSL_new(Server::instance().sslContext()), SSL_free))
 {
     if (!m_SSL)
         throw std::runtime_error(ERR_error_string(ERR_get_error(), nullptr));
@@ -466,7 +466,7 @@ SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, Yie
     if (!SSL_set_fd(m_SSL.get(), m_socket))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL.get(), 0), nullptr));
 
-    sessionTimeout(5s);
+    setSessionTimeout(5s);
     int ret;
     while ((ret = SSL_accept(m_SSL.get())) != 1) {
         int err = SSL_get_error(m_SSL.get(), ret);
@@ -486,7 +486,7 @@ SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, Yie
 
 void SslSocketSession::shutdown() noexcept
 {
-    sessionTimeout(2s);
+    setSessionTimeout(2s);
     if (SSL_is_init_finished(m_SSL.get()) == 1) {
         int count = 5;
         while (count--) {

@@ -183,7 +183,7 @@ void Server::exitSignalHandler()
 {
     // Quit server loop
     INFO(ServerLogger) << "shutting down the server";
-    instance()->m_shutdown.store(true);
+    instance().m_shutdown.store(true);
 }
 
 /// Makes socket nonblocking
@@ -247,10 +247,10 @@ int Server::bind(SocketType type, int port)
  *
  * \return the server instance
  */
-Server *Server::instance()
+Server &Server::instance()
 {
     static Server server;
-    return &server;
+    return server;
 }
 
 /*!
@@ -592,7 +592,7 @@ std::function<void (Dracon::AbstractStream &, Dracon::Request &)> Server::create
  * \brief Server::peakSessions
  * \return the peak of simulatneous connections since the beginning
  */
-size_t Server::peakSessions()
+size_t Server::peakSessions() const
 {
     return m_peakSessions;
 }
@@ -601,7 +601,7 @@ size_t Server::peakSessions()
  * \brief Server::activeSessions
  * \return the number of active connections
  */
-size_t Server::activeSessions()
+size_t Server::activeSessions() const
 {
     std::unique_lock<std::mutex> lock{m_activeSessionsMutex};
     return m_activeSessions.size();

@@ -26,7 +26,7 @@
 int main(int argc, char*argv[])
 {
     try {
-        return Getodac::Server::instance()->exec(argc, argv);
+        return Getodac::Server::instance().exec(argc, argv);
     } catch (const std::exception &e) {
         FATAL(Getodac::ServerLogger) << e.what();
         return -1;

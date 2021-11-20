@@ -147,7 +147,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
 
     if (url == "/echoTest")
         return [&](Dracon::AbstractStream& stream, Dracon::Request& req){
-            stream.sessionTimeout(10s);
+            stream.setSessionTimeout(10s);
             std::string body;
             req.appendBodyCallback([&](std::string_view buff){
                 body.append(buff);

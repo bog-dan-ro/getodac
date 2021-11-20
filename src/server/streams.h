@@ -83,7 +83,7 @@ public:
     void socketReadSize(int size) noexcept(false) override;
 
     std::chrono::seconds sessionTimeout() const noexcept override;
-    void sessionTimeout(std::chrono::seconds seconds) noexcept override;
+    void setSessionTimeout(std::chrono::seconds seconds) noexcept override;
 
     TimePoint nextTimeout() const noexcept;
 

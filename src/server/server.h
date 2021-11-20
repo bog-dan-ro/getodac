@@ -47,13 +47,13 @@ class SessionsEventLoop;
 class Server
 {
 public:
-    static Server *instance();
+    static Server &instance();
     int exec(int argc, char *argv[]);
     void serverSessionCreated(BasicServerSession *session);
     void serverSessionDeleted(BasicServerSession *session);
     std::function<void(Dracon::AbstractStream &, Dracon::Request &)> create_session(const Dracon::Request &request);
-    size_t peakSessions();
-    size_t activeSessions();
+    size_t peakSessions() const;
+    size_t activeSessions() const;
     std::chrono::seconds uptime() const;
     inline void sessionServed() { ++m_servedSessions; }
     uint64_t servedSessions() const { return m_servedSessions; }
@@ -76,7 +76,7 @@ private:
     std::atomic<size_t> m_servedSessions{0};
     int m_eventsSize = 0;
     int m_epollHandler;
-    std::mutex m_activeSessionsMutex;
+    mutable std::mutex m_activeSessionsMutex;
     std::unordered_set<BasicServerSession*> m_activeSessions;
     std::vector<ServerPlugin> m_plugins;
     std::chrono::system_clock::time_point m_startTime;

@@ -39,13 +39,13 @@ static void writeResponse(Dracon::AbstractStream& stream, Dracon::Request& req)
             res["Refresh"] = "5";
             std::ostringstream response;
 
-            auto server = Getodac::Server::instance();
-            auto activeSessions = server->activeSessions();
+            const auto &server = Getodac::Server::instance();
+            auto activeSessions = server.activeSessions();
 
             // the peakSessions is updated slowly
-            auto peak = std::max(server->peakSessions(), activeSessions);
+            auto peak = std::max(server.peakSessions(), activeSessions);
 
-            auto seconds = server->uptime().count();
+            auto seconds = server.uptime().count();
             auto days = seconds / (60 * 60 * 24);
             seconds  -= days * (60 * 60 * 24);
             auto hours = seconds / (60 * 60);
@@ -53,7 +53,7 @@ static void writeResponse(Dracon::AbstractStream& stream, Dracon::Request& req)
             auto minutes = seconds / 60;
             seconds  -= minutes * 60;
 
-            auto servedSessions = server->servedSessions();
+            auto servedSessions = server.servedSessions();
             response << "Active sessions: " << activeSessions << std::endl
                      << "Sessions peak: " << peak << std::endl
                      << "Uptime: " << days << " days, " << hours << " hours, " << minutes << " minutes and " << seconds << " seconds" << std::endl

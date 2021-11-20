@@ -103,9 +103,7 @@ inline std::string_view statusCodeString(uint16_t status)
 }
 } // namespace
 
-enum {
-    ChunkedData = std::numeric_limits<size_t>::max()
-};
+static constexpr auto ChunkedData = std::numeric_limits<size_t>::max();
 
 using Fields = std::unordered_map<std::string, std::string>;
 
@@ -190,8 +188,8 @@ inline AbstractStream &operator << (AbstractStream &stream, const Response &res)
     using namespace std::chrono_literals;
     if (res.keepAlive().count() != -1)
         stream.keepAlive(res.keepAlive());
-    if (res.contentLength())
-        stream.sessionTimeout(std::max(stream.sessionTimeout(),
+    if (res.contentLength() != ChunkedData)
+        stream.setSessionTimeout(std::max(stream.sessionTimeout(),
                                         10s + std::chrono::seconds(res.contentLength() / (512 * 1024))));
     stream.write(res.toString(stream.keepAlive()));
     return stream;

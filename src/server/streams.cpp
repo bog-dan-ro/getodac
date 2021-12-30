@@ -179,7 +179,7 @@ std::shared_ptr<Dracon::AbstractStream::AbstractWakeupper> BasicHttpSession::wak
     return m_wakeupper;
 }
 
-void BasicHttpSession::keepAlive(std::chrono::seconds seconds) noexcept
+void BasicHttpSession::setKeepAlive(std::chrono::seconds seconds) noexcept
 {
     m_keepAlive = seconds;
 }
@@ -247,7 +247,7 @@ void BasicHttpSession::ioLoop()
         setSessionTimeout(5s); // 5 seconds to read the headers
         do {
             Dracon::Request req = readHeaders();
-            keepAlive(req.keepAlive() * 10s);
+            setKeepAlive(req.keepAlive() * 10s);
             auto session = Server::instance().create_session(req);
             if (!session) {
                 INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " invalid url " << req.method() << " " << req.url();

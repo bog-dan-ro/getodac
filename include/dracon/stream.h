@@ -118,7 +118,7 @@ public:
      *      operator>>(abstract_stream &stream, request &request)
      * if the it was requested.
      */
-    virtual void keepAlive(std::chrono::seconds seconds) noexcept = 0;
+    virtual void setKeepAlive(std::chrono::seconds seconds) noexcept = 0;
 
     /*!
      * \brief keep_alive
@@ -204,9 +204,9 @@ public:
         return m_nextLayer.wakeupper();
     }
 
-    void keepAlive(std::chrono::seconds seconds) noexcept override
+    void setKeepAlive(std::chrono::seconds seconds) noexcept override
     {
-        m_nextLayer.keepAlive(seconds);
+        m_nextLayer.setKeepAlive(seconds);
     }
 
     std::chrono::seconds keepAlive() const noexcept override

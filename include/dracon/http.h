@@ -187,7 +187,7 @@ inline AbstractStream &operator << (AbstractStream &stream, const Response &res)
 {
     using namespace std::chrono_literals;
     if (res.keepAlive().count() != -1)
-        stream.keepAlive(res.keepAlive());
+        stream.setKeepAlive(res.keepAlive());
     if (res.contentLength() != ChunkedData)
         stream.setSessionTimeout(std::max(stream.sessionTimeout(),
                                         10s + std::chrono::seconds(res.contentLength() / (512 * 1024))));

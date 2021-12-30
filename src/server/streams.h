@@ -71,7 +71,7 @@ public:
     std::error_code yield() noexcept override;
     std::shared_ptr<AbstractWakeupper> wakeupper() const noexcept override;
 
-    void keepAlive(std::chrono::seconds seconds) noexcept override;
+    void setKeepAlive(std::chrono::seconds seconds) noexcept override;
     std::chrono::seconds keepAlive() const noexcept override;
 
     const sockaddr_storage& peerAddress() const noexcept override;

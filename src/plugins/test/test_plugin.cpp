@@ -119,7 +119,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
                     for (uint32_t i = 0; i < chunkSize; ++i)
                         (*buffer)[i] = '0' + i % 10;
                     wait->store(false);
-                    wakeupper->wakeUp();
+                    wakeupper->wakeup();
                 });
                 do {
                     if (auto ec = stream.yield())
@@ -235,7 +235,7 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req)
                 // simulate some heavy work
                 std::this_thread::sleep_for(100ms);
                 wait->store(false);
-                wakeupper->wakeUp();
+                wakeupper->wakeup();
             });
             do {
                 if (auto ec = stream.yield())

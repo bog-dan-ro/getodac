@@ -542,15 +542,15 @@ int Server::exec(int argc, char *argv[])
                     SessionsEventLoop *bestLoop = eventLoops.get();
                     for (uint32_t i = 1; i < eventLoopsSize; ++i) {
                         SessionsEventLoop &loop = eventLoops[i];
-                        if (bestLoop->active_sessions() > loop.active_sessions())
+                        if (bestLoop->activeSessions() > loop.activeSessions())
                             bestLoop = &loop;
                     }
                     try {
                         // Let's try to create a new session
                         if (ssl)
-                            (new ServerSession<SslSocketSession>(bestLoop, sock, in_addr, order))->init_session();
+                            (new ServerSession<SslSocketSession>(bestLoop, sock, in_addr, order))->initSession();
                         else
-                            (new ServerSession<SocketSession>(bestLoop, sock, in_addr, order))->init_session();
+                            (new ServerSession<SocketSession>(bestLoop, sock, in_addr, order))->initSession();
                     } catch (const std::exception &e) {
                         WARNING(ServerLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);
@@ -599,7 +599,7 @@ void Server::serverSessionDeleted(BasicServerSession *session)
     }
 
     {
-        auto addr = Dracon::addressText(session->peer_address());
+        const auto addr = Dracon::addressText(session->peerAddress());
         std::unique_lock<std::mutex> lock{m_connectionsPerIpMutex};
         auto it = m_connectionsPerIp.find(addr);
         assert(it != m_connectionsPerIp.end());
@@ -611,7 +611,7 @@ void Server::serverSessionDeleted(BasicServerSession *session)
 std::function<void (Dracon::AbstractStream &, Dracon::Request &)> Server::create_session(const Dracon::Request &request)
 {
     for (const auto &plugin : m_plugins) {
-        if (auto service = plugin.create_session(request))
+        if (auto service = plugin.createSession(request))
             return service;
     }
     return {};

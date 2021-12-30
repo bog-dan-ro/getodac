@@ -75,7 +75,7 @@ void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
         return;
 
     m_can_write_errror = true;
-    auto &buffer = m_eventLoop->shared_read_buffer;
+    auto &buffer = m_eventLoop->sharedReadBuffer;
     http_parser_data data{.req = req};
     m_parser.data = &data;
     if (m_httpParserBuffer.currentSize()) {
@@ -349,7 +349,7 @@ Dracon::Request BasicHttpSession::readHeaders()
     m_parser.data = &data;
     http_parser_init(&m_parser, HTTP_REQUEST);
 
-    auto &buffer = m_eventLoop->shared_read_buffer;
+    auto &buffer = m_eventLoop->sharedReadBuffer;
     while(req.state() != Dracon::Request::State::HeadersCompleted &&
         req.state() != Dracon::Request::State::Completed) {
         buffer.reset();
@@ -547,7 +547,7 @@ ssize_t SslSocketSession::writeSome(std::vector<Dracon::ConstBuffer> buffers, st
     if ((buffers.size() && buffers[0].length >= socket_size) || buffers.size() == 1)
         return writeSome(buffers[0], ec);
 
-    auto flat_buffer = m_eventLoop->shared_write_buffer(socket_size);
+    auto flat_buffer = m_eventLoop->sharedWriteBuffer(socket_size);
     flat_buffer->reset();
     char *pos = flat_buffer->data();
     const char *end = pos + std::min(flat_buffer->size(), socket_size);

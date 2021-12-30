@@ -60,28 +60,28 @@ SessionsEventLoop::SessionsEventLoop()
     // This buffer is shared by all basic_server_sessions which are server
     // by this event loop to read the incoming data without
     // allocating any memory
-    shared_read_buffer.resize(rmem_max);
-    m_shared_write_buffer = std::make_shared<Dracon::CharBuffer>(readProc("/proc/sys/net/core/wmem_max"));
+    sharedReadBuffer.resize(rmem_max);
+    m_sharedWriteBuffer = std::make_shared<Dracon::CharBuffer>(readProc("/proc/sys/net/core/wmem_max"));
 
-    m_epoll_handler = epoll_create1(EPOLL_CLOEXEC);
-    if (m_epoll_handler == -1)
+    m_epollHandler = epoll_create1(EPOLL_CLOEXEC);
+    if (m_epollHandler == -1)
         throw std::runtime_error{"Can't create epool handler"};
 
-    m_event_fd = eventfd(0, EFD_NONBLOCK);
+    m_eventFd = eventfd(0, EFD_NONBLOCK);
     epoll_event event;
     event.data.ptr = nullptr;
-    event.data.fd = m_event_fd;
+    event.data.fd = m_eventFd;
     event.events = EPOLLHUP | EPOLLERR | EPOLLIN | EPOLLET;
-    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, m_event_fd, &event))
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, m_eventFd, &event))
         throw std::runtime_error{"Can't register the event handler"};
 
-    m_loop_thread = std::thread([this]{loop();});
+    m_loopThread = std::thread([this]{loop();});
 
 //    // set insane priority ?
 //    sched_param sch;
 //    sch.sched_priority = sched_get_priority_max(SCHED_RR);
 //    pthread_setschedparam(m_loopThread.native_handle(), SCHED_RR, &sch);
-    TRACE(ServerLogger) << this << " shared buffer mem_max: " << rmem_max << " eventfd = " << m_event_fd;
+    TRACE(ServerLogger) << this << " shared buffer mem_max: " << rmem_max << " eventfd = " << m_eventFd;
 }
 
 SessionsEventLoop::~SessionsEventLoop()
@@ -89,10 +89,10 @@ SessionsEventLoop::~SessionsEventLoop()
     shutdown();
     try {
         // Quit event loop
-        m_loop_thread.join();
+        m_loopThread.join();
 
         // Destroy all registered sessions
-        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        std::unique_lock<std::mutex> lock{m_sessionsMutex};
         auto it = m_sessions.begin();
         while (it != m_sessions.end()) {
             auto session = it++;
@@ -100,7 +100,7 @@ SessionsEventLoop::~SessionsEventLoop()
             delete (*session);
             lock.lock();
         }
-        close(m_event_fd);
+        close(m_eventFd);
     } catch (...) {}
     TRACE(ServerLogger) << this;
 }
@@ -113,19 +113,19 @@ SessionsEventLoop::~SessionsEventLoop()
  * \param session to register
  * \param events the events that epoll will listen for
  */
-void SessionsEventLoop::register_session(BasicServerSession *session, uint32_t events)
+void SessionsEventLoop::registerSession(BasicServerSession *session, uint32_t events)
 {
-    TRACE(ServerLogger) << session << " events" << events << active_sessions();
+    TRACE(ServerLogger) << session << " events" << events << activeSessions();
     {
-        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        std::unique_lock<std::mutex> lock{m_sessionsMutex};
         m_sessions.insert(session);
     }
     epoll_event event;
     event.data.ptr = session;
     event.events = events;
-    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_ADD, session->sock(), &event))
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_ADD, session->sock(), &event))
         throw std::runtime_error{"Can't register session"};
-    ++m_active_sessions;
+    ++m_activeSessions;
 }
 
 /*!
@@ -136,13 +136,13 @@ void SessionsEventLoop::register_session(BasicServerSession *session, uint32_t e
  * \param session to update
  * \param events new epoll events
  */
-void SessionsEventLoop::update_session(BasicServerSession *session, uint32_t events)
+void SessionsEventLoop::updateSession(BasicServerSession *session, uint32_t events)
 {
     TRACE(ServerLogger) << session << " events:" << events;
     epoll_event event;
     event.data.ptr = session;
     event.events = events;
-    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_MOD, session->sock(), &event))
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_MOD, session->sock(), &event))
         throw std::runtime_error{"Can't change the session"};
 }
 
@@ -151,19 +151,19 @@ void SessionsEventLoop::update_session(BasicServerSession *session, uint32_t eve
  *
  * \param session to unregister
  */
-void SessionsEventLoop::unregister_session(BasicServerSession *session)
+void SessionsEventLoop::unregisterSession(BasicServerSession *session)
 {
-    TRACE(ServerLogger) << session << " activeSessions:" << active_sessions();
+    TRACE(ServerLogger) << session << " activeSessions:" << activeSessions();
     {
-        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        std::unique_lock<std::mutex> lock{m_sessionsMutex};
         if (!m_sessions.erase(session))
             return;
     }
-    if (epoll_ctl(m_epoll_handler, EPOLL_CTL_DEL, session->sock(), nullptr)) {
+    if (epoll_ctl(m_epollHandler, EPOLL_CTL_DEL, session->sock(), nullptr)) {
         ERROR(ServerLogger) << "Can't remove " << session << " socket " << session->sock() << "error " << strerror(errno);
         throw std::make_error_code(std::errc(errno));
     }
-    --m_active_sessions;
+    --m_activeSessions;
 }
 
 /*!
@@ -173,34 +173,34 @@ void SessionsEventLoop::unregister_session(BasicServerSession *session)
  *
  * \param session to delete later
  */
-void SessionsEventLoop::delete_later(BasicServerSession *session) noexcept
+void SessionsEventLoop::deleteLater(BasicServerSession *session) noexcept
 {
     try {
-        unregister_session(session);
+        unregisterSession(session);
     } catch (...) {}
     // Idea "stolen" from Qt :)
-    std::unique_lock<Dracon::SpinLock> lock{m_deleteLater_mutex};
+    std::unique_lock<Dracon::SpinLock> lock{m_deleteLaterMutex};
     try {
-        m_delete_later_objects.insert(session);
+        m_deleteLaterObjects.insert(session);
     } catch (...) {}
 }
 
 void SessionsEventLoop::shutdown() noexcept
 {
     m_quit.store(true);
-    eventfd_write(m_event_fd, 1);
+    eventfd_write(m_eventFd, 1);
 }
 
-std::shared_ptr<Dracon::CharBuffer> SessionsEventLoop::shared_write_buffer(size_t size) const
+std::shared_ptr<Dracon::CharBuffer> SessionsEventLoop::sharedWriteBuffer(size_t size) const
 {
-    if (m_loop_thread.get_id() == std::this_thread::get_id() && size <= m_shared_write_buffer->size())
-        return m_shared_write_buffer;
+    if (m_loopThread.get_id() == std::this_thread::get_id() && size <= m_sharedWriteBuffer->size())
+        return m_sharedWriteBuffer;
     return std::make_shared<Dracon::CharBuffer>(size);
 }
 
 void SessionsEventLoop::setWorkloadBalancing(bool on)
 {
-    m_workload_balancing = on;
+    m_workloadBalancing = on;
 }
 
 /*!
@@ -233,14 +233,14 @@ void SessionsEventLoop::loop()
     while (!m_quit) {
         bool wokeup = false;
         TRACE(ServerLogger) << "timeout = " << timeout.count();
-        int triggeredEvents = epoll_wait(m_epoll_handler, events.get(), EventsSize, timeout.count());
+        int triggeredEvents = epoll_wait(m_epollHandler, events.get(), EventsSize, timeout.count());
         if (triggeredEvents < 0)
             continue;
-        if (!m_workload_balancing) {
+        if (!m_workloadBalancing) {
             for (int i = 0 ; i < triggeredEvents; ++i) {
                 auto &event = events[i];
-                if (event.data.fd != m_event_fd)
-                    reinterpret_cast<BasicServerSession *>(event.data.ptr)->process_events(event.events);
+                if (event.data.fd != m_eventFd)
+                    reinterpret_cast<BasicServerSession *>(event.data.ptr)->processEvents(event.events);
                 else
                     wokeup = true;
             }
@@ -249,7 +249,7 @@ void SessionsEventLoop::loop()
             sessionEvents.reserve(triggeredEvents);
             for (int i = 0 ; i < triggeredEvents; ++i) {
                 auto &event = events[i];
-                if (event.data.fd != m_event_fd) {
+                if (event.data.fd != m_eventFd) {
                     auto ptr = reinterpret_cast<BasicServerSession *>(event.data.ptr);
                     auto evs = event.events;
                     std::pair<BasicServerSession *, uint32_t> ev{ptr, evs};
@@ -265,20 +265,20 @@ void SessionsEventLoop::loop()
                 }
             }
             for (auto event : sessionEvents)
-                event.first->process_events(event.second);
+                event.first->processEvents(event.second);
         }
 
         std::unordered_set<BasicServerSession *> wokeup_sessions;
         if (wokeup) {
             uint64_t data;
-            while(eventfd_read(m_event_fd, &data) == 0) {
+            while(eventfd_read(m_eventFd, &data) == 0) {
                 if (data != 1)
                     wokeup_sessions.insert(reinterpret_cast<BasicServerSession *>(data));
             }
         }
         // Some session(s) have timeout
         timeout = -1ms; // maximum timeout
-        std::unique_lock<std::mutex> lock{m_sessions_mutex};
+        std::unique_lock<std::mutex> lock{m_sessionsMutex};
         std::vector<BasicServerSession *> sessions;
         sessions.reserve(m_sessions.size());
         for (auto session : m_sessions)
@@ -288,8 +288,8 @@ void SessionsEventLoop::loop()
         auto now = Clock::now();
         for (auto session : sessions) {
             if (wokeup && wokeup_sessions.find(session) != wokeup_sessions.end())
-                session->wake_up();
-            auto session_timeout = session->next_timeout();
+                session->wakeup();
+            auto session_timeout = session->nextTimeout();
             if (session_timeout == TimePoint{})
                 continue;
             if (session_timeout <= now) {
@@ -301,10 +301,10 @@ void SessionsEventLoop::loop()
         }
 
         // Delete all deleteLater pending sessions
-        std::unique_lock<Dracon::SpinLock> lock1{m_deleteLater_mutex};
-        for (auto &obj : m_delete_later_objects)
+        std::unique_lock<Dracon::SpinLock> lock1{m_deleteLaterMutex};
+        for (auto &obj : m_deleteLaterObjects)
             delete obj;
-        m_delete_later_objects.clear();
+        m_deleteLaterObjects.clear();
     }
 }
 

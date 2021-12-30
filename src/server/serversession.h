@@ -50,7 +50,7 @@ struct Wakeupper : Dracon::AbstractStream::AbstractWakeupper
         , m_ptr(ptr)
     {}
     // abstract_wakeupper interface
-    void wakeUp() noexcept override
+    void wakeup() noexcept override
     {
         eventfd_write(m_fd, m_ptr);
     }
@@ -63,37 +63,37 @@ class BasicServerSession
 public:
     BasicServerSession(SessionsEventLoop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order);
     virtual ~BasicServerSession();
-    void init_session();
+    void initSession();
 
     inline uint32_t order() const noexcept { return m_order; }
     inline int sock() const noexcept { return m_sock;}
-    const sockaddr_storage &peer_address() const noexcept;
+    const sockaddr_storage &peerAddress() const noexcept;
 
-    void next_timeout(std::chrono::seconds seconds) noexcept
+    void setNextTimeout(std::chrono::seconds seconds) noexcept
     {
-        m_next_timeout = Clock::now() + seconds;
+        m_nextTimeout = Clock::now() + seconds;
     }
     // basic_server_session interface
-    TimePoint next_timeout() const noexcept
+    TimePoint nextTimeout() const noexcept
     {
-        std::unique_lock<std::mutex> lock{m_stream_mutex};
+        std::unique_lock<std::mutex> lock{m_streamMutex};
         if (m_stream)
             return m_stream->nextTimeout();
-        return m_next_timeout;
+        return m_nextTimeout;
     }
 
-    virtual void process_events(uint32_t events) noexcept = 0;
+    virtual void processEvents(uint32_t events) noexcept = 0;
     virtual void timeout() noexcept = 0;
-    virtual void wake_up() noexcept = 0;
+    virtual void wakeup() noexcept = 0;
 
 protected:
     int m_sock;
     uint32_t m_order;
-    struct sockaddr_storage m_peer_addr;
-    SessionsEventLoop *m_event_loop;
-    mutable std::mutex m_stream_mutex;
+    struct sockaddr_storage m_peerAddr;
+    SessionsEventLoop *m_eventLoop;
+    mutable std::mutex m_streamMutex;
     std::unique_ptr<BasicHttpSession> m_stream;
-    TimePoint m_next_timeout;
+    TimePoint m_nextTimeout;
 };
 
 template <typename SocketStream>
@@ -103,7 +103,7 @@ class ServerSession : public BasicServerSession
 public:
     ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
         : BasicServerSession(eventLoop, sock, sockAddr, order)
-        , m_io_yield(std::bind(&ServerSession::io_loop, this, std::placeholders::_1))
+        , m_ioYield(std::bind(&ServerSession::ioLoop, this, std::placeholders::_1))
     {
         TRACE(Getodac::ServerLogger) << (void*)this
                                      << " eventLoop: " << eventLoop
@@ -111,22 +111,22 @@ public:
         int opt = 1;
         if (setsockopt(m_sock, SOL_TCP, TCP_NODELAY, &opt, sizeof(int)))
             throw std::runtime_error{"Can't set socket option TCP_NODELAY"};
-        next_timeout(5s);
+        setNextTimeout(Server::headersTimeout());
     }
 
     ~ServerSession() override
     {
-        quit_io_loop(std::make_error_code(std::errc::operation_canceled));
+        quitIoLoop(std::make_error_code(std::errc::operation_canceled));
         try {
-            m_event_loop->unregister_session(this);
+            m_eventLoop->unregisterSession(this);
         } catch (...) {}
         ::close(m_sock);
     }
 
-    void quit_io_loop(std::error_code ec)
+    void quitIoLoop(std::error_code ec)
     {
         try {
-            while (m_io_yield) m_io_yield(ec);
+            while (m_ioYield) m_ioYield(ec);
         } catch (const std::error_code &ec) {
             ERROR(ServerLogger) << ec.message();
         } catch (const std::exception &e) {
@@ -136,75 +136,75 @@ public:
         }
     }
 
-    void process_events(uint32_t events) noexcept override
+    void processEvents(uint32_t events) noexcept override
     {
         try {
             if (events & (EPOLLERR | EPOLLRDHUP | EPOLLHUP)) {
-                quit_io_loop(std::make_error_code(std::errc::io_error));
-                m_event_loop->delete_later(this);
+                quitIoLoop(std::make_error_code(std::errc::io_error));
+                m_eventLoop->deleteLater(this);
             } else if (events & (EPOLLIN | EPOLLPRI | EPOLLOUT)) {
-                if (m_io_yield) {
-                    m_io_yield({});
+                if (m_ioYield) {
+                    m_ioYield({});
                 } else {
-                    m_event_loop->delete_later(this);
+                    m_eventLoop->deleteLater(this);
                 }
             } else {
                 WARNING(ServerLogger) << "Unhandled epool events " << events;
-                m_event_loop->delete_later(this);
+                m_eventLoop->deleteLater(this);
             }
         } catch (const std::exception &e) {
-            DEBUG(ServerLogger) << Dracon::addressText(m_peer_addr) << e.what();
-            m_event_loop->delete_later(this);
+            DEBUG(ServerLogger) << Dracon::addressText(m_peerAddr) << e.what();
+            m_eventLoop->deleteLater(this);
         } catch (...) {
-            DEBUG(ServerLogger) << Dracon::addressText(m_peer_addr) << "Unkown exception, terminating the session";
-            m_event_loop->delete_later(this);
+            DEBUG(ServerLogger) << Dracon::addressText(m_peerAddr) << "Unkown exception, terminating the session";
+            m_eventLoop->deleteLater(this);
         }
     }
 
     void timeout() noexcept override
     {
-        quit_io_loop(std::make_error_code(std::errc::timed_out));
-        m_event_loop->delete_later(this);
+        quitIoLoop(std::make_error_code(std::errc::timed_out));
+        m_eventLoop->deleteLater(this);
     }
 
-    void wake_up() noexcept override
+    void wakeup() noexcept override
     {
         try {
-            if (m_io_yield)
-                m_io_yield({});
+            if (m_ioYield)
+                m_ioYield({});
             else
-                m_event_loop->delete_later(this);
+                m_eventLoop->deleteLater(this);
         } catch (const std::exception &e) {
             ERROR(ServerLogger) << e.what();
-            m_event_loop->delete_later(this);
+            m_eventLoop->deleteLater(this);
         } catch (...) {
             ERROR(ServerLogger) << "Unhandled error";
-            m_event_loop->delete_later(this);
+            m_eventLoop->deleteLater(this);
         }
     }
 
 protected:
-    void io_loop(YieldType &yield)
+    void ioLoop(YieldType &yield)
     {
         try {
             {
-                auto wu = std::make_shared<Wakeupper>(m_event_loop->event_fd(),
+                auto wu = std::make_shared<Wakeupper>(m_eventLoop->eventFd(),
                                                       uint64_t(static_cast<BasicServerSession*>(this)));
-                auto stream = std::make_unique<SocketStream>(m_event_loop, m_sock,
-                                                             yield, m_peer_addr,
+                auto stream = std::make_unique<SocketStream>(m_eventLoop, m_sock,
+                                                             yield, m_peerAddr,
                                                              wu);
-                std::unique_lock<std::mutex> lock{m_stream_mutex};
+                std::unique_lock<std::mutex> lock{m_streamMutex};
                 m_stream = std::move(stream);
             }
             m_stream->ioLoop();
         } catch(...) {
-            m_event_loop->delete_later(this);
+            m_eventLoop->deleteLater(this);
         }
     }
 
 protected:
     using Call = boost::coroutines2::coroutine<std::error_code>::push_type;
-    Call m_io_yield;
+    Call m_ioYield;
 };
 
 } // namespace Getodac

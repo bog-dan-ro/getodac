@@ -54,8 +54,8 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
     if (init && !init(confDir))
         throw std::runtime_error{"initPlugin failed"};
 
-    create_session = Dracon::CreateSessionType(dlsym(m_handler.get(), "create_session"));
-    if (!create_session)
+    createSession = Dracon::CreateSessionType(dlsym(m_handler.get(), "create_session"));
+    if (!createSession)
         throw std::runtime_error{"Can't find create_session function"};
 
     auto order = Dracon::PluginOrder(dlsym(m_handler.get(), "plugin_order"));
@@ -70,7 +70,7 @@ ServerPlugin::ServerPlugin(const std::string &path, const std::string &confDir)
  * \param createSession function pointer
  */
 ServerPlugin::ServerPlugin(Dracon::CreateSessionType funcPtr, uint32_t order)
- : create_session(funcPtr)
+ : createSession(funcPtr)
  , m_order(order)
 {}
 

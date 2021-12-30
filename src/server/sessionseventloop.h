@@ -42,35 +42,35 @@ public:
     SessionsEventLoop();
     ~SessionsEventLoop();
 
-    void register_session(BasicServerSession *session, uint32_t events);
-    void update_session(BasicServerSession *session, uint32_t events);
-    void unregister_session(BasicServerSession *session);
+    void registerSession(BasicServerSession *session, uint32_t events);
+    void updateSession(BasicServerSession *session, uint32_t events);
+    void unregisterSession(BasicServerSession *session);
 
-    void delete_later(BasicServerSession *session) noexcept;
+    void deleteLater(BasicServerSession *session) noexcept;
 
-    inline uint32_t active_sessions() const noexcept { return m_active_sessions.load(); }
+    inline uint32_t activeSessions() const noexcept { return m_activeSessions.load(); }
     void shutdown() noexcept;
 
-    Dracon::CharBuffer shared_read_buffer;
-    std::shared_ptr<Dracon::CharBuffer> shared_write_buffer(size_t size) const;
+    Dracon::CharBuffer sharedReadBuffer;
+    std::shared_ptr<Dracon::CharBuffer> sharedWriteBuffer(size_t size) const;
     void setWorkloadBalancing(bool on);
 
-    inline int event_fd() const { return m_event_fd; }
+    inline int eventFd() const { return m_eventFd; }
 private:
     void loop();
 
 private:
-    std::shared_ptr<Dracon::CharBuffer> m_shared_write_buffer;
-    int m_epoll_handler;
-    bool m_workload_balancing = false;
-    int m_event_fd;
-    std::atomic<uint32_t> m_active_sessions{0};
+    std::shared_ptr<Dracon::CharBuffer> m_sharedWriteBuffer;
+    int m_epollHandler;
+    bool m_workloadBalancing = false;
+    int m_eventFd;
+    std::atomic<uint32_t> m_activeSessions{0};
     std::atomic_bool m_quit{false};
-    std::thread m_loop_thread;
-    std::mutex m_sessions_mutex;
+    std::thread m_loopThread;
+    std::mutex m_sessionsMutex;
     std::set<BasicServerSession *> m_sessions;
-    Dracon::SpinLock m_deleteLater_mutex;
-    std::unordered_set<BasicServerSession *> m_delete_later_objects;
+    Dracon::SpinLock m_deleteLaterMutex;
+    std::unordered_set<BasicServerSession *> m_deleteLaterObjects;
 };
 
 } // namespace Getodac

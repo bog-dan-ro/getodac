@@ -72,7 +72,7 @@ public:
     struct AbstractWakeupper
     {
         virtual ~AbstractWakeupper() = default;
-        virtual void wakeUp() noexcept = 0;
+        virtual void wakeup() noexcept = 0;
     };
 
 public:

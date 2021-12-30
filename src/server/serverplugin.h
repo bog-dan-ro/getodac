@@ -32,7 +32,7 @@ class ServerPlugin
 public:
     explicit ServerPlugin(const std::string &path, const std::string &confDir);
     explicit ServerPlugin(Dracon::CreateSessionType funcPtr, uint32_t order);
-    Dracon::CreateSessionType create_session;
+    Dracon::CreateSessionType createSession;
     uint32_t order() const { return m_order; }
 
 private:

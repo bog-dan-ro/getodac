@@ -65,7 +65,6 @@ BasicHttpSession::BasicHttpSession(SessionsEventLoop *eventLoop, int socket, Yie
     m_settings.on_body = &BasicHttpSession::body;
     m_settings.on_message_complete = &BasicHttpSession::messageComplete;
     http_parser_init(&m_parser, HTTP_REQUEST);
-    setSessionTimeout(5s);
 }
 
 BasicHttpSession::~BasicHttpSession() = default;
@@ -244,10 +243,10 @@ TimePoint BasicHttpSession::nextTimeout() const noexcept
 void BasicHttpSession::ioLoop()
 {
     try {
-        setSessionTimeout(5s); // 5 seconds to read the headers
+        setSessionTimeout(Server::headersTimeout());
         do {
             Dracon::Request req = readHeaders();
-            setKeepAlive(req.keepAlive() * 10s);
+            setKeepAlive(req.keepAlive() * Server::keepAliveTimeout());
             auto session = Server::instance().create_session(req);
             if (!session) {
                 INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " invalid url " << req.method() << " " << req.url();
@@ -256,7 +255,7 @@ void BasicHttpSession::ioLoop()
             }
             size_t content_length = req.contentLength();
             if (content_length != Dracon::ChunkedData)
-                setSessionTimeout(10s + 1s* (content_length / (512 * 1024)));
+                setSessionTimeout(Server::keepAliveTimeout() + 1s* (content_length / (512 * 1024)));
             else
                 setSessionTimeout(5min); // In this case the session should set a proper timeout
             session(*this, req);
@@ -466,7 +465,7 @@ SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, Yie
     if (!SSL_set_fd(m_SSL.get(), m_socket))
         throw std::runtime_error(ERR_error_string(SSL_get_error(m_SSL.get(), 0), nullptr));
 
-    setSessionTimeout(5s);
+    setSessionTimeout(Server::sslAcceptTimeout());
     int ret;
     while ((ret = SSL_accept(m_SSL.get())) != 1) {
         int err = SSL_get_error(m_SSL.get(), ret);
@@ -486,7 +485,7 @@ SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, Yie
 
 void SslSocketSession::shutdown() noexcept
 {
-    setSessionTimeout(2s);
+    setSessionTimeout(Server::sslShutdownTimeout());
     if (SSL_is_init_finished(m_SSL.get()) == 1) {
         int count = 5;
         while (count--) {

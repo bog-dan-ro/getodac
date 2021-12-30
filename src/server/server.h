@@ -59,6 +59,10 @@ public:
     uint64_t servedSessions() const { return m_servedSessions; }
     SSL_CTX *sslContext() const;
     static void exitSignalHandler();
+    static std::chrono::seconds keepAliveTimeout();
+    static std::chrono::seconds headersTimeout();
+    static std::chrono::seconds sslAcceptTimeout();
+    static std::chrono::seconds sslShutdownTimeout();
 
 private:
     Server();
@@ -85,6 +89,10 @@ private:
     std::map<std::string, uint32_t> m_connectionsPerIp;
     int m_https4Sock = -1;
     int m_https6Sock = -1;
+    static std::chrono::seconds s_headersTimeout;
+    static std::chrono::seconds s_sslAcceptTimeout;
+    static std::chrono::seconds s_sslShutdownTimeout;
+    static std::chrono::seconds s_keepAliveTimeout;
 };
 
 } // namespace Getodac

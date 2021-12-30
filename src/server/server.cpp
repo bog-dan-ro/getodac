@@ -174,6 +174,11 @@ namespace {
     }
 }
 
+std::chrono::seconds Server::s_headersTimeout{5s};
+std::chrono::seconds Server::s_sslAcceptTimeout{5s};
+std::chrono::seconds Server::s_sslShutdownTimeout{2s};
+std::chrono::seconds Server::s_keepAliveTimeout{10s};
+
 /*!
  * \brief Server::exitSignalHandler
  *
@@ -184,6 +189,26 @@ void Server::exitSignalHandler()
     // Quit server loop
     INFO(ServerLogger) << "shutting down the server";
     instance().m_shutdown.store(true);
+}
+
+std::chrono::seconds Server::keepAliveTimeout()
+{
+    return s_keepAliveTimeout;
+}
+
+std::chrono::seconds Server::headersTimeout()
+{
+    return s_headersTimeout;
+}
+
+std::chrono::seconds Server::sslAcceptTimeout()
+{
+    return s_sslAcceptTimeout;
+}
+
+std::chrono::seconds Server::sslShutdownTimeout()
+{
+    return s_sslShutdownTimeout;
 }
 
 /// Makes socket nonblocking
@@ -334,6 +359,8 @@ int Server::exec(int argc, char *argv[])
         for (const auto &kv : loggingProperties)
             loggingSettings[kv.first] = kv.second;
 
+        s_keepAliveTimeout = std::chrono::seconds{properties.get("keepalive_timeout", s_keepAliveTimeout.count())};
+        s_headersTimeout = std::chrono::seconds{properties.get("headers_timeout", s_headersTimeout.count())};
         enableServerStatus = properties.get("server_status", false);
         httpPort = properties.get("http_port", -1);
         queuedConnections = properties.get("queued_connections", queuedConnections);
@@ -343,6 +370,9 @@ int Server::exec(int argc, char *argv[])
         if (properties.find("https") != properties.not_found()) {
             TRACE(ServerLogger) << "https section found in config";
             if (properties.get("https.enabled", false)) {
+                s_sslAcceptTimeout = std::chrono::seconds{properties.get("accept_timeout", s_sslAcceptTimeout.count())};
+                s_sslShutdownTimeout = std::chrono::seconds{properties.get("shutdown_timeout", s_sslShutdownTimeout.count())};
+
                 httpsPort = properties.get("https.port", httpsPort);
                 TRACE(ServerLogger) << "https enabled in configm port=" << httpsPort;
 

@@ -1,11 +1,41 @@
-add_library(GETodacDracon INTERFACE)
-add_library(GETodac::dracon ALIAS GETodacDracon)
+set(TARGET_NAME GETodacDracon)
+add_library(${TARGET_NAME} INTERFACE)
+add_library(GETodac::dracon ALIAS ${TARGET_NAME})
 
 target_include_directories(
-  GETodacDracon
+  ${TARGET_NAME}
   INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_compile_features(GETodacDracon INTERFACE cxx_std_17)
+target_compile_features(${TARGET_NAME} INTERFACE cxx_std_17)
+
+install(
+  TARGETS ${TARGET_NAME}
+  EXPORT ${TARGET_NAME}_Targets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  "${PROJECT_BINARY_DIR}/${TARGET_NAME}ConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion)
+
+configure_package_config_file(
+  "${PROJECT_SOURCE_DIR}/cmake/${TARGET_NAME}Config.cmake.in"
+  "${PROJECT_BINARY_DIR}/${TARGET_NAME}Config.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
+
+install(
+  EXPORT ${TARGET_NAME}_Targets
+  FILE ${TARGET_NAME}Targets.cmake
+  NAMESPACE ${TARGET_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
+
+install(FILES "${PROJECT_BINARY_DIR}/${TARGET_NAME}Config.cmake"
+              "${PROJECT_BINARY_DIR}/${TARGET_NAME}ConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME})
 
 install(DIRECTORY dracon TYPE INCLUDE)

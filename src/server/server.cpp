@@ -293,12 +293,12 @@ int Server::exec(int argc, char *argv[])
     // Server arguments
     po::options_description desc{"GETodac options"};
     desc.add_options()
-            ("conf,c", po::value<std::string>(&confDir), "configurations path")
-            ("plugins-dir,d", po::value<std::string>(&pluginsPath)->default_value(pluginsPath), "plugins dir")
-            ("workers,w", po::value<uint32_t>(&eventLoopsSize), "configuration file")
+            ("conf,c", po::value<std::string>(&confDir)->implicit_value(confDir), "configurations path")
+            ("plugins-dir,d", po::value<std::string>(&pluginsPath)->implicit_value(pluginsPath), "plugins dir")
+            ("workers,w", po::value<uint32_t>(&eventLoopsSize)->implicit_value(eventLoopsSize), "workers")
             ("user,u", po::value<std::string>(&dropUser), "username to drop privileges to")
             ("group,g", po::value<std::string>(&dropGroup), "optional group to drop privileges to, if missing the main user group will be used")
-            ("pid", "print GETodac pid")
+            ("pid", po::bool_switch(&printPID), "print GETodac pid")
             ("help,h", "print this help")
             ;
 
@@ -311,7 +311,6 @@ int Server::exec(int argc, char *argv[])
             exitSignalHandler();
             return 0;
         }
-        printPID = vm.count("pid");
     } catch (po::error& e) {
         std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
         std::cerr << desc << std::endl;

@@ -27,17 +27,29 @@
 #include <boost/property_tree/ptree.hpp>
 
 namespace {
-class FileMap : public boost::iostreams::mapped_file_source
+class FileMap
 {
 public:
     FileMap(const std::filesystem::path &path, std::filesystem::file_time_type lastWriteTime)
-        : boost::iostreams::mapped_file_source(path)
-        , m_lastWriteTime(lastWriteTime)
-    {}
-    ~FileMap() { close(); }
+        : m_lastWriteTime(lastWriteTime)
+    {
+        if (std::filesystem::file_size(path)) {
+            m_mappedFile = std::make_unique<boost::iostreams::mapped_file_source>(path);
+            m_size = m_mappedFile->size();
+            m_data = m_mappedFile->data();
+        }
+    }
+    ~FileMap() { if (m_mappedFile) m_mappedFile->close(); }
+
+    inline size_t size() const { return m_size; }
+    inline const char* data() const { return m_data; }
     inline std::filesystem::file_time_type lastWriteTime() const { return m_lastWriteTime; }
+
 private:
+    size_t m_size = 0;
+    const char* m_data = nullptr;
     std::filesystem::file_time_type m_lastWriteTime;
+    std::unique_ptr<boost::iostreams::mapped_file_source> m_mappedFile;
 };
 using FileMapPtr = std::shared_ptr<FileMap>;
 Dracon::LruCache<std::string, FileMapPtr> s_filesCache{100};
@@ -77,7 +89,7 @@ inline std::string mimeType(boost::string_view ext)
     return "application/octet-stream";
 }
 
-void static_content_session(const std::filesystem::path &root, const std::filesystem::path &path, Dracon::AbstractStream& stream, Dracon::Request& req)
+void static_content_session(const std::filesystem::path &root, const std::filesystem::path &path, bool head, Dracon::AbstractStream& stream, Dracon::Request& req)
 {
     stream >> req;
     auto p = (root / path).lexically_normal();
@@ -104,13 +116,14 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
         res.setContentLength(file->size());
         stream << res;
     }
-    stream.write({file->data(), file->size()});
+    if (!head)
+        stream.write({file->data(), file->size()});
 }
 
 } // namespace
 
 PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req) {
-    if (req.method() != "GET")
+    if (req.method() != "GET" && req.method() != "HEAD")
         return {};
     auto &url = req.url();
     for (const auto &pair : s_urls) {
@@ -132,12 +145,14 @@ PLUGIN_EXPORT Dracon::HttpSession create_session(const Dracon::Request &req) {
                 return std::bind<void>(static_content_session,
                                        root_path,
                                        file_path.lexically_normal(),
+                                       req.method() == "HEAD",
                                        std::placeholders::_1,
                                        std::placeholders::_2);
             } else {
                 return std::bind<void>(static_content_session,
                                        std::filesystem::path{pair.second},
                                        std::filesystem::path{Dracon::unescapeUrl(url.c_str() + pair.first.size())}.lexically_normal(),
+                                       req.method() == "HEAD",
                                        std::placeholders::_1,
                                        std::placeholders::_2);
             }

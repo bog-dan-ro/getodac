@@ -60,7 +60,7 @@ struct MutableBuffer
 class BasicHttpSession : public Dracon::AbstractStream
 {
 public:
-    BasicHttpSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage& peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper);
+    BasicHttpSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string& peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper);
     ~BasicHttpSession() override;
 
     // abstract_stream interface
@@ -74,7 +74,7 @@ public:
     void setKeepAlive(std::chrono::seconds seconds) noexcept override;
     std::chrono::seconds keepAlive() const noexcept override;
 
-    const sockaddr_storage& peerAddress() const noexcept override;
+    const std::string& peerAddress() const noexcept override;
 
     int socketWriteSize() const noexcept(false) override;
     void socketWriteSize(int size) noexcept(false) override;
@@ -107,7 +107,6 @@ protected:
 protected:
     YieldType &m_yield;
     int m_socket;
-    sockaddr_storage m_peerAddress;
     std::chrono::seconds m_keepAlive{0};
     std::chrono::seconds m_sessionTimeout{0};
     TimePoint m_sessionTimeoutTimePoint;
@@ -118,12 +117,13 @@ protected:
     bool m_can_write_errror = false;
     std::shared_ptr<AbstractWakeupper> m_wakeupper;
     Dracon::CharBuffer m_httpParserBuffer;
+    const std::string &m_peerAddress;
 };
 
 class SocketSession final: public BasicHttpSession
 {
 public:
-    SocketSession(Getodac::SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage& peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper);
+    SocketSession(Getodac::SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string &peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper);
 
 protected:
     // basic_http_session interface
@@ -136,7 +136,7 @@ protected:
 class SslSocketSession final: public BasicHttpSession
 {
 public:
-    SslSocketSession(Getodac::SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage& peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper);
+    SslSocketSession(Getodac::SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string& peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper);
 
 protected:
     // basic_http_session interface

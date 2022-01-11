@@ -525,8 +525,8 @@ int Server::exec(int argc, char *argv[])
                         break;
 
                     uint32_t order;
+                    auto addr = Dracon::addressText(in_addr);
                     {
-                        auto addr = Dracon::addressText(in_addr);
                         std::unique_lock<std::mutex> lock{m_connectionsPerIpMutex};
                         if (m_connectionsPerIp[addr] > maxConnectionsPerIp) {
                             ::close(sock);
@@ -548,9 +548,9 @@ int Server::exec(int argc, char *argv[])
                     try {
                         // Let's try to create a new session
                         if (ssl)
-                            (new ServerSession<SslSocketSession>(bestLoop, sock, in_addr, order))->initSession();
+                            (new ServerSession<SslSocketSession>(bestLoop, sock, std::move(addr), order))->initSession();
                         else
-                            (new ServerSession<SocketSession>(bestLoop, sock, in_addr, order))->initSession();
+                            (new ServerSession<SocketSession>(bestLoop, sock, std::move(addr), order))->initSession();
                     } catch (const std::exception &e) {
                         WARNING(ServerLogger) << " Can't create session, reason: " << e.what();
                         ::close(sock);
@@ -599,7 +599,7 @@ void Server::serverSessionDeleted(BasicServerSession *session)
     }
 
     {
-        const auto addr = Dracon::addressText(session->peerAddress());
+        const auto addr = session->peerAddress();
         std::unique_lock<std::mutex> lock{m_connectionsPerIpMutex};
         auto it = m_connectionsPerIp.find(addr);
         assert(it != m_connectionsPerIp.end());

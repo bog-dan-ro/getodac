@@ -32,8 +32,6 @@
 #include <vector>
 #include <system_error>
 
-#include <sys/socket.h>
-
 #include <dracon/utils.h>
 
 namespace Dracon {
@@ -130,7 +128,7 @@ public:
      * \brief peer_address
      * \return the peer address structure
      */
-    virtual const sockaddr_storage& peerAddress() const noexcept = 0;
+    virtual const std::string& peerAddress() const noexcept = 0;
 
     /*!
      * \brief is_secured_connection
@@ -214,7 +212,7 @@ public:
         return m_nextLayer.keepAlive();
     }
 
-    const sockaddr_storage& peerAddress() const noexcept override
+    const std::string& peerAddress() const noexcept override
     {
         return m_nextLayer.peerAddress();
     }

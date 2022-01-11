@@ -19,10 +19,10 @@
 
 namespace Getodac {
 
-BasicServerSession::BasicServerSession(Getodac::SessionsEventLoop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order)
+BasicServerSession::BasicServerSession(Getodac::SessionsEventLoop *event_loop, int sock, std::string peerAddr, uint32_t order)
     : m_sock(sock)
     , m_order(order)
-    , m_peerAddr(sock_addr)
+    , m_peerAddr(std::move(peerAddr))
     , m_eventLoop(event_loop)
 {
     Server::instance().serverSessionCreated(this);
@@ -39,7 +39,7 @@ void BasicServerSession::initSession()
     m_eventLoop->registerSession(this, EPOLLOUT | EPOLLIN | EPOLLPRI | EPOLLRDHUP | EPOLLET | EPOLLERR);
 }
 
-const sockaddr_storage &BasicServerSession::peerAddress() const noexcept
+const std::string &BasicServerSession::peerAddress() const noexcept
 {
     return m_peerAddr;
 }

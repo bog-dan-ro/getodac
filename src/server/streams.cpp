@@ -49,12 +49,12 @@ struct http_parser_data
 };
 
 
-BasicHttpSession::BasicHttpSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage &peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper)
+BasicHttpSession::BasicHttpSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string &peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper)
     : m_yield(yield)
     , m_socket(socket)
-    , m_peerAddress(peer_address)
     , m_eventLoop(eventLoop)
     , m_wakeupper(wakeupper)
+    , m_peerAddress(peerAddress)
 {
     memset(&m_settings, 0, sizeof(m_settings));
     m_settings.on_message_begin = &BasicHttpSession::messageBegin;
@@ -81,7 +81,7 @@ void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
     if (m_httpParserBuffer.currentSize()) {
         auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, m_httpParserBuffer.currentData(), m_httpParserBuffer.currentSize());
         if (m_parser.http_errno) {
-            INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::ServerLogger) << peerAddress() << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
         m_httpParserBuffer.advance(parsed_bytes);
@@ -106,7 +106,7 @@ void BasicHttpSession::read(Dracon::Request &req) noexcept(false)
                                                 buffer.currentData(),
                                                 buffer.currentSize());
         if (m_parser.http_errno) {
-            INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+            INFO(Getodac::ServerLogger) << peerAddress() << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
             throw std::make_error_code(std::errc::bad_message);
         }
         if (req.state() == Dracon::Request::State::Completed)
@@ -188,7 +188,7 @@ std::chrono::seconds BasicHttpSession::keepAlive() const noexcept
     return m_keepAlive;
 }
 
-const sockaddr_storage &BasicHttpSession::peerAddress() const noexcept
+const std::string &BasicHttpSession::peerAddress() const noexcept
 {
     return m_peerAddress;
 }
@@ -249,7 +249,7 @@ void BasicHttpSession::ioLoop()
             setKeepAlive(req.keepAlive() * Server::keepAliveTimeout());
             auto session = Server::instance().create_session(req);
             if (!session) {
-                INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " invalid url " << req.method() << " " << req.url();
+                INFO(Getodac::ServerLogger) << peerAddress() << " invalid url " << req.method() << " " << req.url();
                 write(Dracon::Response{503}.toString());
                 break;
             }
@@ -263,26 +263,26 @@ void BasicHttpSession::ioLoop()
             Server::instance().sessionServed();
         } while (!m_yield.get() && m_keepAlive.count());
     } catch (int error) {
-        INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " status code " << error;
+        INFO(Getodac::ServerLogger) << peerAddress() << " status code " << error;
         if (m_can_write_errror) {
             write(Dracon::Response{error > 0 && error < std::numeric_limits<uint16_t>::max()
                            ? uint16_t(error)
                            : uint16_t(500)}.toString());
         }
     } catch (const Dracon::Response &res) {
-        INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " status code " << res.statusCode() << " body " << res.body();
+        INFO(Getodac::ServerLogger) << peerAddress() << " status code " << res.statusCode() << " body " << res.body();
         if (m_can_write_errror)
             write(res.toString());
     } catch (const std::exception &e) {
-        INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " std message " << e.what();
+        INFO(Getodac::ServerLogger) << peerAddress() << " std message " << e.what();
         if (m_can_write_errror)
             write(Dracon::Response{500, e.what()}.toString());
     } catch (const std::error_code &ec) {
-        INFO(Getodac::ServerLogger) <<  Dracon::addressText(peerAddress()) << " error code " << ec.message();
+        INFO(Getodac::ServerLogger) <<  peerAddress() << " error code " << ec.message();
         if (m_can_write_errror)
             write(Dracon::Response{500, ec.message()}.toString());
     } catch (...) {
-        INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " Unknown error";
+        INFO(Getodac::ServerLogger) << peerAddress() << " Unknown error";
         if (m_can_write_errror)
             write(Dracon::Response{}.toString());
     }
@@ -380,7 +380,7 @@ Dracon::Request BasicHttpSession::readHeaders()
                 next += 2;
             auto parsed_bytes = http_parser_execute(&m_parser, &m_settings, buffer.currentData(), next);
             if (m_parser.http_errno) {
-                INFO(Getodac::ServerLogger) << Dracon::addressText(peerAddress()) << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
+                INFO(Getodac::ServerLogger) << peerAddress() << " http parser error " << http_errno_name(http_errno(m_parser.http_errno));
                 throw std::make_error_code(std::errc::bad_message);
             }
             buffer.advance(next);
@@ -396,8 +396,8 @@ Dracon::Request BasicHttpSession::readHeaders()
 }
 
 
-SocketSession::SocketSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage &peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper)
-    : BasicHttpSession(eventLoop, socket, yield, peer_address, wakeupper)
+SocketSession::SocketSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string &peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper)
+    : BasicHttpSession(eventLoop, socket, yield, peerAddress, wakeupper)
 {}
 
 void SocketSession::shutdown() noexcept
@@ -455,8 +455,8 @@ ssize_t SocketSession::writeSome(std::vector<Dracon::ConstBuffer> buff, std::err
     return res;
 }
 
-SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const sockaddr_storage &peer_address, const std::shared_ptr<AbstractWakeupper> &wakeupper)
-    : BasicHttpSession(eventLoop, socket, yield, peer_address, wakeupper)
+SslSocketSession::SslSocketSession(SessionsEventLoop *eventLoop, int socket, YieldType &yield, const std::string &peerAddress, const std::shared_ptr<AbstractWakeupper> &wakeupper)
+    : BasicHttpSession(eventLoop, socket, yield, peerAddress, wakeupper)
     , m_SSL(std::unique_ptr<SSL, void (*)(SSL *)>(SSL_new(Server::instance().sslContext()), SSL_free))
 {
     if (!m_SSL)

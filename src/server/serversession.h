@@ -61,13 +61,13 @@ struct Wakeupper : Dracon::AbstractStream::AbstractWakeupper
 class BasicServerSession
 {
 public:
-    BasicServerSession(SessionsEventLoop *event_loop, int sock, const sockaddr_storage &sock_addr, uint32_t order);
+    BasicServerSession(SessionsEventLoop *event_loop, int sock, std::string sock_addr, uint32_t order);
     virtual ~BasicServerSession();
     void initSession();
 
     inline uint32_t order() const noexcept { return m_order; }
     inline int sock() const noexcept { return m_sock;}
-    const sockaddr_storage &peerAddress() const noexcept;
+    const std::string &peerAddress() const noexcept;
 
     void setNextTimeout(std::chrono::seconds seconds) noexcept
     {
@@ -89,11 +89,11 @@ public:
 protected:
     int m_sock;
     uint32_t m_order;
-    struct sockaddr_storage m_peerAddr;
+    std::string m_peerAddr;
     SessionsEventLoop *m_eventLoop;
     mutable std::mutex m_streamMutex;
-    std::unique_ptr<BasicHttpSession> m_stream;
     TimePoint m_nextTimeout;
+    std::unique_ptr<BasicHttpSession> m_stream;
 };
 
 template <typename SocketStream>
@@ -101,8 +101,8 @@ class ServerSession : public BasicServerSession
 {
     static_assert(std::is_base_of<BasicHttpSession, SocketStream>::value, "SocketStream must subclass basic_http_session");
 public:
-    ServerSession(SessionsEventLoop *eventLoop, int sock, const sockaddr_storage &sockAddr, uint32_t order)
-        : BasicServerSession(eventLoop, sock, sockAddr, order)
+    ServerSession(SessionsEventLoop *eventLoop, int sock, std::string &&sockAddr, uint32_t order)
+        : BasicServerSession(eventLoop, sock, std::move(sockAddr), order)
         , m_ioYield(std::bind(&ServerSession::ioLoop, this, std::placeholders::_1))
     {
         TRACE(Getodac::ServerLogger) << (void*)this
@@ -153,10 +153,10 @@ public:
                 m_eventLoop->deleteLater(this);
             }
         } catch (const std::exception &e) {
-            DEBUG(ServerLogger) << Dracon::addressText(m_peerAddr) << e.what();
+            DEBUG(ServerLogger) << m_peerAddr << e.what();
             m_eventLoop->deleteLater(this);
         } catch (...) {
-            DEBUG(ServerLogger) << Dracon::addressText(m_peerAddr) << "Unkown exception, terminating the session";
+            DEBUG(ServerLogger) << m_peerAddr << "Unkown exception, terminating the session";
             m_eventLoop->deleteLater(this);
         }
     }

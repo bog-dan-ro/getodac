@@ -60,6 +60,7 @@ std::vector<std::pair<std::string, std::string>> s_urls;
 bool s_allow_symlinks = false;
 TaggedLogger<> logger{"staticContent"};
 std::unique_ptr<Dracon::SimpleTimer> g_timer;
+Dracon::Fields s_customFields;
 
 inline std::string mimeType(boost::string_view ext)
 {
@@ -112,6 +113,7 @@ void static_content_session(const std::filesystem::path &root, const std::filesy
 
     {
         Dracon::Response res{200};
+        static_cast<Dracon::Fields&>(res) = s_customFields;
         res["Content-Type"] = mimeType(p.extension().string());
         res.setContentLength(file->size());
         stream << res;
@@ -172,6 +174,12 @@ PLUGIN_EXPORT bool init_plugin(const std::string &confDir)
         DEBUG(logger) << "Mapping \"" << p.first << "\" to \"" << p.second.get_value<std::string>() << "\"";
         s_urls.emplace_back(std::make_pair(p.first, p.second.get_value<std::string>()));
     }
+
+    for (const auto &p : properties.get_child("custom_headers")) {
+        DEBUG(logger) << "Custom header " << p.first << " : " << p.second.get_value<std::string>();
+        s_customFields[p.first] = p.second.get_value<std::string>();
+    }
+
     s_default_file = properties.get("default_file", "");
     s_allow_symlinks = properties.get("allow_symlinks", false);
     g_timer = std::make_unique<Dracon::SimpleTimer>([]{

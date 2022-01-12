@@ -107,8 +107,15 @@ public:
      * This object is used to wakeup an yield session
      */
     virtual std::shared_ptr<AbstractWakeupper> wakeupper() const noexcept = 0;
+
     /*!
-     * \brief keep_alive
+     * \brief keepAlive
+     * \return the number of seconds to keep the connection alive.
+     */
+    virtual std::chrono::seconds keepAlive() const noexcept = 0;
+
+    /*!
+     * \brief setKeepAlive
      * The number of \a seconds to keep the connection alive after
      * we'll send the response. Setting it to 0 will close the connection
      * immediately.
@@ -119,52 +126,46 @@ public:
     virtual void setKeepAlive(std::chrono::seconds seconds) noexcept = 0;
 
     /*!
-     * \brief keep_alive
-     * \return the number of seconds to keep the connection alive.
-     */
-    virtual std::chrono::seconds keepAlive() const noexcept = 0;
-
-    /*!
-     * \brief peer_address
+     * \brief peerAddress
      * \return the peer address structure
      */
     virtual const std::string& peerAddress() const noexcept = 0;
 
     /*!
-     * \brief is_secured_connection
+     * \brief isSecuredConnection
      * \return true if this is a SSL connection
      */
     virtual bool isSecuredConnection() const noexcept { return false; }
 
     /*!
-     * \brief send_buffer_size
+     * \brief socketWriteSize
      * \return the socket send buffer size in bytes
      */
     virtual int socketWriteSize() const = 0;
 
     /*!
-     * \brief send_buffer_size
+     * \brief setSocketWriteSize
      *
      * Sets the socket sending buffer size
      *
      * \param size in bytes
      */
-    virtual void socketWriteSize(int size) = 0;
+    virtual void setSocketWriteSize(int size) = 0;
 
     /*!
-     * \brief receive_buffer_size
+     * \brief socketReadSize
      * \return the socket receive buffer size in bytes
      */
     virtual int socketReadSize() const = 0;
 
     /*!
-     * \brief receive_buffer_size
+     * \brief setSocketReadSize
      *
      * Sets the socket receiving buffer size
      *
      * \param size in bytes
      */
-    virtual void socketReadSize(int size) = 0;
+    virtual void setSocketReadSize(int size) = 0;
 
     /*!
      * \brief expires_after
@@ -227,9 +228,9 @@ public:
         return m_nextLayer.socketWriteSize();
     }
 
-    void socketWriteSize(int size) override
+    void setSocketWriteSize(int size) override
     {
-        m_nextLayer.socketWriteSize(size);
+        m_nextLayer.setSocketWriteSize(size);
     }
 
     int socketReadSize() const override
@@ -237,9 +238,9 @@ public:
         return m_nextLayer.socketReadSize();
     }
 
-    void socketReadSize(int size) override
+    void setSocketReadSize(int size) override
     {
-        m_nextLayer.socketReadSize(size);
+        m_nextLayer.setSocketReadSize(size);
     }
 
     std::chrono::seconds sessionTimeout() const noexcept override

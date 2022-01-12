@@ -77,10 +77,10 @@ public:
     const std::string& peerAddress() const noexcept override;
 
     int socketWriteSize() const noexcept(false) override;
-    void socketWriteSize(int size) noexcept(false) override;
+    void setSocketWriteSize(int size) noexcept(false) override;
 
     int socketReadSize() const noexcept(false) override;
-    void socketReadSize(int size) noexcept(false) override;
+    void setSocketReadSize(int size) noexcept(false) override;
 
     std::chrono::seconds sessionTimeout() const noexcept override;
     void setSessionTimeout(std::chrono::seconds seconds) noexcept override;

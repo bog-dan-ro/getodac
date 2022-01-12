@@ -201,7 +201,7 @@ int BasicHttpSession::socketWriteSize() const noexcept(false)
     return optval / 2;
 }
 
-void BasicHttpSession::socketWriteSize(int size) noexcept(false)
+void BasicHttpSession::setSocketWriteSize(int size) noexcept(false)
 {
     if (setsockopt(m_socket, SOL_SOCKET, SO_SNDBUF, &size, sizeof(int)))
         throw std::make_error_code(std::errc::invalid_argument);
@@ -215,7 +215,7 @@ int BasicHttpSession::socketReadSize() const noexcept(false)
     return optval / 2;
 }
 
-void BasicHttpSession::socketReadSize(int size) noexcept(false)
+void BasicHttpSession::setSocketReadSize(int size) noexcept(false)
 {
     if (setsockopt(m_socket, SOL_SOCKET, SO_RCVBUF, &size, sizeof(int)))
         throw std::make_error_code(std::errc::invalid_argument);
@@ -255,7 +255,7 @@ void BasicHttpSession::ioLoop()
             }
             size_t content_length = req.contentLength();
             if (content_length != Dracon::ChunkedData)
-                setSessionTimeout(Server::keepAliveTimeout() + 1s* (content_length / (512 * 1024)));
+                setSessionTimeout(Server::keepAliveTimeout() + 1s * (content_length / (512 * 1024)));
             else
                 setSessionTimeout(5min); // In this case the session should set a proper timeout
             session(*this, req);

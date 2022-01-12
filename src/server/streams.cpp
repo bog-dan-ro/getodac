@@ -263,26 +263,26 @@ void BasicHttpSession::ioLoop()
             Server::instance().sessionServed();
         } while (!m_yield.get() && m_keepAlive.count());
     } catch (int error) {
-        INFO(Getodac::ServerLogger) << peerAddress() << " status code " << error;
+        DEBUG(Getodac::ServerLogger) << peerAddress() << " status code " << error;
         if (m_can_write_errror) {
             write(Dracon::Response{error > 0 && error < std::numeric_limits<uint16_t>::max()
                            ? uint16_t(error)
                            : uint16_t(500)}.toString());
         }
     } catch (const Dracon::Response &res) {
-        INFO(Getodac::ServerLogger) << peerAddress() << " status code " << res.statusCode() << " body " << res.body();
+        DEBUG(Getodac::ServerLogger) << peerAddress() << " status code " << res.statusCode() << " body " << res.body();
         if (m_can_write_errror)
             write(res.toString());
     } catch (const std::exception &e) {
-        INFO(Getodac::ServerLogger) << peerAddress() << " std message " << e.what();
+        DEBUG(Getodac::ServerLogger) << peerAddress() << " std message " << e.what();
         if (m_can_write_errror)
             write(Dracon::Response{500, e.what()}.toString());
     } catch (const std::error_code &ec) {
-        INFO(Getodac::ServerLogger) <<  peerAddress() << " error code " << ec.message();
+        DEBUG(Getodac::ServerLogger) <<  peerAddress() << " error code " << ec.message();
         if (m_can_write_errror)
             write(Dracon::Response{500, ec.message()}.toString());
     } catch (...) {
-        INFO(Getodac::ServerLogger) << peerAddress() << " Unknown error";
+        DEBUG(Getodac::ServerLogger) << peerAddress() << " Unknown error";
         if (m_can_write_errror)
             write(Dracon::Response{}.toString());
     }

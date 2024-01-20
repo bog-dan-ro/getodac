@@ -34,6 +34,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <list>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>

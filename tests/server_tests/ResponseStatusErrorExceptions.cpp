@@ -74,7 +74,10 @@ TEST_P(ResponseStatusError, expectations100)
         Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testExpectation")));
         curl.ingnoreInvalidSslCertificate();
-        curl.setHeaders({{"X-Continue", "100"}});
+        curl.setHeaders({
+                            {"Expect", "100-continue"},
+                            {"X-Continue", "100"}
+                        });
         auto reply = curl.post("some data");
         EXPECT_EQ(reply.status, "200");
         EXPECT_EQ(reply.body.size(), 0);
@@ -89,6 +92,7 @@ TEST_P(ResponseStatusError, expectations417)
         Getodac::Test::EasyCurl curl;
         EXPECT_NO_THROW(curl.setUrl(url(GetParam(), "/testExpectation")));
         curl.ingnoreInvalidSslCertificate();
+        curl.setHeaders({{"Expect", "100-continue"}});
         auto reply = curl.post("some data");
         EXPECT_EQ(reply.status, "417");
         EXPECT_EQ(reply.body.size(), 0);

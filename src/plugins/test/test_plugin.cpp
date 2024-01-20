@@ -16,9 +16,9 @@
 */
 
 #include <dracon/http.h>
+#include <dracon/logging.h>
 #include <dracon/plugin.h>
 #include <dracon/restful.h>
-#include <dracon/logging.h>
 #include <dracon/thread_worker.h>
 
 #include <cassert>

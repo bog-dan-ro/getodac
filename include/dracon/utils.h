@@ -62,7 +62,7 @@ public:
         m_lock.clear(std::memory_order_release);
     }
 
-    inline bool tryLock()
+    inline bool tryLock() noexcept
     {
         return !m_lock.test_and_set(std::memory_order_acquire);
     }
@@ -193,7 +193,7 @@ public:
         return it->second->second;
     }
 
-    inline bool exists(const K &key)
+    inline bool exists(const K &key) const
     {
         return m_cacheHash.find(key) != m_cacheHash.end();
     }

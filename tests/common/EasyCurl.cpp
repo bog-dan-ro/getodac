@@ -73,6 +73,11 @@ EasyCurl::Response EasyCurl::request(const std::string &method, std::string uplo
         setOptions(CURLOPT_READFUNCTION, &read_callback);
         setOptions(CURLOPT_UPLOAD, 1L);
         setOptions(CURLOPT_INFILESIZE_LARGE, curl_off_t(upload.size()));
+    } else {
+        setOptions(CURLOPT_READDATA, nullptr);
+        setOptions(CURLOPT_READFUNCTION, nullptr);
+        setOptions(CURLOPT_UPLOAD, 0L);
+        setOptions(CURLOPT_INFILESIZE_LARGE, 0);
     }
 
     auto err = curl_easy_perform(m_curl);
